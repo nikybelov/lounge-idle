@@ -44,6 +44,7 @@ import { EXPANSIONS, type ExpansionId } from '../data/expansions'
 import {
   ACHIEVEMENTS,
   achievementProgress,
+  type AchievementDef,
 } from '../data/achievements'
 import { UPGRADES } from '../data/upgrades'
 import type { TaskId } from '../data/tasks'
@@ -71,6 +72,9 @@ export interface ShellHandlers {
 }
 
 let toastTimer: ReturnType<typeof setTimeout> | null = null
+let achieveQueue: AchievementDef[] = []
+let achieveShowing = false
+let achieveAutoTimer: ReturnType<typeof setTimeout> | null = null
 
 export function mountShell(root: HTMLElement, handlers: ShellHandlers): void {
   root.innerHTML = `
@@ -99,6 +103,17 @@ export function mountShell(root: HTMLElement, handlers: ShellHandlers): void {
         <nav class="scene-nav" data-nav></nav>
         <div class="panel-body" data-panel></div>
       </section>
+
+      <div class="achieve-fanfare" data-achieve-fanfare hidden>
+        <div class="achieve-fanfare-backdrop" data-achieve-dismiss></div>
+        <div class="achieve-fanfare-card" role="dialog" aria-live="polite">
+          <p class="achieve-fanfare-kicker">Достижение</p>
+          <p class="achieve-fanfare-title" data-achieve-title></p>
+          <p class="achieve-fanfare-hint" data-achieve-hint></p>
+          <p class="achieve-fanfare-reward" data-achieve-reward></p>
+          <button type="button" class="achieve-fanfare-btn" data-achieve-dismiss>Круто</button>
+        </div>
+      </div>
     </div>
   `
 
@@ -114,6 +129,10 @@ export function mountShell(root: HTMLElement, handlers: ShellHandlers): void {
     const btn = (e.target as HTMLElement).closest<HTMLElement>('[data-menu-tab]')
     if (!btn?.dataset.menuTab) return
     handlers.onMenuTab(btn.dataset.menuTab as MenuTab)
+  })
+
+  root.querySelectorAll('[data-achieve-dismiss]').forEach((el) => {
+    el.addEventListener('click', () => dismissAchievementFanfare(root))
   })
 }
 
@@ -268,6 +287,66 @@ export function showToast(root: HTMLElement, message: string): void {
     el.classList.remove('show')
     el.hidden = true
   }, 2800)
+}
+
+/** Очередь грандиозных баннеров достижений */
+export function announceAchievements(
+  root: HTMLElement,
+  unlocked: AchievementDef[],
+): void {
+  if (!unlocked.length) return
+  achieveQueue.push(...unlocked)
+  const tab = root.querySelector<HTMLElement>('[data-menu-tab="achievements"]')
+  tab?.classList.add('achieve-ping')
+  void presentNextAchievement(root)
+}
+
+function presentNextAchievement(root: HTMLElement): void {
+  if (achieveShowing) return
+  const next = achieveQueue.shift()
+  if (!next) return
+  achieveShowing = true
+
+  const wrap = root.querySelector('[data-achieve-fanfare]') as HTMLElement
+  const title = root.querySelector('[data-achieve-title]') as HTMLElement
+  const hint = root.querySelector('[data-achieve-hint]') as HTMLElement
+  const reward = root.querySelector('[data-achieve-reward]') as HTMLElement
+  if (!wrap || !title || !hint || !reward) {
+    achieveShowing = false
+    return
+  }
+
+  title.textContent = next.title
+  hint.textContent = next.hint
+  reward.textContent = `+${formatMoney(next.reward)} к выручке`
+  wrap.hidden = false
+  wrap.classList.remove('out')
+  void wrap.offsetWidth
+  wrap.classList.add('in')
+
+  if (achieveAutoTimer) clearTimeout(achieveAutoTimer)
+  achieveAutoTimer = setTimeout(() => dismissAchievementFanfare(root), 4200)
+}
+
+function dismissAchievementFanfare(root: HTMLElement): void {
+  const wrap = root.querySelector('[data-achieve-fanfare]') as HTMLElement
+  if (!wrap || wrap.hidden) {
+    achieveShowing = false
+    void presentNextAchievement(root)
+    return
+  }
+  if (achieveAutoTimer) {
+    clearTimeout(achieveAutoTimer)
+    achieveAutoTimer = null
+  }
+  wrap.classList.remove('in')
+  wrap.classList.add('out')
+  window.setTimeout(() => {
+    wrap.hidden = true
+    wrap.classList.remove('out')
+    achieveShowing = false
+    void presentNextAchievement(root)
+  }, 280)
 }
 
 export function renderShell(
@@ -553,19 +632,23 @@ function renderAchievementsPanel(state: GameState): string {
     const unlocked = !!state.achievements[a.id]
     return `
       <div class="row-btn achievement ${unlocked ? 'unlocked' : 'locked'}">
+        <span class="achieve-mark" aria-hidden="true">${unlocked ? '★' : '·'}</span>
         <span class="row-main">
-          <span class="row-title">${unlocked ? a.title : 'Закрыто'}</span>
+          <span class="row-title">${unlocked ? a.title : 'Ещё закрыто'}</span>
           <span class="row-sub">${a.hint}</span>
         </span>
-        <span class="row-meta">${unlocked ? '✓' : `+${formatMoney(a.reward)}`}</span>
+        <span class="row-meta">${unlocked ? 'получено' : `+${formatMoney(a.reward)}`}</span>
       </div>
     `
   }).join('')
 
   return `
     <div class="list">
-      <p class="panel-label">Достижения · ${done}/${total}</p>
-      <p class="row-sub shop-note">Собирай все — иногда выгоднее задержаться на смене.</p>
+      <div class="achieve-summary">
+        <p class="achieve-summary-title">Трофеи смены</p>
+        <p class="achieve-summary-count">${done} из ${total}</p>
+        <div class="bar"><i style="width:${total ? (done / total) * 100 : 0}%"></i></div>
+      </div>
       ${rows}
     </div>
   `

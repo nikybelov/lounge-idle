@@ -36,6 +36,7 @@ import {
   mountShell,
   renderShell,
   showToast,
+  announceAchievements,
   updateHud,
   updateJobCooldowns,
   type MenuTab,
@@ -194,13 +195,11 @@ function afterAction(): void {
     showToast(root, 'Вкладка «Свой зал» открыта — можно выбрать тариф')
   }
   const unlocked = evaluateAchievements(state)
-  for (const def of unlocked) {
-    showToast(root, `Достижение: ${def.title} · +${formatMoney(def.reward)}`)
-  }
   const hint = maybeBrokeHint(state)
   if (hint) showToast(root, hint)
   if (state.phase !== 'employed' && menuTab === 'own') menuTab = 'story'
   paint()
+  if (unlocked.length) announceAchievements(root, unlocked)
   scheduleSave(state)
 }
 
@@ -230,9 +229,7 @@ function frame(ts: number): void {
   }
   const unlocked = evaluateAchievements(state)
   if (unlocked.length) {
-    for (const def of unlocked) {
-      showToast(root, `Достижение: ${def.title} · +${formatMoney(def.reward)}`)
-    }
+    announceAchievements(root, unlocked)
     if (menuTab === 'achievements') paint()
     scheduleSave(state)
   }

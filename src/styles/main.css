@@ -257,26 +257,240 @@ body {
   cursor: not-allowed;
 }
 
+.menu-btn.achieve-ping {
+  animation: achieve-tab-ping 1.2s ease 2;
+}
+
+@keyframes achieve-tab-ping {
+  0%,
+  100% {
+    box-shadow: 0 0 0 0 rgba(224, 122, 58, 0);
+  }
+  40% {
+    box-shadow: 0 0 0 4px rgba(224, 122, 58, 0.35);
+    border-color: rgba(224, 122, 58, 0.85);
+    color: var(--ember);
+  }
+}
+
+.achieve-summary {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 4px 2px 8px;
+  border-bottom: 1px solid var(--line);
+  margin-bottom: 4px;
+}
+
+.achieve-summary-title {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: 1.15rem;
+  font-weight: 700;
+}
+
+.achieve-summary-count {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.8rem;
+}
+
 .row-btn.achievement {
   cursor: default;
+  gap: 8px;
+}
+
+.row-btn.achievement .achieve-mark {
+  flex-shrink: 0;
+  width: 1.4rem;
+  text-align: center;
+  font-size: 1.05rem;
+  color: var(--muted);
+}
+
+.row-btn.achievement.unlocked .achieve-mark {
+  color: var(--ember);
 }
 
 .row-btn.achievement.unlocked {
-  border-color: rgba(224, 122, 58, 0.4);
-  background: rgba(224, 122, 58, 0.08);
+  border-color: rgba(224, 122, 58, 0.45);
+  background: linear-gradient(
+    105deg,
+    rgba(224, 122, 58, 0.14),
+    rgba(255, 255, 255, 0.03) 55%
+  );
 }
 
 .row-btn.achievement.locked {
-  opacity: 0.72;
+  opacity: 0.7;
 }
 
 .row-btn.achievement .row-meta {
   color: var(--muted);
+  font-size: 0.78rem;
 }
 
 .row-btn.achievement.unlocked .row-meta {
   color: var(--ok);
 }
+
+/* —— Achievement fanfare —— */
+.achieve-fanfare {
+  position: fixed;
+  inset: 0;
+  z-index: 80;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  pointer-events: auto;
+}
+
+.achieve-fanfare[hidden] {
+  display: none !important;
+}
+
+.achieve-fanfare-backdrop {
+  position: absolute;
+  inset: 0;
+  background: rgba(8, 5, 3, 0.72);
+  backdrop-filter: blur(3px);
+}
+
+.achieve-fanfare-card {
+  position: relative;
+  width: min(100%, 340px);
+  padding: 28px 22px 20px;
+  border: 1px solid rgba(224, 122, 58, 0.55);
+  border-radius: 6px;
+  background:
+    radial-gradient(90% 70% at 50% 0%, rgba(224, 122, 58, 0.28), transparent 60%),
+    linear-gradient(180deg, #2c211a 0%, #15110e 100%);
+  box-shadow:
+    0 0 0 1px rgba(224, 122, 58, 0.12),
+    0 18px 48px rgba(0, 0, 0, 0.55);
+  text-align: center;
+  transform: scale(0.86) translateY(12px);
+  opacity: 0;
+}
+
+.achieve-fanfare.in .achieve-fanfare-card {
+  animation: achieve-card-in 0.55s cubic-bezier(0.2, 0.9, 0.25, 1.15) forwards;
+}
+
+.achieve-fanfare.in .achieve-fanfare-backdrop {
+  animation: achieve-fade-in 0.3s ease forwards;
+}
+
+.achieve-fanfare.out .achieve-fanfare-card {
+  animation: achieve-card-out 0.28s ease forwards;
+}
+
+.achieve-fanfare.out .achieve-fanfare-backdrop {
+  animation: achieve-fade-out 0.28s ease forwards;
+}
+
+.achieve-fanfare-kicker {
+  margin: 0 0 8px;
+  font-size: 0.72rem;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--ember);
+  font-weight: 700;
+}
+
+.achieve-fanfare-title {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: clamp(1.6rem, 6vw, 2rem);
+  font-weight: 700;
+  line-height: 1.15;
+  letter-spacing: -0.02em;
+}
+
+.achieve-fanfare-hint {
+  margin: 10px 0 0;
+  color: var(--muted);
+  font-size: 0.9rem;
+  line-height: 1.35;
+}
+
+.achieve-fanfare-reward {
+  margin: 16px 0 0;
+  font-size: 1.25rem;
+  font-weight: 700;
+  color: var(--ok);
+  animation: achieve-reward-pop 0.6s ease 0.2s both;
+}
+
+.achieve-fanfare-btn {
+  margin-top: 18px;
+  min-height: 44px;
+  width: 100%;
+  border: 0;
+  border-radius: 4px;
+  background: var(--ember);
+  color: #1a120c;
+  font: inherit;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.achieve-fanfare-btn:active {
+  transform: scale(0.98);
+}
+
+@keyframes achieve-fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes achieve-fade-out {
+  from {
+    opacity: 1;
+  }
+  to {
+    opacity: 0;
+  }
+}
+
+@keyframes achieve-card-in {
+  from {
+    opacity: 0;
+    transform: scale(0.86) translateY(14px);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+}
+
+@keyframes achieve-card-out {
+  from {
+    opacity: 1;
+    transform: scale(1);
+  }
+  to {
+    opacity: 0;
+    transform: scale(0.94) translateY(8px);
+  }
+}
+
+@keyframes achieve-reward-pop {
+  from {
+    opacity: 0;
+    transform: scale(0.8);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
 
 .scene-nav {
   display: flex;

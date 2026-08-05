@@ -335,15 +335,20 @@ body {
 }
 
 /* —— Achievement fanfare —— */
+body.achieve-locked {
+  overflow: hidden;
+}
+
 .achieve-fanfare {
   position: fixed;
   inset: 0;
-  z-index: 80;
+  z-index: 10050;
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 20px;
-  pointer-events: auto;
+  padding: max(16px, env(safe-area-inset-top)) 16px
+    max(16px, env(safe-area-inset-bottom));
+  overflow: auto;
 }
 
 .achieve-fanfare[hidden] {
@@ -351,87 +356,81 @@ body {
 }
 
 .achieve-fanfare-backdrop {
-  position: absolute;
+  position: fixed;
   inset: 0;
-  background: rgba(8, 5, 3, 0.72);
-  backdrop-filter: blur(3px);
+  background: #0a0705;
+  opacity: 0.92;
 }
 
 .achieve-fanfare-card {
   position: relative;
-  width: min(100%, 340px);
-  padding: 28px 22px 20px;
-  border: 1px solid rgba(224, 122, 58, 0.55);
-  border-radius: 6px;
-  background:
-    radial-gradient(90% 70% at 50% 0%, rgba(224, 122, 58, 0.28), transparent 60%),
-    linear-gradient(180deg, #2c211a 0%, #15110e 100%);
-  box-shadow:
-    0 0 0 1px rgba(224, 122, 58, 0.12),
-    0 18px 48px rgba(0, 0, 0, 0.55);
+  z-index: 1;
+  width: min(100%, 360px);
+  margin: auto;
+  padding: 28px 22px 22px;
+  border: 2px solid #e07a3a;
+  border-radius: 8px;
+  background: #241911;
+  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.75);
   text-align: center;
-  transform: scale(0.86) translateY(12px);
-  opacity: 0;
+  opacity: 1;
+  transform: none;
 }
 
 .achieve-fanfare.in .achieve-fanfare-card {
-  animation: achieve-card-in 0.55s cubic-bezier(0.2, 0.9, 0.25, 1.15) forwards;
-}
-
-.achieve-fanfare.in .achieve-fanfare-backdrop {
-  animation: achieve-fade-in 0.3s ease forwards;
+  animation: achieve-card-in 0.4s ease forwards;
 }
 
 .achieve-fanfare.out .achieve-fanfare-card {
-  animation: achieve-card-out 0.28s ease forwards;
-}
-
-.achieve-fanfare.out .achieve-fanfare-backdrop {
-  animation: achieve-fade-out 0.28s ease forwards;
+  animation: achieve-card-out 0.2s ease forwards;
 }
 
 .achieve-fanfare-kicker {
-  margin: 0 0 8px;
-  font-size: 0.72rem;
-  letter-spacing: 0.18em;
+  margin: 0 0 10px;
+  font-size: 0.78rem;
+  letter-spacing: 0.16em;
   text-transform: uppercase;
-  color: var(--ember);
+  color: #e07a3a;
   font-weight: 700;
 }
 
 .achieve-fanfare-title {
   margin: 0;
   font-family: var(--font-display);
-  font-size: clamp(1.6rem, 6vw, 2rem);
+  font-size: clamp(1.75rem, 7vw, 2.2rem);
   font-weight: 700;
-  line-height: 1.15;
+  line-height: 1.12;
   letter-spacing: -0.02em;
+  color: #f3ebe3;
 }
 
 .achieve-fanfare-hint {
-  margin: 10px 0 0;
-  color: var(--muted);
-  font-size: 0.9rem;
-  line-height: 1.35;
+  margin: 12px 0 0;
+  color: #cbb9a8;
+  font-size: 0.95rem;
+  line-height: 1.4;
 }
 
 .achieve-fanfare-reward {
-  margin: 16px 0 0;
-  font-size: 1.25rem;
+  margin: 18px 0 0;
+  padding: 10px 12px;
+  border-radius: 4px;
+  background: rgba(212, 165, 116, 0.16);
+  font-size: 1.35rem;
   font-weight: 700;
-  color: var(--ok);
-  animation: achieve-reward-pop 0.6s ease 0.2s both;
+  color: #e6c49a;
 }
 
 .achieve-fanfare-btn {
-  margin-top: 18px;
-  min-height: 44px;
+  margin-top: 20px;
+  min-height: 52px;
   width: 100%;
   border: 0;
   border-radius: 4px;
-  background: var(--ember);
+  background: #e07a3a;
   color: #1a120c;
   font: inherit;
+  font-size: 1.1rem;
   font-weight: 700;
   cursor: pointer;
 }
@@ -440,28 +439,10 @@ body {
   transform: scale(0.98);
 }
 
-@keyframes achieve-fade-in {
-  from {
-    opacity: 0;
-  }
-  to {
-    opacity: 1;
-  }
-}
-
-@keyframes achieve-fade-out {
-  from {
-    opacity: 1;
-  }
-  to {
-    opacity: 0;
-  }
-}
-
 @keyframes achieve-card-in {
   from {
     opacity: 0;
-    transform: scale(0.86) translateY(14px);
+    transform: scale(0.92) translateY(10px);
   }
   to {
     opacity: 1;
@@ -472,22 +453,9 @@ body {
 @keyframes achieve-card-out {
   from {
     opacity: 1;
-    transform: scale(1);
   }
   to {
     opacity: 0;
-    transform: scale(0.94) translateY(8px);
-  }
-}
-
-@keyframes achieve-reward-pop {
-  from {
-    opacity: 0;
-    transform: scale(0.8);
-  }
-  to {
-    opacity: 1;
-    transform: scale(1);
   }
 }
 

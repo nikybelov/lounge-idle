@@ -74,7 +74,33 @@ export interface ShellHandlers {
 let toastTimer: ReturnType<typeof setTimeout> | null = null
 let achieveQueue: AchievementDef[] = []
 let achieveShowing = false
-let achieveAutoTimer: ReturnType<typeof setTimeout> | null = null
+let achieveHost: HTMLElement | null = null
+
+function ensureAchieveFanfare(): HTMLElement {
+  if (achieveHost?.isConnected) return achieveHost
+  document.getElementById('achieve-fanfare-root')?.remove()
+
+  const wrap = document.createElement('div')
+  wrap.id = 'achieve-fanfare-root'
+  wrap.className = 'achieve-fanfare'
+  wrap.hidden = true
+  wrap.innerHTML = `
+    <div class="achieve-fanfare-backdrop"></div>
+    <div class="achieve-fanfare-card" role="dialog" aria-modal="true" aria-live="assertive">
+      <p class="achieve-fanfare-kicker">Достижение открыто</p>
+      <p class="achieve-fanfare-title" data-achieve-title></p>
+      <p class="achieve-fanfare-hint" data-achieve-hint></p>
+      <p class="achieve-fanfare-reward" data-achieve-reward></p>
+      <button type="button" class="achieve-fanfare-btn" data-achieve-ok>Круто</button>
+    </div>
+  `
+  document.body.appendChild(wrap)
+  wrap.querySelector('[data-achieve-ok]')!.addEventListener('click', () => {
+    dismissAchievementFanfare()
+  })
+  achieveHost = wrap
+  return wrap
+}
 
 export function mountShell(root: HTMLElement, handlers: ShellHandlers): void {
   root.innerHTML = `
@@ -103,17 +129,6 @@ export function mountShell(root: HTMLElement, handlers: ShellHandlers): void {
         <nav class="scene-nav" data-nav></nav>
         <div class="panel-body" data-panel></div>
       </section>
-
-      <div class="achieve-fanfare" data-achieve-fanfare hidden>
-        <div class="achieve-fanfare-backdrop" data-achieve-dismiss></div>
-        <div class="achieve-fanfare-card" role="dialog" aria-live="polite">
-          <p class="achieve-fanfare-kicker">Достижение</p>
-          <p class="achieve-fanfare-title" data-achieve-title></p>
-          <p class="achieve-fanfare-hint" data-achieve-hint></p>
-          <p class="achieve-fanfare-reward" data-achieve-reward></p>
-          <button type="button" class="achieve-fanfare-btn" data-achieve-dismiss>Круто</button>
-        </div>
-      </div>
     </div>
   `
 
@@ -131,9 +146,7 @@ export function mountShell(root: HTMLElement, handlers: ShellHandlers): void {
     handlers.onMenuTab(btn.dataset.menuTab as MenuTab)
   })
 
-  root.querySelectorAll('[data-achieve-dismiss]').forEach((el) => {
-    el.addEventListener('click', () => dismissAchievementFanfare(root))
-  })
+  ensureAchieveFanfare()
 }
 
 export function updateHud(root: HTMLElement, state: GameState): void {
@@ -289,7 +302,7 @@ export function showToast(root: HTMLElement, message: string): void {
   }, 2800)
 }
 
-/** Очередь грандиозных баннеров достижений */
+/** Очередь баннеров достижений — закрывается только кнопкой «Круто» */
 export function announceAchievements(
   root: HTMLElement,
   unlocked: AchievementDef[],
@@ -298,46 +311,37 @@ export function announceAchievements(
   achieveQueue.push(...unlocked)
   const tab = root.querySelector<HTMLElement>('[data-menu-tab="achievements"]')
   tab?.classList.add('achieve-ping')
-  void presentNextAchievement(root)
+  void presentNextAchievement()
 }
 
-function presentNextAchievement(root: HTMLElement): void {
+function presentNextAchievement(): void {
   if (achieveShowing) return
   const next = achieveQueue.shift()
   if (!next) return
   achieveShowing = true
 
-  const wrap = root.querySelector('[data-achieve-fanfare]') as HTMLElement
-  const title = root.querySelector('[data-achieve-title]') as HTMLElement
-  const hint = root.querySelector('[data-achieve-hint]') as HTMLElement
-  const reward = root.querySelector('[data-achieve-reward]') as HTMLElement
-  if (!wrap || !title || !hint || !reward) {
-    achieveShowing = false
-    return
-  }
+  const wrap = ensureAchieveFanfare()
+  const title = wrap.querySelector('[data-achieve-title]') as HTMLElement
+  const hint = wrap.querySelector('[data-achieve-hint]') as HTMLElement
+  const reward = wrap.querySelector('[data-achieve-reward]') as HTMLElement
 
   title.textContent = next.title
   hint.textContent = next.hint
   reward.textContent = `+${formatMoney(next.reward)} к выручке`
   wrap.hidden = false
   wrap.classList.remove('out')
-  void wrap.offsetWidth
   wrap.classList.add('in')
-
-  if (achieveAutoTimer) clearTimeout(achieveAutoTimer)
-  achieveAutoTimer = setTimeout(() => dismissAchievementFanfare(root), 4200)
+  document.body.classList.add('achieve-locked')
+  ;(wrap.querySelector('[data-achieve-ok]') as HTMLButtonElement).focus()
 }
 
-function dismissAchievementFanfare(root: HTMLElement): void {
-  const wrap = root.querySelector('[data-achieve-fanfare]') as HTMLElement
+function dismissAchievementFanfare(): void {
+  const wrap = achieveHost
   if (!wrap || wrap.hidden) {
     achieveShowing = false
-    void presentNextAchievement(root)
+    document.body.classList.remove('achieve-locked')
+    void presentNextAchievement()
     return
-  }
-  if (achieveAutoTimer) {
-    clearTimeout(achieveAutoTimer)
-    achieveAutoTimer = null
   }
   wrap.classList.remove('in')
   wrap.classList.add('out')
@@ -345,8 +349,9 @@ function dismissAchievementFanfare(root: HTMLElement): void {
     wrap.hidden = true
     wrap.classList.remove('out')
     achieveShowing = false
-    void presentNextAchievement(root)
-  }, 280)
+    document.body.classList.remove('achieve-locked')
+    void presentNextAchievement()
+  }, 220)
 }
 
 export function renderShell(

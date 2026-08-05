@@ -35,7 +35,6 @@ import {
   guestTraffic,
   menuFilledCount,
   menuSlotCount,
-  trafficBreakdown,
   trafficLabel,
   ensureMenuSlots,
   capacityStatus,
@@ -314,20 +313,17 @@ export function renderShell(
     const who = state.playerName ? `${state.playerName} · ` : ''
     tagline.textContent =
       state.phase === 'employed'
-        ? `${who}${rank}. Карьера ускоряет зарплату, свой угол — за накопления.`
-        : `${who}${rank}. Старое место. Тебя здесь не увольняли.`
+        ? `${who}${rank}`
+        : `${who}${rank} · можно на смену`
     cta.hidden = true
   } else {
     brand.textContent = state.loungeName
     const multNote =
       state.loungeIncomeMult !== 1 || state.loungeClickMult !== 1
-        ? ` Тариф ×${state.loungeIncomeMult}/×${state.loungeClickMult}.`
+        ? ` · ×${state.loungeIncomeMult}/×${state.loungeClickMult}`
         : ''
     const traffic = guestTraffic(state)
-    tagline.textContent =
-      state.phase === 'ownOnly'
-        ? `Гости: ${trafficLabel(traffic)} (×${traffic.toFixed(2)}).${multNote}`
-        : `Гости: ${trafficLabel(traffic)} (×${traffic.toFixed(2)}). Можно на смену.${multNote}`
+    tagline.textContent = `Гости ${trafficLabel(traffic)} · ×${traffic.toFixed(2)}${multNote}`
     cta.hidden = menuTab !== 'story'
     cta.textContent = `Принять заказ · +${formatMoney(loungeClickPower(state))}`
   }
@@ -408,7 +404,7 @@ function renderJobStoryPanel(state: GameState, now: number): string {
                    100
                  : 0
              }%"></i></div>`
-          : `<p class="row-sub">Максимум ранга на смене. Можно копить на свой угол.</p>`
+          : `<p class="row-sub">Макс. ранг — копи на свой угол</p>`
       }
     </div>
   `
@@ -448,24 +444,20 @@ function renderJobStoryPanel(state: GameState, now: number): string {
   if (state.phase === 'employed') {
     const ready = canBrowseLoungeOffer(state)
     const progress = Math.min(1, state.cash / minCost)
-    const nextTier = LOUNGE_TIERS.find((t) => state.cash < t.cost)
     const hint = ready
-      ? nextTier && state.cash < nextTier.cost
-        ? `Вкладка «Свой зал» открыта. Можно взять Уголок или копить до ${formatMoney(nextTier.cost)}.`
-        : 'Вкладка «Свой зал» — выбирай тариф.'
-      : `Накопи ${formatMoney(minCost)} — откроется вкладка «Свой зал».`
+      ? 'Открыта вкладка «Свой зал»'
+      : `До вкладки «Свой зал»`
     milestone = `
       <div class="milestone">
         <div class="milestone-head">
-          <span>Свой угол</span>
+          <span>${hint}</span>
           <span>${formatMoney(Math.min(state.cash, minCost))} / ${formatMoney(minCost)}</span>
         </div>
         <div class="bar"><i style="width:${progress * 100}%"></i></div>
-        <p class="row-sub shop-note">${hint}</p>
         <button type="button" class="row-btn accent" data-open ${ready ? '' : 'disabled'}>
           <span class="row-main">
-            <span class="row-title">${ready ? 'Открыть вкладку «Свой зал»' : 'Ещё копим на угол'}</span>
-            <span class="row-sub">Тарифы ${LOUNGE_TIERS.map((t) => formatMoney(t.cost)).join(' · ')}</span>
+            <span class="row-title">${ready ? 'Выбрать зал' : 'Копим на угол'}</span>
+            <span class="row-sub">${LOUNGE_TIERS.map((t) => formatMoney(t.cost)).join(' · ')}</span>
           </span>
         </button>
       </div>
@@ -474,9 +466,8 @@ function renderJobStoryPanel(state: GameState, now: number): string {
 
   return `
     <div class="list">
-      <p class="panel-label">Смена · ${venue.name}</p>
-      ${careerBlock}
       ${tasks}
+      ${careerBlock}
       ${milestone}
       <button type="button" class="text-btn" data-reset>Сбросить карьеру</button>
     </div>
@@ -677,16 +668,10 @@ function renderLoungePanel(state: GameState): string {
   const trafficBlock = `
     <div class="milestone career">
       <div class="milestone-head">
-        <span>Посадка</span>
-        <span>${cap.seated}/${cap.capacity}${cap.full ? ' · полный' : ''}</span>
+        <span>Посадка ${cap.seated}/${cap.capacity}${cap.full ? ' · полный' : ''}</span>
+        <span>${trafficLabel(traffic)} · ×${traffic.toFixed(2)}</span>
       </div>
       <div class="bar"><i style="width:${Math.min(100, (cap.seated / Math.max(1, cap.capacity)) * 100)}%"></i></div>
-      <p class="row-sub">${trafficLabel(traffic)} · ×${traffic.toFixed(2)}. ${trafficBreakdown(state)}</p>
-      <p class="row-sub shop-note">${
-        cap.full
-          ? 'Спрос выше посадки — расширяй зал или гости уходят.'
-          : 'Мебель и зоны увеличивают посадку; меню и техника — спрос.'
-      }</p>
     </div>
   `
 
@@ -835,19 +820,16 @@ function renderLoungePanel(state: GameState): string {
 
   return `
     <div class="list">
-      <p class="panel-label">Свой зал</p>
       ${trafficBlock}
+      <p class="panel-label">Закупка</p>
+      ${rows}
       <p class="panel-label">Меню · ${filled}/${slotsN}</p>
-      <p class="row-sub shop-note">Собери линейку вкусов — от этого зависит, насколько людно.</p>
       ${slotButtons}
       ${pickPanel}
-      <p class="panel-label">Табаки на склад</p>
+      <p class="panel-label">Табаки</p>
       ${tobaccoShop}
       <p class="panel-label">Расширение</p>
-      <p class="row-sub shop-note">Новые зоны поднимают посадку и доход.</p>
       ${expansionRows}
-      <p class="panel-label">Закупка зала</p>
-      ${rows}
       ${quit}
       <button type="button" class="text-btn" data-reset>Сбросить карьеру</button>
     </div>

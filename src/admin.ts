@@ -1,0 +1,149 @@
+import { ACHIEVEMENTS } from './data/achievements'
+import { EXPANSIONS } from './data/expansions'
+import { LOUNGE_TIERS, type LoungeTierId } from './data/loungeTiers'
+import { SHOP_ITEMS } from './data/shop'
+import { TOBACCOS } from './data/tobacco'
+import { VENUES, type VenueId } from './data/venues'
+import { ensureMenuSlots, menuSlotCount } from './game/appeal'
+import type { GameState } from './game/state'
+
+const FLAG = 'lounge-idle-admin'
+
+export function isAdminEnabled(): boolean {
+  const params = new URLSearchParams(window.location.search)
+  const raw = window.location.search.toLowerCase()
+  const wantOn =
+    params.get('admin') === '1' ||
+    params.get('admin') === 'true' ||
+    params.get('admin') === '' ||
+    params.has('admin=1') ||
+    raw.includes('admin%3d1') ||
+    raw.includes('admin=1')
+
+  if (params.get('admin') === '0') {
+    sessionStorage.setItem(FLAG, '0')
+    return false
+  }
+  if (wantOn) {
+    sessionStorage.setItem(FLAG, '1')
+    return true
+  }
+
+  const stored = sessionStorage.getItem(FLAG)
+  if (stored === '0') return false
+  if (stored === '1') return true
+  // Локальный vite по умолчанию с админкой; выключить: ?admin=0
+  return import.meta.env.DEV
+}
+
+/** Полный доступ для просмотра контента и тестов */
+export function adminUnlockAll(state: GameState): void {
+  state.cash = Math.max(state.cash, 500_000)
+  state.jobRank = 'senior'
+  state.taskDone = { wash: 120, coals: 120, order: 120 }
+  state.owned = {
+    table: 12,
+    sofa: 10,
+    menu: 8,
+    hood: 6,
+    vip: 4,
+  }
+  for (const item of SHOP_ITEMS) state.shopOwned[item.id] = true
+  for (const t of TOBACCOS) state.ownedTobacco[t.id] = true
+  for (const e of EXPANSIONS) state.expansions[e.id] = true
+  for (const a of ACHIEVEMENTS) state.achievements[a.id] = true
+
+  ensureMenuSlots(state)
+  const n = menuSlotCount(state)
+  state.menuSlots = TOBACCOS.slice(0, n).map((t) => t.id)
+  state.menuPickSlot = null
+  state.flags.pickingLounge = false
+  if (state.phase === 'employed') state.flags.loungeOfferUnlocked = true
+}
+
+export function adminForceLounge(state: GameState, tierId: LoungeTierId): void {
+  const tier = LOUNGE_TIERS.find((t) => t.id === tierId) ?? LOUNGE_TIERS[0]
+  state.phase = 'dual'
+  state.scene = 'lounge'
+  state.loungeTier = tier.id
+  state.loungeIncomeMult = tier.incomeMult
+  state.loungeClickMult = tier.clickMult
+  state.loungeName = `[ADMIN] ${tier.name}`
+  adminUnlockAll(state)
+}
+
+export function adminToJob(state: GameState): void {
+  state.phase = 'employed'
+  state.scene = 'job'
+  state.loungeTier = null
+  state.loungeIncomeMult = 1
+  state.loungeClickMult = 1
+  state.flags.pickingLounge = false
+  adminUnlockAll(state)
+}
+
+export interface AdminPanelHandlers {
+  onCash: (amount: number) => void
+  onUnlockAll: () => void
+  onOpenLounge: (tier: LoungeTierId) => void
+  onToJob: () => void
+  onSetVenue: (id: VenueId) => void
+}
+
+export function mountAdminPanel(
+  host: HTMLElement,
+  handlers: AdminPanelHandlers,
+): void {
+  host.querySelector('.admin-panel')?.remove()
+
+  const venues = VENUES.map(
+    (v) => `<option value="${v.id}">${v.name}</option>`,
+  ).join('')
+  const tiers = LOUNGE_TIERS.map(
+    (t) =>
+      `<button type="button" class="admin-btn" data-tier="${t.id}">Зал: ${t.name}</button>`,
+  ).join('')
+
+  const el = document.createElement('div')
+  el.className = 'admin-panel'
+  el.innerHTML = `
+    <button type="button" class="admin-toggle" data-toggle>ADMIN</button>
+    <div class="admin-body" hidden>
+      <p class="admin-title">Админ</p>
+      <p class="admin-hint">Выкл: ?admin=0 · Вкл: ?admin=1</p>
+      <button type="button" class="admin-btn" data-cash="50000">+50k</button>
+      <button type="button" class="admin-btn" data-cash="500000">+500k</button>
+      <button type="button" class="admin-btn accent" data-unlock>Открыть всё</button>
+      <button type="button" class="admin-btn" data-job>Сцена: смена</button>
+      ${tiers}
+      <label class="admin-label">Заведение
+        <select data-venue>${venues}</select>
+      </label>
+    </div>
+  `
+  host.appendChild(el)
+
+  const body = el.querySelector('.admin-body') as HTMLElement
+  el.querySelector('[data-toggle]')!.addEventListener('click', () => {
+    body.hidden = !body.hidden
+  })
+  el.querySelectorAll('[data-cash]').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      handlers.onCash(Number((btn as HTMLElement).dataset.cash))
+    })
+  })
+  el.querySelector('[data-unlock]')!.addEventListener('click', () => {
+    handlers.onUnlockAll()
+  })
+  el.querySelector('[data-job]')!.addEventListener('click', () => {
+    handlers.onToJob()
+  })
+  el.querySelectorAll('[data-tier]').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      handlers.onOpenLounge((btn as HTMLElement).dataset.tier as LoungeTierId)
+    })
+  })
+  el.querySelector('[data-venue]')!.addEventListener('change', (e) => {
+    handlers.onSetVenue((e.target as HTMLSelectElement).value as VenueId)
+  })
+}

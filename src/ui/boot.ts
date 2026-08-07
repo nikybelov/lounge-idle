@@ -35,7 +35,23 @@ function wireNameContract(
   }
   sync()
   window.setTimeout(() => input.focus(), 120)
+  input.addEventListener('focus', () => {
+    window.setTimeout(() => {
+      input.scrollIntoView({ block: 'center', behavior: 'smooth' })
+    }, 320)
+  })
   input.addEventListener('input', sync)
+
+  const bar = root.querySelector('.boot-contract-bar') as HTMLElement | null
+  const vv = window.visualViewport
+  if (bar && vv) {
+    const syncBar = (): void => {
+      const offset = window.innerHeight - vv.height - vv.offsetTop
+      bar.style.transform = offset > 0 ? `translateY(-${offset}px)` : ''
+    }
+    vv.addEventListener('resize', syncBar)
+    vv.addEventListener('scroll', syncBar)
+  }
   input.addEventListener('keydown', (e) => {
     if (e.key === 'Enter' && !next.disabled) next.click()
   })

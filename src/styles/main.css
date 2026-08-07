@@ -2320,11 +2320,57 @@ body.achieve-locked {
 
 .boot--contract {
   position: relative;
+  flex-direction: column;
+  align-items: stretch;
+  justify-content: flex-start;
+  height: 100dvh;
+  min-height: 100dvh;
+  max-height: 100dvh;
+  padding: 0;
   overflow: hidden;
   background:
     radial-gradient(120% 80% at 50% -10%, rgba(224, 122, 58, 0.16), transparent 58%),
     radial-gradient(70% 50% at 100% 100%, rgba(160, 64, 24, 0.12), transparent 55%),
     linear-gradient(180deg, #1c1612 0%, var(--bg0) 100%);
+}
+
+.boot--contract.boot--name {
+  padding: 0;
+}
+
+.boot-contract-scroll {
+  position: relative;
+  z-index: 1;
+  flex: 1;
+  min-height: 0;
+  overflow-x: hidden;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior: contain;
+  padding:
+    max(12px, env(safe-area-inset-top, 0px))
+    16px
+    12px;
+  display: flex;
+  justify-content: center;
+}
+
+.boot-contract-bar {
+  position: relative;
+  z-index: 2;
+  flex-shrink: 0;
+  padding:
+    12px 16px
+    calc(12px + env(safe-area-inset-bottom, 0px));
+  border-top: 1px solid rgba(255, 255, 255, 0.06);
+  background: linear-gradient(180deg, rgba(14, 11, 8, 0.88) 0%, var(--bg0) 55%);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+}
+
+.boot-contract-bar .boot-contract-btn {
+  width: 100%;
+  margin: 0;
 }
 
 .boot-contract-ambience {
@@ -2626,6 +2672,42 @@ body.achieve-locked {
 .boot-contract-btn {
   font-size: 0.95rem;
   box-shadow: var(--shadow-glow);
+}
+
+@media (max-height: 740px), (max-width: 380px) {
+  .boot-contract-paper {
+    padding: 18px 16px 16px 28px;
+  }
+
+  .boot-contract-head {
+    padding-bottom: 10px;
+    margin-bottom: 10px;
+  }
+
+  .boot-contract-title {
+    font-size: 1.15rem;
+  }
+
+  .boot-contract-clauses {
+    font-size: 0.82rem;
+    gap: 6px;
+  }
+
+  .boot-contract-seal {
+    width: 58px;
+    height: 58px;
+    font-size: 0.46rem;
+  }
+
+  .boot-contract-foot {
+    margin-top: 10px;
+    padding-top: 8px;
+    font-size: 0.62rem;
+  }
+
+  .boot-contract-sign-hint {
+    font-size: 0.66rem;
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -3797,6 +3879,45 @@ body.celebrate-locked {
 }
 
 .boot--venue {
-  align-items: flex-start;
-  padding-top: max(16px, env(safe-area-inset-top, 0px));
+  align-items: center;
+  justify-content: flex-start;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior: contain;
+  min-height: 100dvh;
+  max-height: 100dvh;
+  padding:
+    max(12px, env(safe-area-inset-top, 0px))
+    16px
+    calc(12px + env(safe-area-inset-bottom, 0px));
+}
+
+.boot--venue .boot-card {
+  width: min(100%, 440px);
+  max-height: none;
+  margin: auto 0;
+}
+
+.boot--venue .boot-venues {
+  max-height: min(42dvh, 360px);
+}
+
+@media (max-height: 680px) {
+  .boot--venue .boot-venues {
+    max-height: min(34dvh, 280px);
+  }
+
+  .boot--venue .boot-card {
+    padding: 20px 16px;
+    gap: 10px;
+  }
+
+  .boot--welcome {
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+    padding:
+      max(16px, env(safe-area-inset-top, 0px))
+      16px
+      calc(16px + env(safe-area-inset-bottom, 0px));
+  }
 }

@@ -9,6 +9,7 @@ export function renderNameContractScreen(): string {
         <span class="boot-contract-haze boot-contract-haze--2"></span>
         <span class="boot-contract-ember-glow"></span>
       </div>
+      <div class="boot-contract-scroll">
       <figure class="boot-contract-sheet">
         <article class="boot-contract-paper">
           <div class="boot-contract-fold" aria-hidden="true"></div>
@@ -79,11 +80,13 @@ export function renderNameContractScreen(): string {
             <span>Форма утверждена · действует с подписи</span>
           </footer>
         </article>
-
+      </figure>
+      </div>
+      <div class="boot-contract-bar">
         <button type="button" class="boot-cta boot-contract-btn" data-next disabled>
           Подписать и на смену
         </button>
-      </figure>
+      </div>
     </div>
   `
 }

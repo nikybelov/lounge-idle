@@ -941,9 +941,10 @@ export function renderShell(
     const { done, total } = achievementProgress(state)
     const trophiesPing = achieveQueue.length > 0 ? ' achieve-ping' : ''
     subRows.push(`
-      <div class="subnav-row">
+      <div class="subnav-row subnav-row--career">
         <button type="button" class="nav-btn ${careerSubTab === 'track' ? 'active' : ''}" data-career-sub="track" title="Рабочие дни, очки и соревнование">Сводка</button>
         <button type="button" class="nav-btn ${careerSubTab === 'trophies' ? 'active' : ''}${trophiesPing}" data-career-sub="trophies" title="Разовые награды за особые дела">Трофеи ${done}/${total}</button>
+        <button type="button" class="nav-btn nav-btn--reset" data-reset-career title="Сбросить карьеру и начать заново">Сброс</button>
       </div>
     `)
   } else if (menuTab === 'story') {
@@ -980,6 +981,9 @@ export function renderShell(
     btn.addEventListener('click', () => {
       handlers.onStorySubTab((btn as HTMLElement).dataset.storySub as StorySubTab)
     })
+  })
+  nav.querySelector('[data-reset-career]')?.addEventListener('click', () => {
+    if (confirm('Сбросить карьеру? Имя и заведение тоже сбросятся.')) handlers.onReset()
   })
 
   const syncGuide = (): void => {
@@ -1379,11 +1383,6 @@ function renderCareerTrackPanel(state: GameState): string {
       <p class="section-label">Зал славы</p>
       <p class="row-sub shop-note">Лучшие прогоны на этом устройстве (после сброса карьеры).</p>
       <div class="career-hall">${hallRows}</div>
-
-      <div class="career-footer">
-        <button type="button" class="text-btn text-btn--danger" data-reset>Сбросить карьеру</button>
-        <p class="row-sub shop-note">Имя и прогресс сбросятся; текущий прогон попадёт в зал славы.</p>
-      </div>
     </div>
   `
 }
@@ -1417,8 +1416,19 @@ function renderCareerTrophiesPanel(state: GameState): string {
   `
 }
 
+function renderCareerResetFooter(): string {
+  return `
+    <div class="career-footer">
+      <button type="button" class="text-btn text-btn--danger" data-reset>Сбросить карьеру</button>
+      <p class="row-sub shop-note">Имя и прогресс сбросятся; текущий прогон попадёт в зал славы.</p>
+    </div>
+  `
+}
+
 function renderCareerPanel(state: GameState, sub: CareerSubTab): string {
-  return sub === 'trophies' ? renderCareerTrophiesPanel(state) : renderCareerTrackPanel(state)
+  const body =
+    sub === 'trophies' ? renderCareerTrophiesPanel(state) : renderCareerTrackPanel(state)
+  return `${body}${renderCareerResetFooter()}`
 }
 
 function wireCareerPanel(panel: HTMLElement, handlers: ShellHandlers): void {

@@ -690,6 +690,25 @@ body.has-order-fab .panel {
   width: 100%;
 }
 
+.subnav-row--career {
+  display: grid;
+  grid-template-columns: 1fr 1fr auto;
+  gap: 4px;
+}
+
+.subnav .nav-btn--reset {
+  min-width: 3.4rem;
+  padding-inline: 8px;
+  color: var(--danger);
+  border-color: rgba(196, 107, 90, 0.35);
+  background: rgba(196, 107, 90, 0.08);
+  font-size: 0.72rem;
+}
+
+.subnav .nav-btn--reset:active {
+  transform: scale(0.97);
+}
+
 .subnav .nav-btn {
   min-height: 34px;
   font-size: 0.78rem;

@@ -1,10 +1,12 @@
 import { ACHIEVEMENTS } from './data/achievements'
 import { EXPANSIONS } from './data/expansions'
 import { LOUNGE_TIERS, type LoungeTierId } from './data/loungeTiers'
-import { SHOP_ITEMS } from './data/shop'
+import { SHOP_ITEMS, shopMaxLevel } from './data/shop'
 import { TOBACCOS } from './data/tobacco'
+import { STAFF_ROLES } from './data/staff'
+import { BRANCHES } from './data/branches'
 import { VENUES, type VenueId } from './data/venues'
-import { ensureMenuSlots, menuSlotCount } from './game/appeal'
+import { shelfCapacity } from './game/appeal'
 import type { GameState } from './game/state'
 
 const FLAG = 'lounge-idle-admin'
@@ -32,8 +34,8 @@ export function isAdminEnabled(): boolean {
   const stored = sessionStorage.getItem(FLAG)
   if (stored === '0') return false
   if (stored === '1') return true
-  // Локальный vite по умолчанию с админкой; выключить: ?admin=0
-  return import.meta.env.DEV
+  // Только явно: ?admin=1 (выключить: ?admin=0)
+  return false
 }
 
 /** Полный доступ для просмотра контента и тестов */
@@ -48,17 +50,29 @@ export function adminUnlockAll(state: GameState): void {
     hood: 6,
     vip: 4,
   }
-  for (const item of SHOP_ITEMS) state.shopOwned[item.id] = true
+  for (const item of SHOP_ITEMS) state.shopOwned[item.id] = shopMaxLevel(item)
   for (const t of TOBACCOS) state.ownedTobacco[t.id] = true
   for (const e of EXPANSIONS) state.expansions[e.id] = true
+  for (const b of BRANCHES) state.branches[b.id] = true
+  for (const r of STAFF_ROLES) state.staffMembers[r.id] = [4]
   for (const a of ACHIEVEMENTS) state.achievements[a.id] = true
 
-  ensureMenuSlots(state)
-  const n = menuSlotCount(state)
-  state.menuSlots = TOBACCOS.slice(0, n).map((t) => t.id)
-  state.menuPickSlot = null
+  state.flags.empireOfferUnlocked = true
+  const cap = shelfCapacity(state)
+  state.shelfActive = TOBACCOS.slice(0, cap).map((t) => t.id)
   state.flags.pickingLounge = false
   if (state.phase === 'employed') state.flags.loungeOfferUnlocked = true
+  state.flags.guideStep = 'done'
+  state.flags.guideAckedIndex = 99
+  state.flags.tabHints = {
+    shop: true,
+    tobacco: true,
+    staff: true,
+    network: true,
+    personal: true,
+    career: true,
+  }
+  state.flags.celebration = null
 }
 
 export function adminForceLounge(state: GameState, tierId: LoungeTierId): void {
@@ -69,6 +83,7 @@ export function adminForceLounge(state: GameState, tierId: LoungeTierId): void {
   state.loungeIncomeMult = tier.incomeMult
   state.loungeClickMult = tier.clickMult
   state.loungeName = `[ADMIN] ${tier.name}`
+  state.flags.personalIntroPending = true
   adminUnlockAll(state)
 }
 

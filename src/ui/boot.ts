@@ -1,62 +1,139 @@
 import { VENUES, type VenueId } from '../data/venues'
+import { bootStartCoach, bootVenueCoach } from '../game/guide'
+import {
+  animateFireLoad,
+  renderLoadingScreen,
+  renderNameContractScreen,
+} from './bootScreens'
+import { showMascotWelcome } from './mascot'
+import { dismissGuideCoach, presentStandaloneCoach } from './guideOverlay'
 
 export type BootStep = 'loading' | 'name' | 'venue'
 
 export interface BootResult {
   playerName: string
   venueId: VenueId
+  venueGuideDone: boolean
+}
+
+const RECOMMENDED_VENUE: VenueId = 'smoke_river'
+
+type BootGuidePhase = 'venue' | 'start' | 'done'
+
+function wireNameContract(
+  root: HTMLElement,
+  onSubmit: (name: string) => void,
+): void {
+  const input = root.querySelector('[data-name]') as HTMLInputElement
+  const next = root.querySelector('[data-next]') as HTMLButtonElement
+  const preview = root.querySelector('[data-employee-preview]') as HTMLElement | null
+
+  const sync = (): void => {
+    const name = input.value.trim()
+    next.disabled = name.length < 2
+    if (preview) preview.textContent = name || '—'
+  }
+  sync()
+  window.setTimeout(() => input.focus(), 120)
+  input.addEventListener('input', sync)
+  input.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter' && !next.disabled) next.click()
+  })
+  next.addEventListener('click', () => {
+    const name = input.value.trim()
+    if (name.length < 2) return
+    onSubmit(name)
+  })
 }
 
 /**
- * Экран загрузки → имя → выбор заведения.
- * Можно листать места сколько угодно; финал только по «Начать смену».
+ * Экран загрузки (огонь) → договор с именем → выбор заведения.
  */
 export function runBoot(root: HTMLElement): Promise<BootResult> {
   return new Promise((resolve) => {
     let step: BootStep = 'loading'
     let playerName = ''
-    let selected: VenueId = 'smoke_river'
+    let selected: VenueId = RECOMMENDED_VENUE
+    let bootGuidePhase: BootGuidePhase = 'venue'
+    let loadingStarted = false
+    let bootFinished = false
+
+    const updateVenueUi = (): void => {
+      root.querySelectorAll<HTMLElement>('[data-venue]').forEach((btn) => {
+        btn.classList.toggle('active', btn.dataset.venue === selected)
+      })
+      const startBtn = root.querySelector('[data-start]') as HTMLButtonElement | null
+      if (startBtn) startBtn.disabled = bootGuidePhase !== 'done'
+    }
+
+    const onVenueSelect = (venueId: VenueId): void => {
+      if (selected === venueId) return
+      selected = venueId
+      updateVenueUi()
+      if (bootGuidePhase !== 'venue') return
+      presentStandaloneCoach(
+        root,
+        bootVenueCoach(playerName, selected),
+        () => {
+          bootGuidePhase = 'start'
+          updateVenueUi()
+          showBootGuides()
+        },
+        'boot-venue',
+      )
+    }
+
+    const showBootGuides = (): void => {
+      if (bootFinished || step !== 'venue' || bootGuidePhase === 'done') return
+
+      if (bootGuidePhase === 'venue') {
+        presentStandaloneCoach(
+          root,
+          bootVenueCoach(playerName, selected),
+          () => {
+            bootGuidePhase = 'start'
+            updateVenueUi()
+            showBootGuides()
+          },
+          'boot-venue',
+        )
+        return
+      }
+
+      presentStandaloneCoach(
+        root,
+        bootStartCoach(),
+        () => {
+          bootGuidePhase = 'done'
+          updateVenueUi()
+        },
+        'boot-start',
+      )
+    }
 
     const paint = (): void => {
       if (step === 'loading') {
-        root.innerHTML = `
-          <div class="boot">
-            <div class="boot-card">
-              <p class="boot-brand">Lounge Idle</p>
-              <p class="boot-sub">Загрузка смены…</p>
-              <div class="boot-bar"><i></i></div>
-            </div>
-          </div>
-        `
+        dismissGuideCoach(root)
+        root.innerHTML = renderLoadingScreen()
+        if (!loadingStarted) {
+          loadingStarted = true
+          animateFireLoad(root, () => {
+            showMascotWelcome(root, () => {
+              step = 'name'
+              paint()
+            })
+          })
+        }
         return
       }
 
       if (step === 'name') {
-        root.innerHTML = `
-          <div class="boot">
-            <div class="boot-card">
-              <p class="boot-brand">Lounge Idle</p>
-              <p class="boot-label">Как тебя зовут?</p>
-              <input class="boot-input" data-name type="text" maxlength="24" placeholder="Имя" autocomplete="nickname" />
-              <button type="button" class="boot-cta" data-next disabled>Дальше</button>
-            </div>
-          </div>
-        `
-        const input = root.querySelector('[data-name]') as HTMLInputElement
-        const next = root.querySelector('[data-next]') as HTMLButtonElement
-        input.focus()
-        const sync = (): void => {
-          playerName = input.value.trim()
-          next.disabled = playerName.length < 2
-        }
-        input.addEventListener('input', sync)
-        input.addEventListener('keydown', (e) => {
-          if (e.key === 'Enter' && !next.disabled) next.click()
-        })
-        next.addEventListener('click', () => {
-          sync()
-          if (playerName.length < 2) return
+        dismissGuideCoach(root)
+        root.innerHTML = renderNameContractScreen()
+        wireNameContract(root, (name) => {
+          playerName = name
           step = 'venue'
+          bootGuidePhase = 'venue'
           paint()
         })
         return
@@ -64,27 +141,30 @@ export function runBoot(root: HTMLElement): Promise<BootResult> {
 
       const list = VENUES.map((v) => {
         const active = selected === v.id
+        const rec = v.id === RECOMMENDED_VENUE
         return `
           <button type="button" class="boot-venue ${active ? 'active' : ''}" data-venue="${v.id}">
             <span class="boot-venue-top">
-              <span class="boot-venue-name">${v.name}</span>
+              <span class="boot-venue-name">${v.name}${rec ? ' <em class="boot-rec">старт</em>' : ''}</span>
               <span class="boot-venue-vibe">${v.vibe}</span>
             </span>
             <span class="boot-venue-blurb">${v.blurb}</span>
             <span class="boot-venue-stats">
-              оплата ×${v.payMult} · темп ×${v.cooldownMult} · шоп ×${v.shopPriceMult}
+              <span title="Сколько платят за задачу">оплата ×${v.payMult}</span>
+              <span title="Как быстро откатываются задачи">темп ×${v.cooldownMult}</span>
+              <span title="Цены инструментов на смене">шоп ×${v.shopPriceMult}</span>
             </span>
           </button>
         `
       }).join('')
 
       root.innerHTML = `
-        <div class="boot">
+        <div class="boot boot--venue">
           <div class="boot-card boot-wide">
             <p class="boot-brand">Куда устроиться?</p>
-            <p class="boot-sub">Привет, ${escapeHtml(playerName)}. Сравни смены — цена своего угла от заведения не зависит. Сменить место потом можно только со сбросом карьеры.</p>
+            <p class="boot-sub">Привет, ${escapeHtml(playerName)}. Смена — стартовый капитал на <strong>свой лаунж</strong>.</p>
             <div class="boot-venues" data-list>${list}</div>
-            <button type="button" class="boot-cta" data-start>Начать смену здесь</button>
+            <button type="button" class="boot-cta" data-start disabled>Начать смену здесь</button>
           </div>
         </div>
       `
@@ -92,20 +172,29 @@ export function runBoot(root: HTMLElement): Promise<BootResult> {
       root.querySelector('[data-list]')!.addEventListener('click', (e) => {
         const btn = (e.target as HTMLElement).closest<HTMLElement>('[data-venue]')
         if (!btn?.dataset.venue) return
-        selected = btn.dataset.venue as VenueId
-        paint()
+        onVenueSelect(btn.dataset.venue as VenueId)
       })
 
       root.querySelector('[data-start]')!.addEventListener('click', () => {
-        resolve({ playerName, venueId: selected })
+        if (bootGuidePhase !== 'done') return
+        bootFinished = true
+        bootGuidePhase = 'done'
+        dismissGuideCoach(root)
+        resolve({
+          playerName,
+          venueId: selected,
+          venueGuideDone: true,
+        })
       })
+
+      updateVenueUi()
+
+      if (!bootFinished) {
+        requestAnimationFrame(() => showBootGuides())
+      }
     }
 
     paint()
-    window.setTimeout(() => {
-      step = 'name'
-      paint()
-    }, 1100)
   })
 }
 

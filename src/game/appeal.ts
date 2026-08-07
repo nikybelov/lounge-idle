@@ -1,24 +1,77 @@
 import { EXPANSIONS } from '../data/expansions'
 import { getTobacco, type TobaccoId } from '../data/tobacco'
+import { staffGuestBonus } from './staff'
+import { personalTrafficBonus } from './personal'
 import type { GameState } from './state'
 
-/** Сколько позиций можно выставить в меню */
+/** Сколько позиций можно выставить на табачную полку */
+export function shelfCapacity(state: GameState): number {
+  return Math.min(12, 2 + state.owned.menu * 2 + (state.owned.sofa >= 1 ? 2 : 0))
+}
+
+export function shelfActiveCount(state: GameState): number {
+  return state.shelfActive.length
+}
+
+export function tobaccoStockCount(state: GameState): number {
+  return Object.values(state.ownedTobacco).filter(Boolean).length
+}
+
+export function isOnShelf(state: GameState, id: TobaccoId): boolean {
+  return state.shelfActive.includes(id)
+}
+
+/** Суммарные бонусы активной полки */
+export function shelfBonuses(state: GameState): {
+  guest: number
+  tip: number
+  income: number
+} {
+  let guest = 0
+  let tip = 0
+  let income = 0
+  for (const id of state.shelfActive) {
+    const t = getTobacco(id)
+    if (!t) continue
+    guest += t.guestBonus
+    tip += t.tipBonus
+    income += t.incomeBonus
+  }
+  return { guest, tip, income }
+}
+
+/** Множитель спроса от разнообразия полки */
+export function shelfVarietyMult(state: GameState): number {
+  const n = state.shelfActive.length
+  if (n === 0) return 0.3
+  if (n === 1) return 0.5
+  if (n === 2) return 0.65
+  if (n >= 6) return 1.2
+  if (n >= 4) return 1.08
+  return 1
+}
+
+export function shelfMood(state: GameState): 'empty' | 'sparse' | 'ok' | 'rich' {
+  const n = state.shelfActive.length
+  if (n === 0) return 'empty'
+  if (n <= 2) return 'sparse'
+  if (n >= 5) return 'rich'
+  return 'ok'
+}
+
+/** @deprecated use shelfCapacity */
 export function menuSlotCount(state: GameState): number {
-  return Math.min(8, 1 + state.owned.menu + (state.owned.sofa >= 1 ? 1 : 0))
+  return shelfCapacity(state)
 }
 
-export function ensureMenuSlots(state: GameState): void {
-  const n = menuSlotCount(state)
-  while (state.menuSlots.length < n) state.menuSlots.push(null)
-}
-
+/** @deprecated use shelfActiveCount */
 export function menuFilledCount(state: GameState): number {
-  ensureMenuSlots(state)
-  const n = menuSlotCount(state)
-  return state.menuSlots.slice(0, n).filter(Boolean).length
+  return shelfActiveCount(state)
 }
 
-/** Места от мебели */
+/** @deprecated no-op */
+export function ensureMenuSlots(_state: GameState): void {}
+
 export function furnitureSeats(state: GameState): number {
   return (
     state.owned.table * 2 +
@@ -27,7 +80,6 @@ export function furnitureSeats(state: GameState): number {
   )
 }
 
-/** Места от расширений */
 export function expansionSeats(state: GameState): number {
   let sum = 0
   for (const def of EXPANSIONS) {
@@ -36,26 +88,14 @@ export function expansionSeats(state: GameState): number {
   return sum
 }
 
-/** Максимальная посадка */
 export function seatCapacity(state: GameState): number {
   return Math.max(2, furnitureSeats(state) + expansionSeats(state))
 }
 
-/** Спрос: сколько «хотят» прийти (меню + техника + зоны) */
 export function guestDemand(state: GameState): number {
   const gear = state.owned.hood * 1.2 + state.owned.vip * 0.8
-
-  ensureMenuSlots(state)
-  const n = menuSlotCount(state)
-  const slots = state.menuSlots.slice(0, n)
-  const filled = slots.filter(Boolean) as TobaccoId[]
-  const unique = new Set(filled)
-  let menuScore = 0
-  for (const id of unique) {
-    menuScore += getTobacco(id)?.appeal ?? 1
-  }
-  const emptyPenalty = (n - filled.length) * 0.15
-  const catalog = Object.values(state.ownedTobacco).filter(Boolean).length * 0.05
+  const { guest } = shelfBonuses(state)
+  const variety = shelfVarietyMult(state)
 
   let demandBonus = 0
   for (const def of EXPANSIONS) {
@@ -63,28 +103,25 @@ export function guestDemand(state: GameState): number {
   }
 
   let demand =
-    2 + gear * 1.1 + menuScore * 1.4 + catalog * 2 + demandBonus * 4 - emptyPenalty * 2
+    (2 + gear * 1.1 + guest * 2.2 + demandBonus * 4) * variety
 
-  if (filled.length === 0) demand *= 0.4
+  const stock = tobaccoStockCount(state)
+  if (stock > state.shelfActive.length) {
+    demand += Math.min(0.4, (stock - state.shelfActive.length) * 0.03)
+  }
 
-  return Math.max(1, demand)
+  return Math.max(0.5, demand)
 }
 
-/**
- * Фактические гости = min(спрос, посадка).
- * Переполнение: спрос выше посадки — гости не вмещаются, доход упирается в места.
- */
 export function seatedGuests(state: GameState): number {
   return Math.min(guestDemand(state), seatCapacity(state))
 }
 
-/** Множитель выручки от заполненности зала */
-export function guestTraffic(state: GameState): number {
+export function guestTraffic(state: GameState, now = Date.now()): number {
   if (state.phase === 'employed') return 1
   const seated = seatedGuests(state)
-  // ~4 посаженных ≈ ×1.0, дальше растёт с softcap
-  const mult = 0.35 + seated * 0.09
-  return Math.max(0.28, Math.min(2.5, mult))
+  const mult = 0.35 + seated * 0.09 + staffGuestBonus(state) + personalTrafficBonus(state, now)
+  return Math.max(0.22, Math.min(3.2, mult))
 }
 
 export function trafficLabel(mult: number): string {
@@ -114,10 +151,19 @@ export function capacityStatus(state: GameState): {
 
 export function trafficBreakdown(state: GameState): string {
   const { seated, capacity, demand, full } = capacityStatus(state)
-  const filled = menuFilledCount(state)
-  const slots = menuSlotCount(state)
-  const base = `посадка ${seated}/${capacity} · спрос ${demand} · меню ${filled}/${slots}`
-  return full ? `${base} · зал полный, гости ждут` : base
+  const active = shelfActiveCount(state)
+  const cap = shelfCapacity(state)
+  const mood = shelfMood(state)
+  const moodText =
+    mood === 'empty'
+      ? 'полка пуста'
+      : mood === 'sparse'
+        ? 'мало вкусов'
+        : mood === 'rich'
+          ? 'богатая полка'
+          : 'норм'
+  const base = `посадка ${seated}/${capacity} · спрос ${demand} · полка ${active}/${cap} (${moodText})`
+  return full ? `${base} · зал полный` : base
 }
 
 export function expansionIncomeBonus(state: GameState): number {

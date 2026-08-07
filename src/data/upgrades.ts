@@ -34,8 +34,8 @@ export const UPGRADES: UpgradeDef[] = [
   },
   {
     id: 'menu',
-    name: 'Меню вкусов',
-    blurb: 'Больше слотов в меню — гости идут охотнее',
+    name: 'Стеллаж для полки',
+    blurb: 'Больше мест на табачной полке',
     baseCost: 500,
     incomePerLevel: 2.5,
     clickPerLevel: 8,

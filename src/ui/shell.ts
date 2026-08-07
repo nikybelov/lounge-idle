@@ -1,17 +1,47 @@
 import {
   canBrowseLoungeOffer,
+  canDoJobTasks,
   canQuitJob,
+  jobReputationPerSec,
   minOpenLoungeCost,
   shopItemCost,
   syncLoungeOfferUnlock,
 } from '../game/career'
 import {
+  branchCount,
+  canBrowseEmpire,
+  empireClickMult,
+  empireIncomeMult,
+  empireTeaser,
+  isBranchOwned,
+  isBranchUnlocked,
+  networkLabel,
+  networkSynergyBonus,
+} from '../game/empire'
+import {
   formatMoney,
   isUpgradeUnlocked,
   loungeClickPower,
+  loungeGrossIncomePerSec,
   loungeIncomePerSec,
+  staffPayrollShare,
   upgradeCost,
 } from '../game/economy'
+import {
+  hiredStaffCount,
+  maxTeamHeadcount,
+  staffBonuses,
+  staffMembers,
+  staffPayrollLabel,
+  staffPayrollPerSec,
+} from '../game/staff'
+import {
+  STAFF_ROLES,
+  extraStaffHireCost,
+  getStaffGradeDef,
+  maxStaffForRole,
+  type StaffId,
+} from '../data/staff'
 import type { GameState } from '../game/state'
 import {
   JOB_TASKS,
@@ -21,22 +51,54 @@ import {
 } from '../data/tasks'
 import {
   SHOP_ITEMS,
-  isShopItemAvailable,
-  shopRankHint,
+  bareHandsStillPossible,
+  BARE_HANDS_WASH_NEED,
+  canUpgradeShopItem,
+  getShopGrade,
+  nextShopGrade,
+  shopEffectLabel,
+  shopLevel,
+  shopMaxLevel,
+  shopUnlockHint,
   taskCooldownMs,
   taskPay,
   type ShopItemId,
 } from '../data/shop'
 import { nextRank, promoteProgress, rankDef } from '../data/ranks'
 import { getVenue } from '../data/venues'
-import { LOUNGE_TIERS, type LoungeTierId } from '../data/loungeTiers'
-import { TOBACCOS, getTobacco, type TobaccoId } from '../data/tobacco'
+import { LOUNGE_TIERS, tierShopBonusLabel, type LoungeTierId } from '../data/loungeTiers'
+import { BRANCHES, type BranchId } from '../data/branches'
+import { TOBACCOS, getTobacco, tobaccoBonusLabel, type TobaccoId } from '../data/tobacco'
+import {
+  CHANNEL_GEAR,
+  CHANNEL_START_COST,
+  EVENT_COST,
+  VIDEO_BASE_COST,
+  channelTierLabel,
+  channelTrafficBonus,
+  gearUpgradeCost,
+  minChannelGearLevel,
+  videoCooldownMs,
+  videoRewards,
+  videoTierRequirementHint,
+  canShootVideo,
+  isBlogger,
+} from '../data/personal'
+import {
+  awardWinBreakdown,
+  eventBoostRemainingSec,
+  personalStatusLine,
+  personalTitle,
+} from '../game/personal'
+import type { ChannelGearId } from '../data/personal'
 import {
   guestTraffic,
-  menuFilledCount,
-  menuSlotCount,
+  shelfActiveCount,
+  shelfBonuses,
+  shelfCapacity,
+  shelfMood,
+  tobaccoStockCount,
   trafficLabel,
-  ensureMenuSlots,
   capacityStatus,
   furnitureLevel,
 } from '../game/appeal'
@@ -46,11 +108,310 @@ import {
   achievementProgress,
   type AchievementDef,
 } from '../data/achievements'
+import {
+  CAREER_MILESTONES,
+  SECONDS_PER_WORK_DAY,
+  careerScore,
+  careerScoreBreakdown,
+  displayWorkDay,
+  workDayProgressRatio,
+} from '../data/careerTrack'
+import {
+  formatGameClock,
+  workDayGameClock,
+} from '../game/workDays'
+import {
+  loadHallOfFame,
+  milestoneCompareLines,
+  type CareerShareCard,
+} from '../save/leaderboard'
 import { UPGRADES } from '../data/upgrades'
 import type { TaskId } from '../data/tasks'
 import type { UpgradeId } from '../data/upgrades'
+import { ackGuideCoach, goalLine, guideCoach } from '../game/guide'
+import { initStageAtmosphere, syncStageAtmosphere } from './atmosphere'
+import { syncGuideOverlay, isGuideCoachVisible, hasPendingTabHint } from './guideOverlay'
+import { updateLoungeStageArt } from './loungeStage'
+import { revealWords } from './textReveal'
+import {
+  isCelebrationVisible,
+  playCoinSound,
+  playAchievementFanfare,
+  burstAchievementFx,
+  playUnlockSound,
+  primeAudio,
+  pulseCashHud,
+  showCelebration,
+  spawnFloatCash,
+  spawnTapSparks,
+} from './juice'
+import {
+  icon,
+  staffIcon,
+  shopIcon,
+  tobaccoIcon,
+  stageSceneArt,
+  taskIcon,
+  tabIcon,
+  tierIcon,
+  upgradeIcon,
+} from './icons'
 
-export type MenuTab = 'story' | 'shop' | 'own' | 'achievements'
+function cashHudLabel(state: GameState): string {
+  return state.scene === 'job' ? 'Касса' : 'Выручка'
+}
+
+function menuTabButton(
+  tab: MenuTab | 'own',
+  label: string,
+  active: boolean,
+  opts: {
+    extraClass?: string
+    locked?: boolean
+    title?: string
+    chip?: boolean
+  } = {},
+): string {
+  const { extraClass = '', locked = false, title = '', chip = false } = opts
+  const cls = [
+    'menu-btn',
+    chip ? 'menu-btn--chip' : '',
+    active ? 'active' : '',
+    locked ? 'locked' : '',
+    extraClass,
+  ]
+    .filter(Boolean)
+    .join(' ')
+  const tip = title || label
+  if (chip) {
+    return `<button type="button" class="${cls}" data-menu-tab="${tab}" title="${tip}">${tabIcon(tab)}<span class="menu-btn-chip-label">${label}</span></button>`
+  }
+  return `<button type="button" class="${cls}" data-menu-tab="${tab}" title="${tip}">${tabIcon(tab)}<span class="menu-btn-label">${label}</span></button>`
+}
+
+function upgradeUnlockHint(
+  def: (typeof UPGRADES)[number],
+  owned: Partial<Record<UpgradeId, number>>,
+): string {
+  if (!def.unlockAtOwned) return def.blurb
+  const missing = Object.entries(def.unlockAtOwned)
+    .filter(([id, need]) => (owned[id as UpgradeId] ?? 0) < (need ?? 0))
+    .map(([id, need]) => {
+      const prereq = UPGRADES.find((u) => u.id === id)
+      return `${prereq?.name ?? id} ур.${need}`
+    })
+  return missing.length ? `Сначала: ${missing.join(', ')}` : def.blurb
+}
+
+function updateRateHud(
+  rateWrap: HTMLElement,
+  rateLabel: HTMLElement | null,
+  rateEl: HTMLElement,
+  rateSub: HTMLElement | null,
+  state: GameState,
+): void {
+  const inGame = typeof document === 'undefined' || !document.hidden
+  const repWrap = rateWrap.parentElement?.querySelector(
+    '[data-reputation-wrap]',
+  ) as HTMLElement | null
+  const repEl = rateWrap.parentElement?.querySelector(
+    '[data-reputation]',
+  ) as HTMLElement | null
+  const rep = jobReputationPerSec(state)
+  const taskTotal =
+    state.taskDone.wash + state.taskDone.coals + state.taskDone.order
+
+  if (repWrap && repEl) {
+    if (state.phase === 'employed' && rep > 0) {
+      repWrap.hidden = false
+      repEl.textContent = inGame
+        ? `+${rep < 1 ? rep.toFixed(2) : formatMoney(rep)}/с`
+        : 'пауза'
+      if (!repWrap.classList.contains('is-live')) {
+        repWrap.classList.add('is-live')
+      }
+      repWrap.classList.toggle('is-paused', !inGame)
+      repWrap.classList.remove('is-warming')
+    } else if (state.phase === 'employed' && taskTotal >= 2) {
+      repWrap.hidden = false
+      repEl.textContent = 'скоро…'
+      repWrap.classList.add('is-warming')
+      repWrap.classList.remove('is-live')
+    } else {
+      repWrap.hidden = true
+      repWrap.classList.remove('is-live', 'is-warming')
+    }
+  }
+
+  if (state.phase === 'employed') {
+    rateWrap.hidden = true
+    return
+  }
+  rateWrap.hidden = false
+  rateWrap.classList.toggle('is-paused', !inGame)
+  const net = loungeIncomePerSec(state)
+  const payroll = staffPayrollPerSec(state)
+  const gross = loungeGrossIncomePerSec(state)
+  if (rateLabel) {
+    rateLabel.textContent = !inGame
+      ? 'Пауза'
+      : net < 0 && payroll > 0
+        ? 'Убыток'
+        : payroll > 0
+          ? 'Чистыми'
+          : 'Пассив'
+  }
+  rateEl.textContent = inGame ? `${formatMoney(net)}/с` : '—'
+  rateEl.classList.toggle('negative', inGame && net < 0)
+  if (rateSub) {
+    if (payroll > 0) {
+      const fotPct = Math.round(staffPayrollShare(state) * 100)
+      rateSub.hidden = false
+      rateSub.textContent = `выручка ${formatMoney(gross)}/с · ФОТ ${payroll < 10 ? payroll.toFixed(1) : formatMoney(payroll)}/с · ${fotPct}%`
+    } else {
+      rateSub.hidden = true
+    }
+  }
+  rateWrap.title =
+    !inGame
+      ? 'Пассив копится только пока игра открыта'
+      : payroll > 0
+        ? `Выручка ${formatMoney(gross)}/с минус зарплата · норма ФОТ ~30–35%`
+        : 'Пассивный доход зала — только пока ты в игре'
+}
+
+function updateGoalStrip(root: HTMLElement, state: GameState): void {
+  const el = root.querySelector('[data-goal]') as HTMLElement | null
+  if (!el) return
+  const text = goalLine(state)
+  el.textContent = text
+  el.hidden = !text
+  if (text) {
+    el.title = text
+  }
+}
+
+function updateTopbarHints(root: HTMLElement, state: GameState): void {
+  const cashBlock = root.querySelector('.cash-block') as HTMLElement | null
+  if (cashBlock) {
+    cashBlock.title =
+      state.scene === 'job'
+        ? 'Деньги на смене — задачи и покупки инструментов'
+        : 'Выручка зала — заказы, пассив и минус зарплата команды'
+  }
+
+  const repWrap = root.querySelector('[data-reputation-wrap]') as HTMLElement | null
+  if (repWrap && !repWrap.hidden) {
+    repWrap.title = 'Репутация с задач на смене — нужна для повышений'
+  }
+
+  const fab = root.querySelector('[data-fab-order]') as HTMLButtonElement | null
+  if (fab && !fab.hidden) {
+    fab.title = 'Быстрый заказ — основной доход зала, пока нет команды'
+  }
+
+  const cta = root.querySelector('[data-cta]') as HTMLButtonElement | null
+  if (cta && !cta.hidden) {
+    cta.title = 'Принять заказ гостя — чаевые и выручка'
+  }
+}
+
+function updateWorkDayHud(root: HTMLElement, state: GameState): void {
+  const wrap = root.querySelector('[data-workday-wrap]') as HTMLElement | null
+  const dayEl = root.querySelector('[data-workday-num]') as HTMLElement | null
+  const timeEl = root.querySelector('[data-workday-time]') as HTMLElement | null
+  if (!wrap || !timeEl) return
+  if (!state.onboarded) {
+    wrap.hidden = true
+    return
+  }
+  wrap.hidden = false
+  const inGame = !document.hidden
+  wrap.classList.toggle('is-paused', !inGame)
+  const clock = workDayGameClock(state)
+  if (dayEl) dayEl.textContent = String(clock.day)
+  timeEl.textContent = inGame ? formatGameClock(clock.hours, clock.minutes) : 'пауза'
+  const min = Math.round(SECONDS_PER_WORK_DAY / 60)
+  wrap.title = `Смена ${formatGameClock(clock.hours, clock.minutes)} · день ${clock.day}. Полный день = ${min} мин в игре (08:00→20:00). Сравнение — вкладка «Карьера».`
+}
+
+function canPresentAchievements(state: GameState, _menuTab: MenuTab): boolean {
+  if (isGuideCoachVisible()) return false
+  if (hasPendingTabHint()) return false
+  if (guideCoach(state)) return false
+  if (isCelebrationVisible()) return false
+  return true
+}
+
+function tryPresentAchievements(
+  root: HTMLElement,
+  state: GameState,
+  menuTab: MenuTab,
+): void {
+  if (!canPresentAchievements(state, menuTab)) return
+  if (achieveShowing || !achieveQueue.length) return
+  const tab = root.querySelector<HTMLElement>('[data-menu-tab="career"]')
+  tab?.classList.add('achieve-ping')
+  presentNextAchievement(state, menuTab)
+}
+
+/** Показать отложенные ачивки, когда экран смены свободен от подсказок */
+export function flushAchievementQueue(
+  root: HTMLElement,
+  state: GameState,
+  menuTab: MenuTab,
+): void {
+  tryPresentAchievements(root, state, menuTab)
+}
+
+function updateOrderFab(
+  root: HTMLElement,
+  state: GameState,
+  menuTab: MenuTab,
+): void {
+  const fab = root.querySelector('[data-fab-order]') as HTMLButtonElement | null
+  if (!fab) return
+  const showLounge =
+    state.phase !== 'employed' &&
+    state.scene === 'lounge' &&
+    isLoungeOnlyMenuTab(menuTab)
+  fab.hidden = !showLounge
+  document.body.classList.toggle('has-order-fab', showLounge)
+  if (showLounge) {
+    fab.textContent = `Принять заказ · +${formatMoney(loungeClickPower(state))}`
+    fab.title = 'Быстрый заказ — основной доход зала, пока нет команды'
+  }
+}
+
+/** Подраздел смены: задачи и инструменты */
+function showJobSubnav(state: GameState, menuTab: MenuTab): boolean {
+  if (menuTab !== 'story') return false
+  if (state.phase === 'dual') return true
+  if (state.phase === 'employed') return state.scene === 'job'
+  return false
+}
+
+function canAccessShiftShop(state: GameState): boolean {
+  return state.phase === 'dual' || (state.phase === 'employed' && state.scene === 'job')
+}
+
+export type CareerSubTab = 'track' | 'trophies'
+
+export type StorySubTab = 'tasks' | 'shop'
+
+export type MenuTab =
+  | 'story'
+  | 'own'
+  | 'tobacco'
+  | 'staff'
+  | 'personal'
+  | 'network'
+  | 'career'
+
+/** Вкладки только для своего зала — смена тут не нужна */
+export function isLoungeOnlyMenuTab(tab: MenuTab): boolean {
+  return tab === 'tobacco' || tab === 'staff' || tab === 'personal' || tab === 'network'
+}
 
 export interface ShellHandlers {
   onJobTask: (id: TaskId) => void
@@ -58,23 +419,54 @@ export interface ShellHandlers {
   onBuy: (id: UpgradeId) => void
   onBuyShop: (id: ShopItemId) => void
   onBuyTobacco: (id: TobaccoId) => void
+  onPutOnShelf: (id: TobaccoId) => void
+  onRemoveFromShelf: (id: TobaccoId) => void
+  onHireStaff: (id: StaffId) => void
+  onUpgradeStaff: (id: StaffId, index: number) => void
+  onAddStaff: (id: StaffId) => void
+  onFireStaff: (id: StaffId, index: number) => void
+  onOpenBranch: (id: BranchId) => void
   onBuyExpansion: (id: ExpansionId) => void
-  onBeginMenuPick: (slot: number) => void
-  onCancelMenuPick: () => void
-  onSetMenuSlot: (slot: number, id: TobaccoId | null) => void
   onBeginLoungePick: () => void
   onCancelLoungePick: () => void
   onOpenLounge: (tier: LoungeTierId) => void
   onQuit: () => void
   onScene: (scene: 'job' | 'lounge') => void
+  onStartChannel: () => void
+  onUpgradeChannelGear: (id: ChannelGearId) => void
+  onShootVideo: () => void
+  onHoldEvent: () => void
+  onEnterAward: () => void
   onMenuTab: (tab: MenuTab) => void
+  onCareerSubTab: (sub: CareerSubTab) => void
+  onStorySubTab: (sub: StorySubTab) => void
+  onGuideAck: () => void
   onReset: () => void
+  onShareCareer: () => void
+  onImportCareer: (code: string) => void
+  onClearCareerCompare: () => void
+}
+
+let careerCompareCard: CareerShareCard | null = null
+
+export function setCareerCompareCard(card: CareerShareCard | null): void {
+  careerCompareCard = card
 }
 
 let toastTimer: ReturnType<typeof setTimeout> | null = null
 let achieveQueue: AchievementDef[] = []
 let achieveShowing = false
 let achieveHost: HTMLElement | null = null
+let achieveCtx: { root: HTMLElement; state: GameState; menuTab: MenuTab } | null =
+  null
+
+function syncAchievementContext(
+  root: HTMLElement,
+  state: GameState,
+  menuTab: MenuTab,
+): void {
+  achieveCtx = { root, state, menuTab }
+}
 
 function ensureAchieveFanfare(): HTMLElement {
   if (achieveHost?.isConnected) return achieveHost
@@ -86,7 +478,11 @@ function ensureAchieveFanfare(): HTMLElement {
   wrap.hidden = true
   wrap.innerHTML = `
     <div class="achieve-fanfare-backdrop"></div>
-    <div class="achieve-fanfare-card" role="dialog" aria-modal="true" aria-live="assertive">
+    <div class="achieve-fanfare-fx" aria-hidden="true"></div>
+    <div class="achieve-fanfare-card gradient-surface gradient-surface--hero" role="dialog" aria-modal="true" aria-live="assertive">
+      <div class="achieve-fanfare-glow" aria-hidden="true"></div>
+      <div class="achieve-fanfare-ring" aria-hidden="true"></div>
+      <p class="achieve-fanfare-icon" aria-hidden="true">🏆</p>
       <p class="achieve-fanfare-kicker">Достижение открыто</p>
       <p class="achieve-fanfare-title" data-achieve-title></p>
       <p class="achieve-fanfare-hint" data-achieve-hint></p>
@@ -96,7 +492,8 @@ function ensureAchieveFanfare(): HTMLElement {
   `
   document.body.appendChild(wrap)
   wrap.querySelector('[data-achieve-ok]')!.addEventListener('click', () => {
-    dismissAchievementFanfare()
+    if (!achieveCtx) return
+    dismissAchievementFanfare(achieveCtx.root, achieveCtx.state, achieveCtx.menuTab)
   })
   achieveHost = wrap
   return wrap
@@ -107,40 +504,70 @@ export function mountShell(root: HTMLElement, handlers: ShellHandlers): void {
     <div class="app-shell">
       <header class="topbar">
         <div class="cash-block">
-          <span class="cash-label">Выручка</span>
+          <span class="cash-label" data-cash-label>Выручка</span>
           <span class="cash-value" data-cash>0</span>
         </div>
         <div class="rate-block" data-rate-wrap hidden>
+          <span class="rate-label" data-rate-label>Пассив</span>
           <span class="rate-value" data-rate>0/с</span>
+          <span class="rate-sub" data-rate-sub hidden></span>
+        </div>
+        <div class="rate-block rate-block--rep" data-reputation-wrap hidden>
+          <span class="rate-label">Репутация</span>
+          <span class="rate-value" data-reputation>0/с</span>
+        </div>
+        <div class="rate-block rate-block--day workday-clock" data-workday-wrap hidden>
+          <span class="rate-label">Смена · день <span data-workday-num>1</span></span>
+          <span class="rate-value workday-clock-digital" data-workday-time>08:00</span>
         </div>
       </header>
+      <p class="goal-strip" data-goal hidden></p>
 
       <main class="stage">
+        <div class="stage-bg" aria-hidden="true"></div>
+        <div class="stage-frame" aria-hidden="true"></div>
         <div class="haze" aria-hidden="true"></div>
         <div class="embers" aria-hidden="true"></div>
-        <p class="brand" data-brand></p>
-        <p class="tagline" data-tagline></p>
-        <button type="button" class="cta" data-cta hidden>Принять заказ</button>
+        ${stageSceneArt()}
+        <div class="stage-copy">
+          <p class="brand" data-brand></p>
+          <p class="tagline" data-tagline></p>
+          <button type="button" class="cta" data-cta hidden>Принять заказ</button>
+        </div>
         <p class="toast" data-toast hidden></p>
       </main>
 
       <section class="panel">
-        <nav class="menu-nav" data-menu aria-label="Меню"></nav>
-        <nav class="scene-nav" data-nav></nav>
-        <div class="panel-body" data-panel></div>
+        <div class="menu-shell" data-menu-shell aria-label="Меню">
+          <nav class="menu-nav menu-nav--primary" data-menu-primary></nav>
+          <nav class="menu-nav menu-nav--secondary" data-menu-secondary hidden></nav>
+        </div>
+        <nav class="scene-nav subnav subnav-stack" data-nav aria-label="Подраздел"></nav>
+        <div class="panel-scroll">
+          <div class="panel-scroll-fade panel-scroll-fade--top" aria-hidden="true"></div>
+          <div class="panel-body" data-panel></div>
+          <div class="panel-scroll-fade panel-scroll-fade--bottom" aria-hidden="true"></div>
+        </div>
       </section>
+      <button type="button" class="order-fab" data-fab-order hidden>Принять заказ</button>
     </div>
   `
 
   const cta = root.querySelector('[data-cta]') as HTMLButtonElement
   cta.addEventListener('click', () => {
+    primeAudio()
     handlers.onLoungeOrder()
     cta.classList.remove('pulse')
     void cta.offsetWidth
     cta.classList.add('pulse')
   })
 
-  root.querySelector('.menu-nav')!.addEventListener('click', (e) => {
+  root.querySelector('[data-fab-order]')?.addEventListener('click', () => {
+    primeAudio()
+    handlers.onLoungeOrder()
+  })
+
+  root.querySelector('[data-menu-shell]')!.addEventListener('click', (e) => {
     const btn = (e.target as HTMLElement).closest<HTMLElement>('[data-menu-tab]')
     if (!btn?.dataset.menuTab) return
     handlers.onMenuTab(btn.dataset.menuTab as MenuTab)
@@ -154,16 +581,18 @@ export function updateHud(root: HTMLElement, state: GameState): void {
   const cashEl = root.querySelector('[data-cash]') as HTMLElement | null
   const rateWrap = root.querySelector('[data-rate-wrap]') as HTMLElement | null
   const rateEl = root.querySelector('[data-rate]') as HTMLElement | null
+  const rateLabel = root.querySelector('[data-rate-label]') as HTMLElement | null
+  const rateSub = root.querySelector('[data-rate-sub]') as HTMLElement | null
   const cta = root.querySelector('[data-cta]') as HTMLButtonElement | null
+  const cashLabel = root.querySelector('[data-cash-label]') as HTMLElement | null
   if (!cashEl || !rateWrap || !rateEl) return
 
   cashEl.textContent = formatMoney(state.cash)
-  if (state.phase !== 'employed') {
-    rateWrap.hidden = false
-    rateEl.textContent = `${formatMoney(loungeIncomePerSec(state))}/с`
-  } else {
-    rateWrap.hidden = true
-  }
+  if (cashLabel) cashLabel.textContent = cashHudLabel(state)
+  updateRateHud(rateWrap, rateLabel, rateEl, rateSub, state)
+  updateGoalStrip(root, state)
+  updateWorkDayHud(root, state)
+  updateTopbarHints(root, state)
   if (cta && state.scene === 'lounge' && !cta.hidden) {
     cta.textContent = `Принять заказ · +${formatMoney(loungeClickPower(state))}`
   }
@@ -171,12 +600,18 @@ export function updateHud(root: HTMLElement, state: GameState): void {
   const ownTab = root.querySelector<HTMLButtonElement>('[data-menu-tab="own"]')
   if (ownTab && state.phase === 'employed') {
     const ready = canBrowseLoungeOffer(state)
-    ownTab.disabled = !ready
     ownTab.classList.toggle('locked', !ready)
     ownTab.classList.toggle('ready', ready)
     ownTab.title = ready
       ? 'Выбор своего зала'
       : `Накопи ${formatMoney(minOpenLoungeCost())}`
+  }
+
+  const networkTab = root.querySelector<HTMLButtonElement>('[data-menu-tab="network"]')
+  if (networkTab && state.phase !== 'employed') {
+    const ready = canBrowseEmpire(state)
+    networkTab.classList.toggle('locked', !ready)
+    networkTab.classList.toggle('ready', ready)
   }
 
   root.querySelectorAll<HTMLButtonElement>('[data-buy]').forEach((btn) => {
@@ -194,14 +629,20 @@ export function updateHud(root: HTMLElement, state: GameState): void {
   root.querySelectorAll<HTMLButtonElement>('[data-shop]').forEach((btn) => {
     const id = btn.dataset.shop as ShopItemId
     const item = SHOP_ITEMS.find((i) => i.id === id)
-    if (!item || state.shopOwned[id]) return
+    if (!item) return
+    const level = shopLevel(state.shopOwned, id)
+    const next = nextShopGrade(item, level)
+    if (!next) return
     const available =
       state.phase !== 'ownOnly' &&
-      isShopItemAvailable(item, state.taskDone, state.jobRank)
-    const cost = shopItemCost(state, item.cost)
+      canUpgradeShopItem(item, level, state.taskDone, state.jobRank)
+    const cost = shopItemCost(state, next.cost)
     const canBuy = available && state.cash >= cost
     btn.disabled = !canBuy
     btn.classList.toggle('afford', canBuy)
+    btn.classList.toggle('locked', !available)
+    const meta = btn.querySelector('.row-meta')
+    if (meta) meta.textContent = formatMoney(cost)
   })
 
   const openBtn = root.querySelector<HTMLButtonElement>('[data-open]')
@@ -222,16 +663,6 @@ export function updateHud(root: HTMLElement, state: GameState): void {
       openBar.style.width = `${Math.min(1, state.cash / openCost) * 100}%`
     }
   }
-
-  root.querySelectorAll<HTMLButtonElement>('[data-tobacco]').forEach((btn) => {
-    const id = btn.dataset.tobacco as TobaccoId
-    const def = TOBACCOS.find((t) => t.id === id)
-    if (!def || state.ownedTobacco[id]) return
-    const unlocked = state.owned.menu >= def.needMenuLevel
-    const canBuy = unlocked && state.cash >= def.cost
-    btn.disabled = !canBuy
-    btn.classList.toggle('afford', canBuy)
-  })
 
   root.querySelectorAll<HTMLButtonElement>('[data-expansion]').forEach((btn) => {
     const id = btn.dataset.expansion as ExpansionId
@@ -262,7 +693,7 @@ export function updateJobCooldowns(
   state: GameState,
   now = Date.now(),
 ): void {
-  if (state.scene !== 'job') return
+  if (!canDoJobTasks(state)) return
   for (const t of JOB_TASKS) {
     const btn = root.querySelector<HTMLButtonElement>(`[data-task="${t.id}"]`)
     if (!btn || !isTaskUnlocked(t, state.taskDone)) continue
@@ -305,17 +736,18 @@ export function showToast(root: HTMLElement, message: string): void {
 /** Очередь баннеров достижений — закрывается только кнопкой «Круто» */
 export function announceAchievements(
   root: HTMLElement,
+  state: GameState,
+  menuTab: MenuTab,
   unlocked: AchievementDef[],
 ): void {
-  if (!unlocked.length) return
-  achieveQueue.push(...unlocked)
-  const tab = root.querySelector<HTMLElement>('[data-menu-tab="achievements"]')
-  tab?.classList.add('achieve-ping')
-  void presentNextAchievement()
+  if (unlocked.length) achieveQueue.push(...unlocked)
+  if (!achieveQueue.length) return
+  tryPresentAchievements(root, state, menuTab)
 }
 
-function presentNextAchievement(): void {
+function presentNextAchievement(state: GameState, menuTab: MenuTab): void {
   if (achieveShowing) return
+  if (!canPresentAchievements(state, menuTab)) return
   const next = achieveQueue.shift()
   if (!next) return
   achieveShowing = true
@@ -328,19 +760,27 @@ function presentNextAchievement(): void {
   title.textContent = next.title
   hint.textContent = next.hint
   reward.textContent = `+${formatMoney(next.reward)} к выручке`
-  wrap.hidden = false
   wrap.classList.remove('out')
+  wrap.hidden = false
+  void wrap.offsetWidth
   wrap.classList.add('in')
   document.body.classList.add('achieve-locked')
+  playAchievementFanfare()
+  burstAchievementFx(wrap)
+  revealWords(title, 75)
   ;(wrap.querySelector('[data-achieve-ok]') as HTMLButtonElement).focus()
 }
 
-function dismissAchievementFanfare(): void {
+function dismissAchievementFanfare(
+  root: HTMLElement,
+  state: GameState,
+  menuTab: MenuTab,
+): void {
   const wrap = achieveHost
   if (!wrap || wrap.hidden) {
     achieveShowing = false
     document.body.classList.remove('achieve-locked')
-    void presentNextAchievement()
+    tryPresentAchievements(root, state, menuTab)
     return
   }
   wrap.classList.remove('in')
@@ -350,7 +790,7 @@ function dismissAchievementFanfare(): void {
     wrap.classList.remove('out')
     achieveShowing = false
     document.body.classList.remove('achieve-locked')
-    void presentNextAchievement()
+    tryPresentAchievements(root, state, menuTab)
   }, 220)
 }
 
@@ -360,36 +800,59 @@ export function renderShell(
   handlers: ShellHandlers,
   menuTab: MenuTab,
   now = Date.now(),
+  careerSubTab: CareerSubTab = 'track',
+  storySubTab: StorySubTab = 'tasks',
 ): void {
+  syncAchievementContext(root, state, menuTab)
   // Если stage был повреждён (старый баг data-menu) — пересобираем оболочку
-  if (!root.querySelector('[data-brand]') || !root.querySelector('.menu-nav')) {
+  if (!root.querySelector('[data-brand]') || !root.querySelector('[data-menu-primary]')) {
     mountShell(root, handlers)
   }
 
   const cashEl = root.querySelector('[data-cash]') as HTMLElement
   const rateWrap = root.querySelector('[data-rate-wrap]') as HTMLElement
   const rateEl = root.querySelector('[data-rate]') as HTMLElement
+  const rateLabel = root.querySelector('[data-rate-label]') as HTMLElement | null
+  const rateSub = root.querySelector('[data-rate-sub]') as HTMLElement | null
   const brand = root.querySelector('[data-brand]') as HTMLElement
   const tagline = root.querySelector('[data-tagline]') as HTMLElement
   const cta = root.querySelector('[data-cta]') as HTMLButtonElement
   const nav = root.querySelector('[data-nav]') as HTMLElement
   const panel = root.querySelector('[data-panel]') as HTMLElement
   const stage = root.querySelector('.stage') as HTMLElement
-  const menuNav = root.querySelector('.menu-nav') as HTMLElement
+  const menuPrimary = root.querySelector('[data-menu-primary]') as HTMLElement
+  const menuSecondary = root.querySelector('[data-menu-secondary]') as HTMLElement
 
+  const cashLabel = root.querySelector('[data-cash-label]') as HTMLElement | null
   cashEl.textContent = formatMoney(state.cash)
-
-  const income = loungeIncomePerSec(state)
-  if (state.phase !== 'employed') {
-    rateWrap.hidden = false
-    rateEl.textContent = `${formatMoney(income)}/с`
-  } else {
-    rateWrap.hidden = true
-  }
+  if (cashLabel) cashLabel.textContent = cashHudLabel(state)
+  updateRateHud(rateWrap, rateLabel, rateEl, rateSub, state)
+  updateGoalStrip(root, state)
+  updateWorkDayHud(root, state)
+  updateTopbarHints(root, state)
+  updateOrderFab(root, state, menuTab)
+  updateLoungeStageArt(root, state)
+  initStageAtmosphere(stage)
+  syncStageAtmosphere(stage)
 
   stage.dataset.scene = state.scene
   stage.dataset.phase = state.phase
   stage.dataset.tab = menuTab
+  if (menuTab === 'story' && showJobSubnav(state, menuTab)) {
+    stage.dataset.storySub = storySubTab
+  } else {
+    delete stage.dataset.storySub
+  }
+  if (state.scene === 'job' && state.venueId) {
+    stage.dataset.venue = state.venueId
+  } else {
+    delete stage.dataset.venue
+  }
+  if (state.scene === 'lounge' && state.loungeTier) {
+    stage.dataset.tier = state.loungeTier
+  } else {
+    delete stage.dataset.tier
+  }
 
   if (state.scene === 'job') {
     brand.textContent = getVenue(state.venueId).name
@@ -407,60 +870,221 @@ export function renderShell(
         ? ` · ×${state.loungeIncomeMult}/×${state.loungeClickMult}`
         : ''
     const traffic = guestTraffic(state)
-    tagline.textContent = `Гости ${trafficLabel(traffic)} · ×${traffic.toFixed(2)}${multNote}`
+    const empireNote =
+      branchCount(state) > 0
+        ? ` · ${networkLabel(state)} ×${empireIncomeMult(state).toFixed(2)}`
+        : ''
+    tagline.textContent = `Гости ${trafficLabel(traffic)} · ×${traffic.toFixed(2)}${multNote}${empireNote}`
     cta.hidden = menuTab !== 'story'
     cta.textContent = `Принять заказ · +${formatMoney(loungeClickPower(state))}`
+    if (cta.hidden) delete stage.dataset.hasCta
+    else stage.dataset.hasCta = '1'
   }
 
   const ownReady = canBrowseLoungeOffer(state)
-  menuNav.innerHTML = `
-    <button type="button" class="menu-btn ${menuTab === 'story' ? 'active' : ''}" data-menu-tab="story">Сюжет</button>
-    <button type="button" class="menu-btn ${menuTab === 'shop' ? 'active' : ''}" data-menu-tab="shop">Магазин</button>
-    ${
-      state.phase === 'employed'
-        ? `<button type="button" class="menu-btn ${menuTab === 'own' ? 'active' : ''} ${ownReady ? 'ready' : 'locked'}" data-menu-tab="own" ${ownReady ? '' : 'disabled'} title="${ownReady ? 'Выбор своего зала' : `Накопи ${formatMoney(minOpenLoungeCost())}`}">Свой зал</button>`
-        : ''
-    }
-    <button type="button" class="menu-btn ${menuTab === 'achievements' ? 'active' : ''}" data-menu-tab="achievements">Ачивки</button>
-  `
+  const empireReady = canBrowseEmpire(state)
+  menuPrimary.innerHTML = [
+    menuTabButton('story', 'Сюжет', menuTab === 'story', {
+      title: 'Задачи смены, свой зал и сюжетные цели',
+    }),
+    menuTabButton('career', 'Карьера', menuTab === 'career', {
+      title: 'Дни, очки карьеры, трофеи и сравнение',
+    }),
+    state.phase === 'employed'
+      ? menuTabButton('own', 'Свой', menuTab === 'own', {
+          extraClass: ownReady ? 'ready' : 'locked',
+          locked: !ownReady,
+          title: ownReady
+            ? 'Выбор своего зала'
+            : `Накопи ${formatMoney(minOpenLoungeCost())}`,
+        })
+      : '',
+  ]
+    .filter(Boolean)
+    .join('')
 
-  nav.innerHTML = ''
-  if (menuTab === 'story' && state.phase === 'dual') {
-    nav.innerHTML = `
-      <button type="button" class="nav-btn ${state.scene === 'job' ? 'active' : ''}" data-go="job">На смену</button>
-      <button type="button" class="nav-btn ${state.scene === 'lounge' ? 'active' : ''}" data-go="lounge">Свой зал</button>
-    `
-    nav.querySelectorAll('[data-go]').forEach((btn) => {
-      btn.addEventListener('click', () => {
-        handlers.onScene((btn as HTMLElement).dataset.go as 'job' | 'lounge')
-      })
-    })
+  if (state.phase !== 'employed') {
+    menuSecondary.hidden = false
+    menuSecondary.innerHTML = [
+      menuTabButton('tobacco', 'Табак', menuTab === 'tobacco', {
+        chip: true,
+        title: 'Табачная полка — вкусы, склад и бонусы гостям',
+      }),
+      menuTabButton('staff', 'Команда', menuTab === 'staff', {
+        chip: true,
+        title: 'Найм, грейды и зарплата команды',
+      }),
+      menuTabButton('personal', 'Личное', menuTab === 'personal', {
+        chip: true,
+        title: 'Блог, мероприятия и премия «Гайд Мастерс»',
+      }),
+      menuTabButton('network', 'Сеть', menuTab === 'network', {
+        chip: true,
+        extraClass: empireReady ? 'ready' : 'locked',
+        locked: !empireReady,
+        title: empireReady ? 'Сеть лаунжей' : 'Уволиться со смены',
+      }),
+    ].join('')
+  } else {
+    menuSecondary.hidden = true
+    menuSecondary.innerHTML = ''
   }
 
-  if (menuTab === 'shop') {
-    panel.innerHTML = renderShopPanel(state)
-    wireShopPanel(panel, handlers)
-    return
+  if (state.flags.personalIntroPending && state.phase !== 'employed') {
+    root.querySelector('[data-menu-tab="personal"]')?.classList.add('tab-ping')
+  }
+
+  nav.innerHTML = ''
+  const subRows: string[] = []
+
+  if (menuTab === 'career') {
+    const { done, total } = achievementProgress(state)
+    const trophiesPing = achieveQueue.length > 0 ? ' achieve-ping' : ''
+    subRows.push(`
+      <div class="subnav-row">
+        <button type="button" class="nav-btn ${careerSubTab === 'track' ? 'active' : ''}" data-career-sub="track" title="Рабочие дни, очки и соревнование">Сводка</button>
+        <button type="button" class="nav-btn ${careerSubTab === 'trophies' ? 'active' : ''}${trophiesPing}" data-career-sub="trophies" title="Разовые награды за особые дела">Трофеи ${done}/${total}</button>
+      </div>
+    `)
+  } else if (menuTab === 'story') {
+    if (state.phase === 'dual') {
+      subRows.push(`
+        <div class="subnav-row">
+          <button type="button" class="nav-btn ${state.scene === 'job' ? 'active' : ''}" data-go="job" title="Подработка на чужой точке — задачи и карьера">Смена</button>
+          <button type="button" class="nav-btn ${state.scene === 'lounge' ? 'active' : ''}" data-go="lounge" title="Свой зал — закупки, заказы и расширения">Мой зал</button>
+        </div>
+      `)
+    }
+    if (showJobSubnav(state, menuTab)) {
+      subRows.push(`
+        <div class="subnav-row">
+          <button type="button" class="nav-btn ${storySubTab === 'tasks' ? 'active' : ''}" data-story-sub="tasks" title="${state.phase === 'dual' && state.scene === 'lounge' ? 'Обзор зала и подработка' : 'Задачи смены и карьера'}">${state.phase === 'dual' && state.scene === 'lounge' ? 'Обзор' : 'Задачи'}</button>
+          <button type="button" class="nav-btn ${storySubTab === 'shop' ? 'active' : ''}" data-story-sub="shop" title="Инструменты — ускоряют задачи и повышают оплату">Инструменты</button>
+        </div>
+      `)
+    }
+  }
+
+  nav.innerHTML = subRows.join('')
+  nav.querySelectorAll('[data-career-sub]').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      handlers.onCareerSubTab((btn as HTMLElement).dataset.careerSub as CareerSubTab)
+    })
+  })
+  nav.querySelectorAll('[data-go]').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      handlers.onScene((btn as HTMLElement).dataset.go as 'job' | 'lounge')
+    })
+  })
+  nav.querySelectorAll('[data-story-sub]').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      handlers.onStorySubTab((btn as HTMLElement).dataset.storySub as StorySubTab)
+    })
+  })
+
+  const syncGuide = (): void => {
+    const coach = guideCoach(state)
+    const coachForTab =
+      coach?.step === 'dual_tasks' && menuTab !== 'story' ? null : coach
+    syncGuideOverlay(root, coachForTab, (dismissedStep) => {
+      ackGuideCoach(state, dismissedStep)
+      handlers.onGuideAck()
+      flushAchievementQueue(root, state, menuTab)
+    })
+    flushAchievementQueue(root, state, menuTab)
   }
 
   if (menuTab === 'own' && state.phase === 'employed' && ownReady) {
     panel.innerHTML = renderOwnLoungePanel(state)
     wireOwnLoungePanel(panel, handlers)
+    syncGuide()
     return
   }
 
-  if (menuTab === 'achievements') {
-    panel.innerHTML = renderAchievementsPanel(state)
+  if (menuTab === 'tobacco' && state.phase !== 'employed') {
+    panel.innerHTML = renderTobaccoPanel(state)
+    wireTobaccoPanel(panel, handlers)
+    syncGuide()
     return
   }
 
-  if (state.scene === 'job') {
+  if (menuTab === 'staff' && state.phase !== 'employed') {
+    panel.innerHTML = renderStaffPanel(state)
+    wireStaffPanel(panel, handlers)
+    syncGuide()
+    return
+  }
+
+  if (menuTab === 'personal' && state.phase !== 'employed') {
+    panel.innerHTML = renderPersonalPanel(state, now)
+    wirePersonalPanel(panel, handlers)
+    syncGuide()
+    return
+  }
+
+  if (menuTab === 'network' && state.phase !== 'employed') {
+    panel.innerHTML = renderNetworkPanel(state)
+    wireNetworkPanel(panel, handlers)
+    syncGuide()
+    return
+  }
+
+  if (menuTab === 'career') {
+    panel.innerHTML = renderCareerPanel(state, careerSubTab)
+    wireCareerPanel(panel, handlers)
+    syncGuide()
+    return
+  }
+
+  if (storySubTab === 'shop' && canAccessShiftShop(state)) {
+    panel.innerHTML = renderShopPanel(state)
+    wireShopPanel(panel, handlers)
+  } else if (state.scene === 'job') {
     panel.innerHTML = renderJobStoryPanel(state, now)
     wireJobStoryPanel(panel, handlers)
   } else {
-    panel.innerHTML = renderLoungePanel(state)
+    panel.innerHTML = renderLoungePanel(state, now)
     wireLoungePanel(panel, handlers)
   }
+
+  syncGuide()
+}
+
+function renderJobTasksBlock(state: GameState, now: number): string {
+  const venue = getVenue(state.venueId)
+  const payMult = rankDef(state.jobRank).payMult * venue.payMult
+  return JOB_TASKS.map((t) => {
+    const unlocked = isTaskUnlocked(t, state.taskDone)
+    if (!unlocked) {
+      return `
+      <button type="button" class="row-btn task locked" data-task="${t.id}" disabled>
+        ${icon('lock', 'row-icon--muted')}
+        <span class="row-main">
+          <span class="row-title">${t.label}</span>
+          <span class="row-sub">${taskUnlockHint(t, state.taskDone)}</span>
+        </span>
+        <span class="row-meta">закрыто</span>
+      </button>
+    `
+    }
+    const cd = Math.round(
+      taskCooldownMs(t.cooldownMs, t.id, state.shopOwned) * venue.cooldownMult,
+    )
+    const pay = taskPay(t.pay, t.id, state.shopOwned, payMult)
+    const ready = now >= state.taskReadyAt[t.id]
+    const left = Math.max(0, state.taskReadyAt[t.id] - now)
+    const speedNote = cd < t.cooldownMs ? ` · ${(cd / 1000).toFixed(1)}с` : ''
+    return `
+      <button type="button" class="row-btn task ${ready ? 'task-ready' : 'busy'}" data-task="${t.id}" ${ready ? '' : 'disabled'}>
+        ${taskIcon(t.id)}
+        <span class="row-main">
+          <span class="row-title">${t.label}</span>
+          <span class="row-sub">${ready ? `${t.hint}${speedNote}` : `ещё ${(left / 1000).toFixed(1)}с`}</span>
+        </span>
+        <span class="row-meta row-meta--pay">+${pay}</span>
+      </button>
+    `
+  }).join('')
 }
 
 function renderJobStoryPanel(state: GameState, now: number): string {
@@ -493,36 +1117,7 @@ function renderJobStoryPanel(state: GameState, now: number): string {
     </div>
   `
 
-  const tasks = JOB_TASKS.map((t) => {
-    const unlocked = isTaskUnlocked(t, state.taskDone)
-    if (!unlocked) {
-      return `
-      <button type="button" class="row-btn task locked" data-task="${t.id}" disabled>
-        <span class="row-main">
-          <span class="row-title">${t.label}</span>
-          <span class="row-sub">${taskUnlockHint(t, state.taskDone)}</span>
-        </span>
-        <span class="row-meta">закрыто</span>
-      </button>
-    `
-    }
-    const cd = Math.round(
-      taskCooldownMs(t.cooldownMs, t.id, state.shopOwned) * venue.cooldownMult,
-    )
-    const pay = taskPay(t.pay, t.id, state.shopOwned, payMult)
-    const ready = now >= state.taskReadyAt[t.id]
-    const left = Math.max(0, state.taskReadyAt[t.id] - now)
-    const speedNote = cd < t.cooldownMs ? ` · ${(cd / 1000).toFixed(1)}с` : ''
-    return `
-      <button type="button" class="row-btn task ${ready ? '' : 'busy'}" data-task="${t.id}" ${ready ? '' : 'disabled'}>
-        <span class="row-main">
-          <span class="row-title">${t.label}</span>
-          <span class="row-sub">${ready ? `${t.hint}${speedNote}` : `ещё ${(left / 1000).toFixed(1)}с`}</span>
-        </span>
-        <span class="row-meta">+${pay}</span>
-      </button>
-    `
-  }).join('')
+  const tasks = renderJobTasksBlock(state, now)
 
   let milestone = ''
   if (state.phase === 'employed') {
@@ -538,7 +1133,7 @@ function renderJobStoryPanel(state: GameState, now: number): string {
           <span>${formatMoney(Math.min(state.cash, minCost))} / ${formatMoney(minCost)}</span>
         </div>
         <div class="bar"><i style="width:${progress * 100}%"></i></div>
-        <button type="button" class="row-btn accent" data-open ${ready ? '' : 'disabled'}>
+        <button type="button" class="row-btn accent row-btn--solo" data-open ${ready ? '' : 'disabled'}>
           <span class="row-main">
             <span class="row-title">${ready ? 'Выбрать зал' : 'Копим на угол'}</span>
             <span class="row-sub">${LOUNGE_TIERS.map((t) => formatMoney(t.cost)).join(' · ')}</span>
@@ -548,12 +1143,20 @@ function renderJobStoryPanel(state: GameState, now: number): string {
     `
   }
 
+  const bareHandsNote =
+    bareHandsStillPossible(state.shopOwned, state.taskDone.wash)
+      ? `<p class="shop-note shop-note--tip">Трофей «Голыми руками» — в «Инструменты»: 35 моек без ёршика.</p>`
+      : ''
+
   return `
     <div class="list">
-      ${tasks}
+      <p class="section-label">Задачи смены</p>
+      <p class="shop-note">Таймер на задачах. Ускорить — вкладка «Инструменты» (до 4 ур.).</p>
+      ${bareHandsNote}
+      <div class="job-tasks" data-job-tasks>${tasks}</div>
+      <p class="section-label">Карьера</p>
       ${careerBlock}
-      ${milestone}
-      <button type="button" class="text-btn" data-reset>Сбросить карьеру</button>
+      ${milestone ? `<p class="section-label">Свой зал</p>${milestone}` : ''}
     </div>
   `
 }
@@ -565,15 +1168,15 @@ function renderOwnLoungePanel(state: GameState): string {
     const bonus = [
       `доход ×${tier.incomeMult}`,
       `заказ ×${tier.clickMult}`,
-      tier.startShop.length ? `инструменты: ${tier.startShop.length}` : null,
+      tierShopBonusLabel(tier),
     ]
-      .filter(Boolean)
       .join(' · ')
     const sub = can
       ? `${tier.blurb} · ${bonus}`
       : `Ещё ${formatMoney(need)} — и можно открыть`
     return `
       <button type="button" class="row-btn shop ${can ? 'afford' : 'locked'}" data-tier="${tier.id}" ${can ? '' : 'disabled'}>
+        ${tierIcon(tier.id)}
         <span class="row-main">
           <span class="row-title">${tier.name} · ${tier.vibe}</span>
           <span class="row-sub">${sub}</span>
@@ -588,21 +1191,28 @@ function renderOwnLoungePanel(state: GameState): string {
 
   return `
     <div class="list">
+      <button type="button" class="text-btn own-back" data-own-back>← Назад к смене</button>
       <div class="milestone">
         <div class="milestone-head">
           <span>Какой зал открыть?</span>
           <span>${formatMoney(state.cash)}</span>
         </div>
         <p class="row-sub shop-note">
+          Инструменты с прошлой смены не переносятся — только то, что в тарифе.
           ${
             affordable.length
-              ? `Доступно: ${affordable.map((t) => t.name).join(', ')}.`
-              : 'Пока ничего не хватает.'
+              ? ` Доступно: ${affordable.map((t) => t.name).join(', ')}.`
+              : ' Пока ничего не хватает.'
           }
           ${
             nextUp
               ? ` Подкопи до ${formatMoney(nextUp.cost)} — откроется «${nextUp.name}».`
               : ' Можно брать любой тариф.'
+          }
+          ${
+            bareHandsStillPossible(state.shopOwned, state.taskDone.wash)
+              ? ' Трофей «Голыми руками» — только без ёршика: «Уголок» или 35 моек до открытия зала с ёршиком в комплекте.'
+              : ''
           }
         </p>
       </div>
@@ -612,6 +1222,9 @@ function renderOwnLoungePanel(state: GameState): string {
 }
 
 function wireOwnLoungePanel(panel: HTMLElement, handlers: ShellHandlers): void {
+  panel.querySelector('[data-own-back]')?.addEventListener('click', () => {
+    handlers.onCancelLoungePick()
+  })
   panel.querySelectorAll('[data-tier]').forEach((btn) => {
     btn.addEventListener('click', () => {
       handlers.onOpenLounge((btn as HTMLElement).dataset.tier as LoungeTierId)
@@ -619,25 +1232,169 @@ function wireOwnLoungePanel(panel: HTMLElement, handlers: ShellHandlers): void {
   })
 }
 
-function wireJobStoryPanel(panel: HTMLElement, handlers: ShellHandlers): void {
+function wireJobTasks(panel: HTMLElement, handlers: ShellHandlers): void {
   panel.querySelectorAll('[data-task]').forEach((btn) => {
     btn.addEventListener('click', () => {
       handlers.onJobTask((btn as HTMLElement).dataset.task as TaskId)
     })
   })
-  panel.querySelector('[data-open]')?.addEventListener('click', () => handlers.onBeginLoungePick())
-  panel.querySelector('[data-reset]')?.addEventListener('click', () => {
-    if (confirm('Сбросить карьеру? Имя и заведение тоже сбросятся.')) handlers.onReset()
-  })
 }
 
-function renderAchievementsPanel(state: GameState): string {
+function wireJobStoryPanel(panel: HTMLElement, handlers: ShellHandlers): void {
+  wireJobTasks(panel, handlers)
+  panel.querySelector('[data-open]')?.addEventListener('click', () => handlers.onBeginLoungePick())
+}
+
+function renderCareerTrackPanel(state: GameState): string {
+  const { total } = achievementProgress(state)
+  const day = displayWorkDay(state.career.workDays)
+  const dayPct = Math.round(workDayProgressRatio(state.career.dayProgressSec) * 100)
+  const score = careerScore(state)
+  const scoreParts = careerScoreBreakdown(state)
+  const hall = loadHallOfFame()
+
+  const milestoneRows = CAREER_MILESTONES.map((def) => {
+    const at = state.career.milestones[def.id]
+    const doneM = at != null
+    return `
+      <div class="career-milestone ${doneM ? 'done' : ''}">
+        <span class="career-milestone-title">${def.title}</span>
+        <span class="career-milestone-day">${doneM ? `день ${at}` : '—'}</span>
+      </div>
+    `
+  }).join('')
+
+  const hallRows =
+    hall.length === 0
+      ? `<p class="row-sub shop-note">Пока пусто — сброс карьеры сохраняет прогон в зал славы.</p>`
+      : hall
+          .slice(0, 8)
+          .map(
+            (r, i) => `
+      <div class="career-hall-row ${i === 0 ? 'top' : ''}">
+        <span class="career-hall-name">${r.playerName}</span>
+        <span class="career-hall-meta">${r.score} очк. · день ${r.workDays} · ${r.achievements}/${total} троф.</span>
+      </div>
+    `,
+          )
+          .join('')
+
+  let compareBlock = ''
+  if (careerCompareCard) {
+    const rows = milestoneCompareLines(state.career.milestones, careerCompareCard.m)
+    const compareRows = rows
+      .map((row) => {
+        const self = row.selfDay != null ? `день ${row.selfDay}` : '—'
+        const other = row.otherDay != null ? `день ${row.otherDay}` : '—'
+        const win =
+          row.selfDay != null &&
+          row.otherDay != null &&
+          row.selfDay < row.otherDay
+            ? 'career-compare-win'
+            : ''
+        return `
+        <div class="career-compare-row ${win}">
+          <span>${row.title}</span>
+          <span>${self}</span>
+          <span>${other}</span>
+        </div>
+      `
+      })
+      .join('')
+    compareBlock = `
+      <div class="milestone career career-compare">
+        <div class="milestone-head">
+          <span>Сравнение с ${careerCompareCard.n}</span>
+          <button type="button" class="link-btn" data-career-compare-clear>×</button>
+        </div>
+        <p class="row-sub shop-note">Ты: ${score} очк. · день ${day} · ${careerCompareCard.n}: ${careerCompareCard.s} очк. · день ${careerCompareCard.d}</p>
+        <div class="career-compare-head">
+          <span>Веха</span><span>Ты</span><span>Друг</span>
+        </div>
+        ${compareRows || '<p class="row-sub shop-note">Общих вех пока нет</p>'}
+      </div>
+    `
+  }
+
+  const scoreBreakdownRows =
+    scoreParts.length > 0
+      ? scoreParts
+          .map(
+            (p) =>
+              `<li><span>${p.label}</span><span class="career-score-pts">+${p.points}</span></li>`,
+          )
+          .join('')
+      : `<li class="career-score-empty"><span>Пока 0 — трофеи, зал, смена и личный бренд</span></li>`
+
+  return `
+    <div class="list career-panel">
+      <div class="career-day-strip">
+        <div class="career-day-head">
+          <span class="career-day-label">День ${day}</span>
+          <span class="career-day-meta">${dayPct}% смены</span>
+        </div>
+        <div class="bar career-day-bar"><i style="width:${dayPct}%"></i></div>
+        <p class="row-sub shop-note">1 день = ${Math.round(SECONDS_PER_WORK_DAY / 60)} мин в игре · время в шапке · активно ${Math.floor(state.career.totalActiveSec / 60)} мин</p>
+      </div>
+
+      <p class="section-label">Очки карьеры · ${score}</p>
+      <div class="career-score-box">
+        <p class="row-sub shop-note">Рейтинг прокачки для зала славы и сравнения с друзьями. <strong>Дни на очки не влияют</strong> — только достижения и прогресс.</p>
+        <ul class="career-score-rules">
+          <li><span>Трофеи</span><span>+15 за каждый</span></li>
+          <li><span>Смена + зал / только свой</span><span>+40 / +70</span></li>
+          <li><span>Тариф зала</span><span>+20 / +45 / +80</span></li>
+          <li><span>Филиал сети</span><span>+30 за точку</span></li>
+          <li><span>Узнаваемость</span><span>до +40</span></li>
+          <li><span>Уровень роликов</span><span>+5 за ур.</span></li>
+          <li><span>Должность на смене</span><span>+12 / +24</span></li>
+        </ul>
+        <p class="career-score-now">Сейчас у тебя · ${score}</p>
+        <ul class="career-score-breakdown">${scoreBreakdownRows}</ul>
+      </div>
+
+      <p class="section-label">Вехи карьеры</p>
+      <p class="row-sub shop-note">На каком дне ты дошёл до ключевых этапов — меньше дней = быстрее прокачка.</p>
+      <div class="career-milestones">${milestoneRows}</div>
+
+      <p class="section-label">Соревнование</p>
+      <div class="career-actions">
+        <button type="button" class="row-btn shop afford" data-career-share>
+          ${icon('hood')}
+          <span class="row-main">
+            <span class="row-title">Скопировать код карьеры</span>
+            <span class="row-sub">Отправь другу — он вставит код в «Карьера»</span>
+          </span>
+        </button>
+        <button type="button" class="row-btn shop" data-career-import>
+          ${icon('trophy')}
+          <span class="row-main">
+            <span class="row-title">Сравнить с другом</span>
+            <span class="row-sub">Вставить код чужой карьеры</span>
+          </span>
+        </button>
+      </div>
+      ${compareBlock}
+
+      <p class="section-label">Зал славы</p>
+      <p class="row-sub shop-note">Лучшие прогоны на этом устройстве (после сброса карьеры).</p>
+      <div class="career-hall">${hallRows}</div>
+
+      <div class="career-footer">
+        <button type="button" class="text-btn text-btn--danger" data-reset>Сбросить карьеру</button>
+        <p class="row-sub shop-note">Имя и прогресс сбросятся; текущий прогон попадёт в зал славы.</p>
+      </div>
+    </div>
+  `
+}
+
+function renderCareerTrophiesPanel(state: GameState): string {
   const { done, total } = achievementProgress(state)
   const rows = ACHIEVEMENTS.map((a) => {
     const unlocked = !!state.achievements[a.id]
     return `
       <div class="row-btn achievement ${unlocked ? 'unlocked' : 'locked'}">
-        <span class="achieve-mark" aria-hidden="true">${unlocked ? '★' : '·'}</span>
+        ${icon(unlocked ? 'trophy' : 'lock', unlocked ? 'row-icon--gold' : 'row-icon--muted')}
         <span class="row-main">
           <span class="row-title">${unlocked ? a.title : 'Ещё закрыто'}</span>
           <span class="row-sub">${a.hint}</span>
@@ -648,91 +1405,788 @@ function renderAchievementsPanel(state: GameState): string {
   }).join('')
 
   return `
-    <div class="list">
-      <div class="achieve-summary">
-        <p class="achieve-summary-title">Трофеи смены</p>
-        <p class="achieve-summary-count">${done} из ${total}</p>
+    <div class="list career-panel">
+      <div class="achieve-summary achieve-summary--trophies">
+        <p class="achieve-summary-title">Трофеи</p>
+        <p class="achieve-summary-count">${done} из ${total} · +15 очков карьеры за каждый</p>
         <div class="bar"><i style="width:${total ? (done / total) * 100 : 0}%"></i></div>
       </div>
+      <p class="row-sub shop-note">Разовые награды за особые дела на смене и в зале.</p>
       ${rows}
     </div>
   `
 }
 
-function renderShopPanel(state: GameState): string {
-  if (state.phase === 'ownOnly') {
-    const owned = SHOP_ITEMS.filter((i) => state.shopOwned[i.id])
-      .map(
-        (item) => `
-      <div class="row-btn shop owned">
+function renderCareerPanel(state: GameState, sub: CareerSubTab): string {
+  return sub === 'trophies' ? renderCareerTrophiesPanel(state) : renderCareerTrackPanel(state)
+}
+
+function wireCareerPanel(panel: HTMLElement, handlers: ShellHandlers): void {
+  panel.querySelector('[data-career-share]')?.addEventListener('click', () => {
+    handlers.onShareCareer()
+  })
+  panel.querySelector('[data-career-import]')?.addEventListener('click', () => {
+    const code = prompt('Вставь код карьеры друга:')
+    if (code?.trim()) handlers.onImportCareer(code.trim())
+  })
+  panel.querySelector('[data-career-compare-clear]')?.addEventListener('click', () => {
+    handlers.onClearCareerCompare()
+  })
+  panel.querySelector('[data-reset]')?.addEventListener('click', () => {
+    if (confirm('Сбросить карьеру? Имя и заведение тоже сбросятся.')) handlers.onReset()
+  })
+}
+
+function renderTobaccoPanel(state: GameState): string {
+  const cap = shelfCapacity(state)
+  const active = shelfActiveCount(state)
+  const stock = tobaccoStockCount(state)
+  const bonuses = shelfBonuses(state)
+  const mood = shelfMood(state)
+  const moodNote =
+    mood === 'empty'
+      ? 'Полка пуста — гости уходят без заказа.'
+      : mood === 'sparse'
+        ? 'Мало вкусов — гости недовольны, поток падает.'
+        : mood === 'rich'
+          ? 'Много вкусов — гости довольны, чаевые выше.'
+          : 'Нормальный ассортимент — можно расширять полку.'
+
+  const onShelf = state.shelfActive
+    .map((id) => {
+      const t = getTobacco(id)
+      if (!t) return ''
+      return `
+        <button type="button" class="row-btn shop afford" data-shelf-off="${id}">
+          ${tobaccoIcon(id)}
+          <span class="row-main">
+            <span class="row-title">${t.name}</span>
+            <span class="row-sub">${tobaccoBonusLabel(t)}</span>
+          </span>
+          <span class="row-meta row-meta--action">убрать</span>
+        </button>
+      `
+    })
+    .join('')
+
+  const inStockOffShelf = TOBACCOS.filter(
+    (t) => state.ownedTobacco[t.id] && !state.shelfActive.includes(t.id),
+  )
+    .map(
+      (t) => `
+      <button type="button" class="row-btn shop ${active < cap ? 'afford' : ''}" data-shelf-on="${t.id}" ${active < cap ? '' : 'disabled'}>
+        ${tobaccoIcon(t.id)}
         <span class="row-main">
-          <span class="row-title">${item.name}</span>
-          <span class="row-sub">${item.blurb}</span>
+          <span class="row-title">${t.name}</span>
+          <span class="row-sub">${tobaccoBonusLabel(t)}</span>
         </span>
-        <span class="row-meta">есть</span>
-      </div>
+        <span class="row-meta row-meta--action">на полку</span>
+      </button>
     `,
-      )
+    )
+    .join('')
+
+  const catalog = TOBACCOS.filter((t) => !state.ownedTobacco[t.id])
+    .map((t) => {
+      const can = state.cash >= t.cost
+      return `
+      <button type="button" class="row-btn shop ${can ? 'afford' : ''}" data-order-tobacco="${t.id}" ${can ? '' : 'disabled'}>
+        ${tobaccoIcon(t.id)}
+        <span class="row-main">
+          <span class="row-title">${t.name}</span>
+          <span class="row-sub">${t.blurb} · ${tobaccoBonusLabel(t)}</span>
+        </span>
+        <span class="row-meta">${formatMoney(t.cost)}</span>
+      </button>
+    `
+    })
+    .join('')
+
+  return `
+    <div class="list">
+      <div class="milestone career shelf-status">
+        <div class="milestone-head">
+          <span>Табачная полка</span>
+          <span>${active}/${cap} на полке · ${stock} на складе</span>
+        </div>
+        <div class="bar"><i style="width:${cap ? (active / cap) * 100 : 0}%"></i></div>
+        <p class="row-sub shop-note">${moodNote}</p>
+        <p class="row-sub shop-note">Бонусы полки: +${bonuses.guest.toFixed(2)} гостей · +${Math.round(bonuses.tip * 100)}% чаевые · +${bonuses.income.toFixed(2)}/с</p>
+      </div>
+
+      <p class="section-label">На полке сейчас</p>
+      ${onShelf || '<p class="empty-note">Пусто — закажи табак и выставь на полку.</p>'}
+
+      ${
+        inStockOffShelf
+          ? `<p class="section-label">На складе — можно выставить</p>${inStockOffShelf}`
+          : ''
+      }
+
+      <p class="section-label">Заказ табака</p>
+      <p class="row-sub shop-note">Выбирай по бюджету. Купил — на склад, потом на полку.</p>
+      ${catalog || '<p class="empty-note">Весь каталог уже заказан.</p>'}
+    </div>
+  `
+}
+
+function renderStaffPanel(state: GameState): string {
+  const payroll = staffPayrollPerSec(state)
+  const gross = loungeGrossIncomePerSec(state)
+  const net = loungeIncomePerSec(state)
+  const bonuses = staffBonuses(state)
+  const team = hiredStaffCount(state)
+  const teamMax = maxTeamHeadcount()
+
+  const cards = STAFF_ROLES.map((role) => {
+    const members = staffMembers(state, role.id)
+    const max = maxStaffForRole(role.id)
+    const first = getStaffGradeDef(role.id, 1)
+    if (!first) return ''
+
+    if (members.length === 0) {
+      const can = state.cash >= first.hireCost
+      return `
+        <button type="button" class="staff-role-card staff-role-card--hire ${can ? 'afford' : ''}" data-hire-staff="${role.id}" ${can ? '' : 'disabled'}>
+          <span class="staff-role-icon">${staffIcon(role.id)}</span>
+          <span class="staff-role-main">
+            <span class="staff-role-name">${role.name}</span>
+            <span class="staff-role-blurb">${role.blurb}</span>
+          </span>
+          <span class="staff-role-meta">${formatMoney(first.hireCost)}</span>
+        </button>
+      `
+    }
+
+    const rolePayroll = members.reduce(
+      (sum, g) => sum + (getStaffGradeDef(role.id, g)?.salaryPerSec ?? 0),
+      0,
+    )
+
+    const roster = members
+      .map((grade, index) => {
+        const current = getStaffGradeDef(role.id, grade)
+        if (!current) return ''
+        const next = grade < 4 ? getStaffGradeDef(role.id, grade + 1) : null
+        const dots = [1, 2, 3, 4]
+          .map((g) => `<span class="staff-dot ${g <= grade ? 'is-on' : ''}"></span>`)
+          .join('')
+        const num =
+          members.length > 1
+            ? `<span class="staff-member-num">${index + 1}</span>`
+            : ''
+
+        const upgradeBtn = next
+          ? (() => {
+              const canUp = state.cash >= next.hireCost
+              return `<button type="button" class="staff-act staff-act--up ${canUp ? 'afford' : ''}" data-upgrade-staff="${role.id}" data-staff-idx="${index}" ${canUp ? '' : 'disabled'} title="→ ${next.title}"><span class="staff-up-cost">${formatMoney(next.hireCost)}</span><span class="staff-up-icon">↑</span></button>`
+            })()
+          : `<span class="staff-act staff-act--max" title="Макс. грейд">★</span>`
+
+        return `
+          <div class="staff-member">
+            ${num}
+            <span class="staff-member-title">${current.title}</span>
+            <div class="staff-dots" aria-label="Грейд ${grade} из 4">${dots}</div>
+            <div class="staff-member-actions">
+              ${upgradeBtn}
+              <button type="button" class="staff-act staff-act--fire" data-fire-staff="${role.id}" data-staff-idx="${index}" title="Уволить">×</button>
+            </div>
+          </div>
+        `
+      })
       .join('')
 
+    const addBlock =
+      members.length < max
+        ? (() => {
+            const addCost = extraStaffHireCost(role.id, 1)
+            const canAdd = state.cash >= addCost
+            return `
+          <button type="button" class="staff-role-add ${canAdd ? 'afford' : ''}" data-add-staff="${role.id}" ${canAdd ? '' : 'disabled'}>
+            <span>+ Ещё ${role.name.toLowerCase()}</span>
+            <span>${formatMoney(addCost)} · с 1-го грейда</span>
+          </button>
+        `
+          })()
+        : ''
+
+    return `
+      <div class="staff-role-card">
+        <div class="staff-role-head">
+          <span class="staff-role-icon">${staffIcon(role.id)}</span>
+          <div class="staff-role-main">
+            <div class="staff-role-title-row">
+              <span class="staff-role-name">${role.name}</span>
+              <span class="staff-role-count">${members.length}/${max}</span>
+            </div>
+            <span class="staff-role-blurb">${role.blurb} · ${rolePayroll.toFixed(1)}/с</span>
+          </div>
+        </div>
+        <div class="staff-roster">${roster}</div>
+        ${addBlock}
+      </div>
+    `
+  }).join('')
+
+  return `
+    <div class="list staff-panel">
+      <div class="milestone career shelf-status">
+        <div class="milestone-head">
+          <span>Команда · ${team}/${teamMax}</span>
+          <span>${staffPayrollLabel(state)}</span>
+        </div>
+        <div class="bar"><i style="width:${teamMax ? (team / teamMax) * 100 : 0}%"></i></div>
+        <p class="shop-note">
+          Зарплата списывается каждую секунду из выручки. Чистыми: ${formatMoney(net)}/с
+          ${payroll > 0 ? ` (валовая ${formatMoney(gross)}/с · ФОТ ${Math.round(staffPayrollShare(state) * 100)}%)` : ''}.
+        </p>
+        ${
+          bonuses.guest > 0 || bonuses.income > 0 || bonuses.click > 0
+            ? `<p class="shop-note">Бонусы: +${bonuses.guest.toFixed(2)} гости · +${bonuses.income.toFixed(2)}/с · +${bonuses.click} чаевые</p>`
+            : ''
+        }
+      </div>
+      <p class="shop-note">Каждый человек — свой грейд · ●●●○ · на ↑ — цена следующего уровня · норма ФОТ ~30–35%.</p>
+      ${cards}
+    </div>
+  `
+}
+
+function wireStaffPanel(panel: HTMLElement, handlers: ShellHandlers): void {
+  panel.querySelectorAll('[data-hire-staff]').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      handlers.onHireStaff((btn as HTMLElement).dataset.hireStaff as StaffId)
+    })
+  })
+  panel.querySelectorAll('[data-upgrade-staff]').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      const el = btn as HTMLElement
+      handlers.onUpgradeStaff(
+        el.dataset.upgradeStaff as StaffId,
+        Number(el.dataset.staffIdx ?? 0),
+      )
+    })
+  })
+  panel.querySelectorAll('[data-add-staff]').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      handlers.onAddStaff((btn as HTMLElement).dataset.addStaff as StaffId)
+    })
+  })
+  panel.querySelectorAll('[data-fire-staff]').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      const el = btn as HTMLElement
+      handlers.onFireStaff(el.dataset.fireStaff as StaffId, Number(el.dataset.staffIdx ?? 0))
+    })
+  })
+}
+
+function wireTobaccoPanel(panel: HTMLElement, handlers: ShellHandlers): void {
+  panel.querySelectorAll('[data-order-tobacco]').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      handlers.onBuyTobacco((btn as HTMLElement).dataset.orderTobacco as TobaccoId)
+    })
+  })
+  panel.querySelectorAll('[data-shelf-on]').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      handlers.onPutOnShelf((btn as HTMLElement).dataset.shelfOn as TobaccoId)
+    })
+  })
+  panel.querySelectorAll('[data-shelf-off]').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      handlers.onRemoveFromShelf((btn as HTMLElement).dataset.shelfOff as TobaccoId)
+    })
+  })
+}
+
+function renderNetworkPanel(state: GameState): string {
+  const ready = canBrowseEmpire(state)
+  const count = branchCount(state)
+  const incMult = empireIncomeMult(state)
+  const clkMult = empireClickMult(state)
+  const teaser = empireTeaser(state)
+
+  if (!ready) {
     return `
       <div class="list">
-        <p class="panel-label">Магазин смены</p>
-        <p class="row-sub shop-note">Смена закрыта после увольнения — новые покупки недоступны.</p>
-        ${owned || '<p class="row-sub shop-note">Инструментов не было.</p>'}
+        <div class="milestone career">
+          <div class="milestone-head">
+            <span>Сеть лаунжей</span>
+            <span>скоро</span>
+          </div>
+          <p class="row-sub shop-note">
+            ${
+              teaser ||
+              'Пройди карьеру до конца — откроется второе заведение и дальше сеть.'
+            }
+          </p>
+          <ul class="row-sub shop-note empire-checklist">
+            <li class="${state.phase !== 'employed' ? 'done' : ''}">Открыть свой зал</li>
+            <li class="${state.phase === 'ownOnly' ? 'done' : ''}">Уволиться со смены</li>
+          </ul>
+        </div>
       </div>
     `
   }
 
-  const shop = SHOP_ITEMS.map((item) => {
-    const owned = !!state.shopOwned[item.id]
-    const available = isShopItemAvailable(item, state.taskDone, state.jobRank)
-    const price = shopItemCost(state, item.cost)
+  const rows = BRANCHES.map((def) => {
+    const owned = isBranchOwned(state, def.id)
     if (owned) {
       return `
-      <div class="row-btn shop owned">
+        <div class="row-btn shop owned">
+          ${icon('lounge')}
+          <span class="row-main">
+            <span class="row-title">${def.name}</span>
+            <span class="row-sub">${def.blurb} · +${Math.round(def.incomeMult * 100)}% доход</span>
+          </span>
+          <span class="row-meta row-meta--status">в сети</span>
+        </div>
+      `
+    }
+    const unlocked = isBranchUnlocked(state, def)
+    const can = unlocked && state.cash >= def.cost
+    const prev = def.needBranch
+      ? BRANCHES.find((b) => b.id === def.needBranch)?.name
+      : null
+    return `
+      <button type="button" class="row-btn shop ${can ? 'afford' : ''} ${unlocked ? '' : 'locked'}" data-branch="${def.id}" ${can ? '' : 'disabled'}>
+        ${icon('lounge')}
         <span class="row-main">
-          <span class="row-title">${item.name}</span>
-          <span class="row-sub">${item.blurb}</span>
+          <span class="row-title">${def.name}</span>
+          <span class="row-sub">${
+            unlocked
+              ? `${def.blurb} · +${Math.round(def.incomeMult * 100)}% доход · +${Math.round(def.clickMult * 100)}% чаевые`
+              : prev
+                ? `Сначала «${prev}»`
+                : 'Закрыто'
+          }</span>
         </span>
-        <span class="row-meta">есть</span>
+        <span class="row-meta">${unlocked ? formatMoney(def.cost) : '—'}</span>
+      </button>
+    `
+  }).join('')
+
+  const synergyNote =
+    count >= 5
+      ? 'Полная сеть — бонус империи +10%'
+      : count >= 2
+        ? `Синергия сети: +${Math.round(networkSynergyBonus(state) * 100)}% ко всему доходу`
+        : 'Открой вторую точку — бонус синергии ко всем залам'
+
+  return `
+    <div class="list">
+      <div class="milestone career shelf-status">
+        <div class="milestone-head">
+          <span>${networkLabel(state)}</span>
+          <span>${count}/5 точек</span>
+        </div>
+        <div class="bar"><i style="width:${(count / 5) * 100}%"></i></div>
+        <p class="row-sub shop-note">
+          Множители сети: доход ×${incMult.toFixed(2)} · чаевые ×${clkMult.toFixed(2)}
+        </p>
+        <p class="row-sub shop-note">${synergyNote}</p>
+        <p class="row-sub shop-note">Главный зал не сбрасывается — филиалы усиливают всё сразу.</p>
+      </div>
+      <p class="section-label">Открыть точку</p>
+      ${rows}
+    </div>
+  `
+}
+
+function wireNetworkPanel(panel: HTMLElement, handlers: ShellHandlers): void {
+  panel.querySelectorAll('[data-branch]').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      handlers.onOpenBranch((btn as HTMLElement).dataset.branch as BranchId)
+    })
+  })
+}
+
+function formatCooldownLeft(readyAt: number, now: number): string {
+  const left = Math.max(0, readyAt - now)
+  if (left <= 0) return ''
+  const sec = Math.ceil(left / 1000)
+  if (sec >= 60) return ` · через ${Math.ceil(sec / 60)} мин`
+  return ` · через ${sec} с`
+}
+
+function renderPersonalPanel(state: GameState, now: number): string {
+  const p = state.personal
+  const title = personalTitle(state)
+  const status = personalStatusLine(state, now)
+  const eventLeft = eventBoostRemainingSec(state, now)
+  const blogger = isBlogger(p.channelLevel)
+  const videoLevel = blogger ? minChannelGearLevel(p.channelGear) : 0
+  const tier = videoLevel >= 1 ? channelTierLabel(videoLevel) : ''
+  const channelBonus = blogger ? channelTrafficBonus(p.channelGear, true) : 0
+  const videoReady = now >= p.videoReadyAt
+  const eventReady = now >= p.eventReadyAt
+  const awardReady = now >= p.awardReadyAt
+  const award = awardWinBreakdown(state)
+  const shootReady = canShootVideo(p.channelGear)
+  const videoPreview = shootReady ? videoRewards(videoLevel) : null
+  const videoCdSec =
+    shootReady ? Math.round(videoCooldownMs(videoLevel, p.channelGear.montage) / 1000) : 0
+  const gearHint = blogger ? videoTierRequirementHint(p.channelGear) : ''
+
+  const channelBlock =
+    !blogger
+      ? `
+      <button type="button" class="row-btn shop ${state.cash >= CHANNEL_START_COST ? 'afford' : ''}" data-personal-channel-start ${state.cash >= CHANNEL_START_COST ? '' : 'disabled'}>
+        ${icon('tab_personal')}
+        <span class="row-main">
+          <span class="row-title">Стать блогером</span>
+          <span class="row-sub">Канал «Дымной дневник» — ролики после прокачки оборудования</span>
+        </span>
+        <span class="row-meta">${formatMoney(CHANNEL_START_COST)}</span>
+      </button>
+    `
+      : `
+      <div class="milestone career">
+        <div class="milestone-head">
+          <span>Блогер · «Дымной дневник»${videoLevel >= 1 ? ` · ролик ${videoLevel} ур.` : ''}${tier ? ` · ${tier}` : ''}</span>
+          <span>${channelBonus > 0 ? `+${Math.round(channelBonus * 100)}% гостей` : 'без охвата'}</span>
+        </div>
+        <p class="row-sub shop-note">${gearHint || 'Прокачай оборудование — от него зависит ур. ролика'}${
+          shootReady ? ` · перезарядка ~${videoCdSec} с · роликов ${p.videosPosted}` : ''
+        }</p>
+      </div>
+    `
+
+  const gearRows = CHANNEL_GEAR.map((def) => {
+    const level = p.channelGear[def.id]
+    const maxed = level >= def.maxLevel
+    const cost = gearUpgradeCost(def, level)
+    const can = blogger && !maxed && state.cash >= cost
+    if (maxed) {
+      return `
+        <div class="row-btn shop owned">
+          ${icon('hood')}
+          <span class="row-main">
+            <span class="row-title">${def.name} · ур.${level}</span>
+            <span class="row-sub">${def.blurb}</span>
+          </span>
+          <span class="row-meta">макс.</span>
+        </div>
+      `
+    }
+    if (!blogger) {
+      return `
+        <button type="button" class="row-btn shop locked" disabled>
+          ${icon('lock', 'row-icon--muted')}
+          <span class="row-main">
+            <span class="row-title">${def.name}</span>
+            <span class="row-sub">Сначала стань блогером</span>
+          </span>
+          <span class="row-meta">—</span>
+        </button>
+      `
+    }
+    return `
+      <button type="button" class="row-btn shop ${can ? 'afford' : ''}" data-personal-gear="${def.id}" ${can ? '' : 'disabled'}>
+        ${icon('hood')}
+        <span class="row-main">
+          <span class="row-title">${def.name}${level ? ` · ур.${level}` : ''}</span>
+          <span class="row-sub">${def.blurb}</span>
+        </span>
+        <span class="row-meta">${formatMoney(cost)}</span>
+      </button>
+    `
+  }).join('')
+
+  const videoBlock =
+    blogger
+      ? `
+      <button type="button" class="row-btn shop ${videoReady && shootReady && state.cash >= VIDEO_BASE_COST ? 'afford' : ''}" data-personal-video ${videoReady && shootReady && state.cash >= VIDEO_BASE_COST ? '' : 'disabled'}>
+        ${icon('hood')}
+        <span class="row-main">
+          <span class="row-title">${shootReady ? `Снять ролик ${videoLevel}-го ур.` : 'Снять ролик'}</span>
+          <span class="row-sub">${
+            shootReady && videoPreview
+              ? `+${videoPreview.fame} узн. · +${videoPreview.media} мед. · +${videoPreview.cash} ₽`
+              : gearHint || 'Сначала всё оборудование на 1-м ур.'
+          }${videoReady || !shootReady ? '' : formatCooldownLeft(p.videoReadyAt, now)}</span>
+        </span>
+        <span class="row-meta">${formatMoney(VIDEO_BASE_COST)}</span>
+      </button>
+    `
+      : ''
+
+  return `
+    <div class="list personal-panel">
+      <div class="milestone career personal-stats">
+        <div class="milestone-head">
+          <span>${state.playerName || 'Ты'} · ${title}</span>
+          <span>${status}</span>
+        </div>
+        <div class="personal-bars">
+          <div class="personal-bar">
+            <span class="personal-bar-label">Узнаваемость</span>
+            <div class="bar"><i style="width:${Math.min(100, p.fame)}%"></i></div>
+            <span class="personal-bar-val">${p.fame}</span>
+          </div>
+          <div class="personal-bar">
+            <span class="personal-bar-label">Медийность</span>
+            <div class="bar"><i style="width:${Math.min(100, p.media)}%"></i></div>
+            <span class="personal-bar-val">${p.media}</span>
+          </div>
+        </div>
+        ${
+          eventLeft > 0
+            ? `<p class="row-sub shop-note">Мероприятие: +${Math.round(p.eventBoostAmount * 100)}% гостей · ещё ${eventLeft} с</p>`
+            : ''
+        }
+      </div>
+
+      <p class="section-label">Блог</p>
+      <p class="row-sub shop-note">Стань блогером, прокачай всё оборудование на одном ур. — откроется ролик этого уровня.</p>
+      ${channelBlock}
+      <p class="section-label">Оборудование канала</p>
+      ${gearRows}
+      ${videoBlock}
+
+      <p class="section-label">Мероприятие в зале</p>
+      <p class="row-sub shop-note">Разовый всплеск гостей на 2 минуты + узнаваемость навсегда.</p>
+      <button type="button" class="row-btn shop ${eventReady && state.cash >= EVENT_COST ? 'afford' : ''}" data-personal-event ${eventReady && state.cash >= EVENT_COST ? '' : 'disabled'}>
+        ${icon('lounge')}
+        <span class="row-main">
+          <span class="row-title">Вечер дегустации у себя</span>
+          <span class="row-sub">Аншлаг на пару минут · +3 узнаваемость${eventReady ? '' : formatCooldownLeft(p.eventReadyAt, now)}</span>
+        </span>
+        <span class="row-meta">${formatMoney(EVENT_COST)}</span>
+      </button>
+
+      <p class="section-label">Премия «Гайд Мастерс»</p>
+      <p class="row-sub shop-note">Участие бесплатное. Шанс победы растёт от узнаваемости, канала и прокачки зала.</p>
+      <div class="milestone career" data-award-breakdown>
+        <div class="milestone-head">
+          <span>Шанс победы</span>
+          <span data-award-chance>${Math.round(award.chance * 100)}%</span>
+        </div>
+        <p class="row-sub shop-note" data-award-factors>Узнаваемость +${Math.round(award.fame)} · медийность +${Math.round(award.media)} · канал +${Math.round(award.channel)} · зал +${Math.round(award.venue)}</p>
+      </div>
+      <button type="button" class="row-btn shop ${awardReady ? 'afford' : ''}" data-personal-award ${awardReady ? '' : 'disabled'}>
+        ${icon('trophy', 'row-icon--gold')}
+        <span class="row-main">
+          <span class="row-title">Подать заявку</span>
+          <span class="row-sub">Попыток ${p.awardAttempts}, побед ${p.awardWins}${awardReady ? '' : formatCooldownLeft(p.awardReadyAt, now)}</span>
+        </span>
+        <span class="row-meta row-meta--status">бесплатно</span>
+      </button>
+    </div>
+  `
+}
+
+function wirePersonalPanel(panel: HTMLElement, handlers: ShellHandlers): void {
+  panel.querySelector('[data-personal-channel-start]')?.addEventListener('click', () => {
+    handlers.onStartChannel()
+  })
+  panel.querySelectorAll('[data-personal-gear]').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      handlers.onUpgradeChannelGear((btn as HTMLElement).dataset.personalGear as ChannelGearId)
+    })
+  })
+  panel.querySelector('[data-personal-video]')?.addEventListener('click', () => {
+    handlers.onShootVideo()
+  })
+  panel.querySelector('[data-personal-event]')?.addEventListener('click', () => {
+    handlers.onHoldEvent()
+  })
+  panel.querySelector('[data-personal-award]')?.addEventListener('click', () => {
+    handlers.onEnterAward()
+  })
+}
+
+export function updatePersonalCooldowns(
+  root: HTMLElement,
+  state: GameState,
+  now = Date.now(),
+): void {
+  if (state.phase === 'employed') return
+  const p = state.personal
+  const blogger = isBlogger(p.channelLevel)
+  const videoLevel = blogger ? minChannelGearLevel(p.channelGear) : 0
+  const shootReady = canShootVideo(p.channelGear)
+  const videoBtn = root.querySelector<HTMLButtonElement>('[data-personal-video]')
+  if (videoBtn && blogger) {
+    const ready = now >= p.videoReadyAt
+    const can = ready && shootReady && state.cash >= VIDEO_BASE_COST
+    videoBtn.disabled = !can
+    videoBtn.classList.toggle('afford', can)
+    const title = videoBtn.querySelector('.row-title')
+    if (title) {
+      title.textContent = shootReady ? `Снять ролик ${videoLevel}-го ур.` : 'Снять ролик'
+    }
+    const sub = videoBtn.querySelector('.row-sub')
+    const rewards = shootReady ? videoRewards(videoLevel) : null
+    const gearHint = videoTierRequirementHint(p.channelGear)
+    if (sub) {
+      sub.textContent = `${
+        shootReady && rewards
+          ? `+${rewards.fame} узн. · +${rewards.media} мед. · +${rewards.cash} ₽`
+          : gearHint || 'Сначала всё оборудование на 1-м ур.'
+      }${ready || !shootReady ? '' : formatCooldownLeft(p.videoReadyAt, now)}`
+    }
+  }
+  root.querySelectorAll<HTMLButtonElement>('[data-personal-gear]').forEach((btn) => {
+    const id = btn.dataset.personalGear as ChannelGearId
+    const def = CHANNEL_GEAR.find((g) => g.id === id)
+    if (!def) return
+    const level = p.channelGear[id]
+    if (level >= def.maxLevel) return
+    const cost = gearUpgradeCost(def, level)
+    const can = state.cash >= cost
+    btn.disabled = !can
+    btn.classList.toggle('afford', can)
+    const meta = btn.querySelector('.row-meta')
+    if (meta) meta.textContent = formatMoney(cost)
+  })
+  const eventBtn = root.querySelector<HTMLButtonElement>('[data-personal-event]')
+  if (eventBtn) {
+    const ready = now >= p.eventReadyAt
+    const can = ready && state.cash >= EVENT_COST
+    eventBtn.disabled = !can
+    eventBtn.classList.toggle('afford', can)
+    const sub = eventBtn.querySelector('.row-sub')
+    if (sub) {
+      sub.textContent = `Аншлаг на пару минут · +3 узнаваемость${
+        ready ? '' : formatCooldownLeft(p.eventReadyAt, now)
+      }`
+    }
+  }
+  const awardBtn = root.querySelector<HTMLButtonElement>('[data-personal-award]')
+  if (awardBtn) {
+    const ready = now >= p.awardReadyAt
+    awardBtn.disabled = !ready
+    awardBtn.classList.toggle('afford', ready)
+    const bd = awardWinBreakdown(state)
+    const chanceEl = root.querySelector('[data-award-chance]')
+    if (chanceEl) chanceEl.textContent = `${Math.round(bd.chance * 100)}%`
+    const bdNote = root.querySelector('[data-award-factors]')
+    if (bdNote) {
+      bdNote.textContent = `Узнаваемость +${Math.round(bd.fame)} · медийность +${Math.round(bd.media)} · канал +${Math.round(bd.channel)} · зал +${Math.round(bd.venue)}`
+    }
+    const sub = awardBtn.querySelector('.row-sub')
+    if (sub) {
+      sub.textContent = `Попыток ${p.awardAttempts}, побед ${p.awardWins}${
+        ready ? '' : formatCooldownLeft(p.awardReadyAt, now)
+      }`
+    }
+  }
+  const eventNote = root.querySelector<HTMLElement>('.personal-stats .shop-note')
+  const eventLeft = eventBoostRemainingSec(state, now)
+  if (eventNote && eventLeft > 0) {
+    eventNote.textContent = `Мероприятие: +${Math.round(p.eventBoostAmount * 100)}% гостей · ещё ${eventLeft} с`
+    eventNote.hidden = false
+  } else if (eventNote) {
+    eventNote.hidden = true
+  }
+}
+
+function renderShopPanel(state: GameState): string {
+  const taskBaseCd: Record<string, number> = Object.fromEntries(
+    JOB_TASKS.map((t) => [t.id, t.cooldownMs]),
+  )
+
+  if (state.phase === 'ownOnly') {
+    const owned = SHOP_ITEMS.filter((i) => shopLevel(state.shopOwned, i.id) > 0)
+      .map((item) => {
+        const level = shopLevel(state.shopOwned, item.id)
+        const grade = getShopGrade(item, level)
+        return `
+      <div class="row-btn shop owned">
+        ${shopIcon(item.id)}
+        <span class="row-main">
+          <span class="row-title">${item.name} · ур.${level}</span>
+          <span class="row-sub">${grade?.title ?? item.blurb}</span>
+        </span>
+        <span class="row-meta row-meta--status">${level >= shopMaxLevel(item) ? 'макс.' : `ур.${level}`}</span>
+      </div>
+    `
+      })
+      .join('')
+
+    return `
+      <div class="list">
+        <p class="section-label">Инструменты смены</p>
+        <p class="shop-note">Смена закрыта — прокачка недоступна, осталось только то, что было.</p>
+        ${owned || '<p class="empty-note">Инструментов не было.</p>'}
+      </div>
+    `
+  }
+
+  const maxed = SHOP_ITEMS.filter((i) => shopLevel(state.shopOwned, i.id) >= shopMaxLevel(i)).length
+  const shop = SHOP_ITEMS.map((item) => {
+    const level = shopLevel(state.shopOwned, item.id)
+    const current = getShopGrade(item, level)
+    const next = nextShopGrade(item, level)
+    const baseMs = taskBaseCd[item.task] ?? 1500
+
+    if (!next) {
+      return `
+      <div class="row-btn shop owned">
+        ${shopIcon(item.id)}
+        <span class="row-main">
+          <span class="row-title">${item.name} · ур.${level}</span>
+          <span class="row-sub">${current ? shopEffectLabel(current, baseMs) : item.blurb}</span>
+        </span>
+        <span class="row-meta row-meta--status">макс.</span>
       </div>
     `
     }
-    if (!available) {
+
+    const canUp = canUpgradeShopItem(item, level, state.taskDone, state.jobRank)
+    const price = shopItemCost(state, next.cost)
+    const afford = canUp && state.cash >= price
+    const action = level === 0 ? 'Купить' : `Улучшить → ур.${next.level}`
+    let sub = canUp
+      ? `${next.title} · ${shopEffectLabel(next, baseMs)}`
+      : shopUnlockHint(item, state.taskDone)
+    if (
+      item.id === 'drill_brush' &&
+      level === 0 &&
+      canUp &&
+      bareHandsStillPossible(state.shopOwned, state.taskDone.wash)
+    ) {
+      sub += ' · можно отложить — трофей «Голыми руками»'
+    }
+
+    if (!canUp) {
       return `
       <button type="button" class="row-btn shop locked" data-shop="${item.id}" disabled>
+        ${shopIcon(item.id)}
         <span class="row-main">
-          <span class="row-title">${item.name}</span>
-          <span class="row-sub">${shopRankHint(item)}</span>
+          <span class="row-title">${item.name}${level ? ` · ур.${level}` : ''}</span>
+          <span class="row-sub">${sub}</span>
         </span>
         <span class="row-meta">${formatMoney(price)}</span>
       </button>
     `
     }
-    const canBuy = state.cash >= price
-    const effect =
-      item.cooldownMult < 1
-        ? `быстрее ×${item.cooldownMult}`
-        : item.payBonus
-          ? `+${item.payBonus} к выплате`
-          : ''
+
     return `
-      <button type="button" class="row-btn shop ${canBuy ? 'afford' : ''}" data-shop="${item.id}" ${canBuy ? '' : 'disabled'}>
+      <button type="button" class="row-btn shop ${afford ? 'afford' : ''}" data-shop="${item.id}" ${afford ? '' : 'disabled'}>
+        ${shopIcon(item.id)}
         <span class="row-main">
-          <span class="row-title">${item.name}</span>
-          <span class="row-sub">${item.blurb}${effect ? ` · ${effect}` : ''}</span>
+          <span class="row-title">${action}: ${item.name}${level ? ` · сейчас ур.${level}` : ''}</span>
+          <span class="row-sub">${sub}</span>
         </span>
         <span class="row-meta">${formatMoney(price)}</span>
       </button>
     `
   }).join('')
 
-  const venue = getVenue(state.venueId)
+  const phaseNote =
+    state.phase === 'dual'
+      ? 'На подработке инструменты покупаются заново — с прошлой смены не переносятся. Каждый инструмент — до 4 уровней.'
+      : `${getVenue(state.venueId).name}: цены ×${getVenue(state.venueId).shopPriceMult}. Каждый инструмент — до 4 уровней.`
+  const bareHandsShopNote = bareHandsStillPossible(state.shopOwned, state.taskDone.wash)
+    ? `<p class="shop-note shop-note--tip">Шуруповёрт необязателен: ${BARE_HANDS_WASH_NEED} моек «Помой кальян» без него — трофей «Голыми руками». Щипцы и кроссовки — по желанию.</p>`
+    : ''
   return `
     <div class="list">
-      <p class="panel-label">Магазин смены</p>
-      <p class="row-sub shop-note">${venue.name}: цены ×${venue.shopPriceMult}, темп задач ×${venue.cooldownMult}.</p>
+      <p class="section-label">Инструменты смены · ${maxed}/${SHOP_ITEMS.length} макс.</p>
+      <p class="row-sub shop-note">${phaseNote}</p>
+      ${bareHandsShopNote}
       ${shop}
     </div>
   `
@@ -746,12 +2200,21 @@ function wireShopPanel(panel: HTMLElement, handlers: ShellHandlers): void {
   })
 }
 
-function renderLoungePanel(state: GameState): string {
-  ensureMenuSlots(state)
+function renderLoungePanel(state: GameState, now: number): string {
   const traffic = guestTraffic(state)
-  const filled = menuFilledCount(state)
-  const slotsN = menuSlotCount(state)
   const cap = capacityStatus(state)
+  const shelfCap = shelfCapacity(state)
+  const shelfN = shelfActiveCount(state)
+  const mood = shelfMood(state)
+
+  const sideJob =
+    state.phase === 'dual'
+      ? `
+      <p class="section-label">Подработка</p>
+      <p class="row-sub shop-note">Задачи ниже · ускорить — «Инструменты» выше (до 4 ур.).</p>
+      <div class="job-tasks" data-job-tasks>${renderJobTasksBlock(state, now)}</div>
+    `
+      : ''
 
   const trafficBlock = `
     <div class="milestone career">
@@ -760,97 +2223,27 @@ function renderLoungePanel(state: GameState): string {
         <span>${trafficLabel(traffic)} · ×${traffic.toFixed(2)}</span>
       </div>
       <div class="bar"><i style="width:${Math.min(100, (cap.seated / Math.max(1, cap.capacity)) * 100)}%"></i></div>
+      <p class="row-sub shop-note">Полка ${shelfN}/${shelfCap}${
+        mood === 'sparse' || mood === 'empty'
+          ? ' · мало вкусов — гости недовольны'
+          : mood === 'rich'
+            ? ' · богатый выбор — чаевые выше'
+            : ''
+      }. Управление → вкладка «Табак».</p>
     </div>
   `
-
-  const slotButtons = Array.from({ length: slotsN }, (_, i) => {
-    const id = state.menuSlots[i]
-    const def = id ? getTobacco(id) : null
-    const picking = state.menuPickSlot === i
-    return `
-      <button type="button" class="row-btn ${picking ? 'afford' : ''}" data-menu-slot="${i}">
-        <span class="row-main">
-          <span class="row-title">Слот ${i + 1}${def ? ` · ${def.name}` : ''}</span>
-          <span class="row-sub">${def ? def.blurb : 'Пусто — гости проходят мимо'}</span>
-        </span>
-        <span class="row-meta">${def ? 'сменить' : 'выбрать'}</span>
-      </button>
-    `
-  }).join('')
-
-  let pickPanel = ''
-  if (state.menuPickSlot !== null) {
-    const slot = state.menuPickSlot
-    const owned = TOBACCOS.filter((t) => state.ownedTobacco[t.id])
-    const options = owned
-      .map((t) => {
-        const usedElsewhere =
-          state.menuSlots.some((s, idx) => idx !== slot && s === t.id)
-        return `
-        <button type="button" class="row-btn shop afford" data-set-menu="${t.id}" data-slot="${slot}">
-          <span class="row-main">
-            <span class="row-title">${t.name}</span>
-            <span class="row-sub">${t.blurb}${usedElsewhere ? ' · сейчас в другом слоте' : ''}</span>
-          </span>
-          <span class="row-meta">+${t.appeal}</span>
-        </button>
-      `
-      })
-      .join('')
-    pickPanel = `
-      <div class="milestone">
-        <p class="row-sub">Выбери вкус для слота ${slot + 1}</p>
-        ${
-          options ||
-          '<p class="row-sub shop-note">Склад пуст — купи табак ниже.</p>'
-        }
-        <button type="button" class="row-btn" data-clear-menu data-slot="${slot}">Убрать из меню</button>
-        <button type="button" class="text-btn" data-cancel-menu-pick>Отмена</button>
-      </div>
-    `
-  }
-
-  const tobaccoShop = TOBACCOS.map((t) => {
-    const owned = !!state.ownedTobacco[t.id]
-    if (owned) {
-      return `
-        <div class="row-btn shop owned">
-          <span class="row-main">
-            <span class="row-title">${t.name}</span>
-            <span class="row-sub">${t.blurb}</span>
-          </span>
-          <span class="row-meta">склад</span>
-        </div>
-      `
-    }
-    const unlocked = state.owned.menu >= t.needMenuLevel
-    const can = unlocked && state.cash >= t.cost
-    return `
-      <button type="button" class="row-btn shop ${can ? 'afford' : ''} ${unlocked ? '' : 'locked'}" data-tobacco="${t.id}" ${can ? '' : 'disabled'}>
-        <span class="row-main">
-          <span class="row-title">${t.name}</span>
-          <span class="row-sub">${
-            unlocked
-              ? `${t.blurb} · appeal ${t.appeal}`
-              : `Нужно меню ур.${t.needMenuLevel}`
-          }</span>
-        </span>
-        <span class="row-meta">${formatMoney(t.cost)}</span>
-      </button>
-    `
-  }).join('')
-
   const furn = furnitureLevel(state)
   const expansionRows = EXPANSIONS.map((def) => {
     const owned = !!state.expansions[def.id]
     if (owned) {
       return `
         <div class="row-btn shop owned">
+          ${icon('tier_hall')}
           <span class="row-main">
             <span class="row-title">${def.name}</span>
             <span class="row-sub">+${def.seats} мест · +${formatMoney(def.incomeBonus)}/с</span>
           </span>
-          <span class="row-meta">есть</span>
+          <span class="row-meta row-meta--status">есть</span>
         </div>
       `
     }
@@ -858,6 +2251,7 @@ function renderLoungePanel(state: GameState): string {
     const can = unlocked && state.cash >= def.cost
     return `
       <button type="button" class="row-btn shop ${can ? 'afford' : ''} ${unlocked ? '' : 'locked'}" data-expansion="${def.id}" ${can ? '' : 'disabled'}>
+        ${icon('tier_hall')}
         <span class="row-main">
           <span class="row-title">${def.name}</span>
           <span class="row-sub">${
@@ -878,9 +2272,10 @@ function renderLoungePanel(state: GameState): string {
     const canBuy = unlocked && state.cash >= cost
     return `
       <button type="button" class="row-btn upgrade ${unlocked ? '' : 'locked'} ${canBuy ? 'afford' : ''}" data-buy="${def.id}" ${unlocked && canBuy ? '' : 'disabled'}>
+        ${upgradeIcon(def.id)}
         <span class="row-main">
           <span class="row-title">${def.name}${level ? ` · ур.${level}` : ''}</span>
-          <span class="row-sub">${unlocked ? def.blurb : 'Пока закрыто'}</span>
+          <span class="row-sub">${unlocked ? def.blurb : upgradeUnlockHint(def, state.owned)}</span>
         </span>
         <span class="row-meta">
           ${unlocked ? formatMoney(cost) : '—'}
@@ -891,15 +2286,16 @@ function renderLoungePanel(state: GameState): string {
   }).join('')
 
   let quit = ''
+  const empireHint = empireTeaser(state)
   if (state.phase === 'dual') {
     const ready = canQuitJob(state)
     quit = `
       <div class="milestone">
         <p class="row-sub">Уволиться можно, когда свой зал даёт от ${QUIT_INCOME_THRESHOLD}/сек. Сейчас: ${formatMoney(loungeIncomePerSec(state))}/с</p>
-        <button type="button" class="row-btn accent" data-quit ${ready ? '' : 'disabled'}>
+        <button type="button" class="row-btn accent row-btn--solo" data-quit ${ready ? '' : 'disabled'}>
           <span class="row-main">
             <span class="row-title">Уволиться из «${getVenue(state.venueId).name}»</span>
-            <span class="row-sub">Смена больше не нужна</span>
+            <span class="row-sub">Необязательно — ачивка «Трудяга» за смену и свой зал</span>
           </span>
         </button>
       </div>
@@ -908,31 +2304,29 @@ function renderLoungePanel(state: GameState): string {
 
   return `
     <div class="list">
+      ${sideJob}
       ${trafficBlock}
-      <p class="panel-label">Закупка</p>
+      ${
+        empireHint
+          ? `<div class="milestone"><p class="row-sub shop-note">${empireHint}</p></div>`
+          : ''
+      }
+      <p class="section-label">Закупка зала</p>
+      <p class="shop-note">Каждый уровень закупки добавляет пассивный доход — копится только пока игра открыта.</p>
       ${rows}
-      <p class="panel-label">Меню · ${filled}/${slotsN}</p>
-      ${slotButtons}
-      ${pickPanel}
-      <p class="panel-label">Табаки</p>
-      ${tobaccoShop}
-      <p class="panel-label">Расширение</p>
+      <p class="section-label">Расширения</p>
+      <p class="shop-note">Нужен суммарный уровень мебели из закупки — больше мест и выручки.</p>
       ${expansionRows}
       ${quit}
-      <button type="button" class="text-btn" data-reset>Сбросить карьеру</button>
     </div>
   `
 }
 
 function wireLoungePanel(panel: HTMLElement, handlers: ShellHandlers): void {
+  wireJobTasks(panel, handlers)
   panel.querySelectorAll('[data-buy]').forEach((btn) => {
     btn.addEventListener('click', () => {
       handlers.onBuy((btn as HTMLElement).dataset.buy as UpgradeId)
-    })
-  })
-  panel.querySelectorAll('[data-tobacco]').forEach((btn) => {
-    btn.addEventListener('click', () => {
-      handlers.onBuyTobacco((btn as HTMLElement).dataset.tobacco as TobaccoId)
     })
   })
   panel.querySelectorAll('[data-expansion]').forEach((btn) => {
@@ -940,29 +2334,56 @@ function wireLoungePanel(panel: HTMLElement, handlers: ShellHandlers): void {
       handlers.onBuyExpansion((btn as HTMLElement).dataset.expansion as ExpansionId)
     })
   })
-  panel.querySelectorAll('[data-menu-slot]').forEach((btn) => {
-    btn.addEventListener('click', () => {
-      handlers.onBeginMenuPick(Number((btn as HTMLElement).dataset.menuSlot))
-    })
-  })
-  panel.querySelectorAll('[data-set-menu]').forEach((btn) => {
-    btn.addEventListener('click', () => {
-      const el = btn as HTMLElement
-      handlers.onSetMenuSlot(
-        Number(el.dataset.slot),
-        el.dataset.setMenu as TobaccoId,
-      )
-    })
-  })
-  panel.querySelector('[data-clear-menu]')?.addEventListener('click', () => {
-    const el = panel.querySelector('[data-clear-menu]') as HTMLElement
-    handlers.onSetMenuSlot(Number(el.dataset.slot), null)
-  })
-  panel.querySelector('[data-cancel-menu-pick]')?.addEventListener('click', () => {
-    handlers.onCancelMenuPick()
-  })
   panel.querySelector('[data-quit]')?.addEventListener('click', () => handlers.onQuit())
-  panel.querySelector('[data-reset]')?.addEventListener('click', () => {
-    if (confirm('Сбросить карьеру? Имя и заведение тоже сбросятся.')) handlers.onReset()
-  })
+}
+
+export function maybePresentCelebration(
+  state: GameState,
+  onDismiss: () => void,
+): void {
+  const c = state.flags.celebration
+  if (!c) return
+  state.flags.celebration = null
+  showCelebration(c.title, c.subtitle, onDismiss)
+  if (c.kind === 'lounge') {
+    document.querySelector('.stage')?.classList.add('stage-flash')
+    window.setTimeout(
+      () => document.querySelector('.stage')?.classList.remove('stage-flash'),
+      700,
+    )
+  }
+}
+
+export function juiceTaskReward(
+  root: HTMLElement,
+  amount: number,
+  from?: HTMLElement | null,
+): void {
+  playCoinSound()
+  spawnFloatCash(root, amount, from ?? null)
+  pulseCashHud(root)
+}
+
+export function juiceLoungeOrder(root: HTMLElement, amount: number): void {
+  const stage = root.querySelector('.stage') as HTMLElement | null
+  const from = (root.querySelector('[data-cta]') ??
+    root.querySelector('[data-fab-order]')) as HTMLElement | null
+  playCoinSound()
+  spawnFloatCash(root, amount, from)
+  pulseCashHud(root)
+  if (stage) {
+    spawnTapSparks(stage, from)
+    stage.classList.add('stage-hit')
+    window.setTimeout(() => stage.classList.remove('stage-hit'), 220)
+  }
+}
+
+export function juicePurchase(root: HTMLElement): void {
+  playUnlockSound()
+  pulseCashHud(root)
+}
+
+export function showTabIntro(root: HTMLElement, title: string, body: string): void {
+  showToast(root, `${title} — ${body}`)
+  playUnlockSound()
 }

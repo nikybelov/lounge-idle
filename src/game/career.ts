@@ -7,7 +7,9 @@ import {
 } from '../data/tasks'
 import {
   SHOP_ITEMS,
-  isShopItemAvailable,
+  canUpgradeShopItem,
+  nextShopGrade,
+  shopLevel,
   taskCooldownMs,
   taskPay,
   type ShopItemId,
@@ -21,7 +23,31 @@ import {
 } from '../data/loungeTiers'
 import { getTobacco, type TobaccoId } from '../data/tobacco'
 import { getExpansion, type ExpansionId } from '../data/expansions'
-import { ensureMenuSlots, furnitureLevel, menuSlotCount } from './appeal'
+import { getBranch, type BranchId } from '../data/branches'
+import {
+  addStaffCheck,
+  fireStaffMemberCheck,
+  hireStaffCheck,
+  staffHeadcount,
+  staffMembers,
+  staffPayrollPerSec,
+  upgradeStaffMemberCheck,
+} from './staff'
+import {
+  extraStaffHireCost,
+  getStaffRole,
+  type StaffId,
+} from '../data/staff'
+import {
+  openBranchCheck,
+  syncEmpireUnlock,
+} from './empire'
+import {
+  furnitureLevel,
+  isOnShelf,
+  shelfCapacity,
+  shelfMood,
+} from './appeal'
 import { UPGRADES, type UpgradeId } from '../data/upgrades'
 import {
   isUpgradeUnlocked,
@@ -30,6 +56,15 @@ import {
   upgradeCost,
 } from './economy'
 import type { GameState, Scene } from './state'
+
+/** Пассив «репутация на смене» — первый idle до своего зала */
+export function jobReputationPerSec(state: GameState): number {
+  if (state.phase !== 'employed') return 0
+  const total =
+    state.taskDone.wash + state.taskDone.coals + state.taskDone.order
+  if (total < 3) return 0
+  return Math.min(0.55, 0.04 + total * 0.012)
+}
 
 export type ActionResult =
   | { ok: true; message?: string }
@@ -92,6 +127,7 @@ export function openLounge(state: GameState, tierId: LoungeTierId): ActionResult
   state.scene = 'lounge'
   state.flags.pickingLounge = false
   state.flags.loungeOfferUnlocked = false
+  state.flags.personalIntroPending = true
   state.loungeTier = tier.id
   state.loungeIncomeMult = tier.incomeMult
   state.loungeClickMult = tier.clickMult
@@ -107,18 +143,22 @@ export function openLounge(state: GameState, tierId: LoungeTierId): ActionResult
   for (const [id, lvl] of Object.entries(tier.startOwned)) {
     state.owned[id as UpgradeId] = lvl ?? 0
   }
+  // Инструменты с прошлой смены не переносятся — только комплект тарифа
+  state.shopOwned = {}
   for (const shopId of tier.startShop) {
-    state.shopOwned[shopId] = true
+    state.shopOwned[shopId] = 1
   }
 
   // Стартовый вкус — чтобы зал не стартовал «пустым»
-  state.ownedTobacco.dawn_apple = true
-  state.menuSlots = ['dawn_apple']
-  if (tier.id !== 'nook') {
-    state.ownedTobacco.mint_fog = true
-    state.menuSlots = ['dawn_apple', 'mint_fog']
+  state.ownedTobacco = {}
+  state.shelfActive = []
+  state.staffMembers = {}
+
+  state.flags.celebration = {
+    kind: 'lounge',
+    title: `«${tier.name}» открыт!`,
+    subtitle: `${state.playerName || 'Ты'} — теперь свой хозяин. Подрабатывай, качай зал и развивай личный бренд во вкладке «Личное».`,
   }
-  state.menuPickSlot = null
 
   return {
     ok: true,
@@ -148,6 +188,7 @@ export function quitJob(state: GameState): ActionResult {
   }
   state.phase = 'ownOnly'
   state.scene = 'lounge'
+  syncEmpireUnlock(state)
   return { ok: true, message: 'Смена закрыта. Дальше — только свой лаунж.' }
 }
 
@@ -191,12 +232,29 @@ export function tryPromote(state: GameState): string | null {
   const next = nextRank(state.jobRank)
   if (!next) return null
   state.jobRank = next.id
+  state.flags.celebration = {
+    kind: 'rank',
+    title: next.title,
+    subtitle: `«${getVenue(state.venueId).name}» повышает тебя — оплата задач ×${next.payMult.toFixed(2)}`,
+  }
   return `Повышение: ${next.title}`
 }
 
+export function canDoJobTasks(state: GameState): boolean {
+  if (state.phase === 'ownOnly') return false
+  if (state.phase === 'employed') return state.scene === 'job'
+  if (state.phase === 'dual') {
+    return state.scene === 'job' || state.scene === 'lounge'
+  }
+  return false
+}
+
 export function doJobTask(state: GameState, taskId: TaskId, now: number): ActionResult {
-  if (state.scene !== 'job' || state.phase === 'ownOnly') {
-    return { ok: false, message: 'Сейчас не смена' }
+  if (!canDoJobTasks(state)) {
+    return {
+      ok: false,
+      message: state.phase === 'ownOnly' ? 'Смена уже закрыта' : 'Сейчас не смена',
+    }
   }
   const task = JOB_TASKS.find((t) => t.id === taskId)
   if (!task) return { ok: false, message: 'Нет такой задачи' }
@@ -233,19 +291,22 @@ export function buyShopItem(state: GameState, id: ShopItemId): ActionResult {
   }
   const item = SHOP_ITEMS.find((i) => i.id === id)
   if (!item) return { ok: false, message: 'Нет такого' }
-  if (state.shopOwned[id]) {
-    return { ok: false, message: 'Уже куплено' }
+  const level = shopLevel(state.shopOwned, id)
+  const next = nextShopGrade(item, level)
+  if (!next) {
+    return { ok: false, message: 'Максимальный уровень' }
   }
-  if (!isShopItemAvailable(item, state.taskDone, state.jobRank)) {
-    return { ok: false, message: 'Нужен выше ранг или задача' }
+  if (!canUpgradeShopItem(item, level, state.taskDone, state.jobRank)) {
+    return { ok: false, message: 'Сначала открой задачу или подними ранг' }
   }
-  const cost = shopItemCost(state, item.cost)
+  const cost = shopItemCost(state, next.cost)
   if (state.cash < cost) {
     return { ok: false, message: 'Не хватает' }
   }
   state.cash -= cost
-  state.shopOwned[id] = true
-  return { ok: true, message: `Куплено: ${item.name}` }
+  state.shopOwned[id] = next.level
+  const verb = level === 0 ? 'Куплено' : 'Улучшено'
+  return { ok: true, message: `${verb}: ${item.name} · ур.${next.level}` }
 }
 
 export function loungeOrder(state: GameState): ActionResult {
@@ -277,19 +338,24 @@ export function buyUpgrade(state: GameState, id: UpgradeId): ActionResult {
 }
 
 export function tickIncome(state: GameState, dtSec: number): void {
-  if (state.phase === 'employed') return
+  if (state.phase === 'employed') {
+    const rep = jobReputationPerSec(state) * dtSec
+    if (rep > 0) state.cash += rep
+    return
+  }
   const income = loungeIncomePerSec(state) * dtSec
-  if (income > 0) state.cash += income
+  if (income !== 0) state.cash += income
 }
 
-export function applyOffline(state: GameState, now: number, capHours = 8): number {
-  const elapsedMs = Math.max(0, now - state.lastActive)
-  const capped = Math.min(elapsedMs, capHours * 3600_000)
-  const dt = capped / 1000
-  const before = state.cash
-  tickIncome(state, dt)
+/** Офлайн-дохода нет — только отметка возвращения в сессию */
+export function syncSessionTime(state: GameState, now: number): void {
   state.lastActive = now
-  return state.cash - before
+}
+
+/** @deprecated офлайн-пассив отключён — используй syncSessionTime */
+export function applyOffline(state: GameState, now: number): number {
+  syncSessionTime(state, now)
+  return 0
 }
 
 export function maybeBrokeHint(state: GameState): string | null {
@@ -300,6 +366,10 @@ export function maybeBrokeHint(state: GameState): string | null {
   return 'Касса пустеет — на старой смене тебя не увольняли. Можно вернуться.'
 }
 
+export function orderTobacco(state: GameState, id: TobaccoId): ActionResult {
+  return buyTobacco(state, id)
+}
+
 export function buyTobacco(state: GameState, id: TobaccoId): ActionResult {
   if (state.phase === 'employed') {
     return { ok: false, message: 'Сначала свой зал' }
@@ -307,64 +377,79 @@ export function buyTobacco(state: GameState, id: TobaccoId): ActionResult {
   const def = getTobacco(id)
   if (!def) return { ok: false, message: 'Нет такого вкуса' }
   if (state.ownedTobacco[id]) {
-    return { ok: false, message: 'Уже куплено' }
-  }
-  if (state.owned.menu < def.needMenuLevel) {
-    return {
-      ok: false,
-      message: `Нужно «Меню вкусов» ур.${def.needMenuLevel}`,
-    }
+    return { ok: false, message: 'Уже на складе' }
   }
   if (state.cash < def.cost) {
-    return { ok: false, message: 'Не хватает' }
+    return { ok: false, message: `Не хватает · нужно ${Math.ceil(def.cost - state.cash)}` }
   }
   state.cash -= def.cost
   state.ownedTobacco[id] = true
-  return { ok: true, message: `В склад: ${def.name}` }
+  return {
+    ok: true,
+    message: `Заказано: ${def.name}. Поставь на полку во вкладке «Табак».`,
+  }
 }
 
-export function beginMenuPick(state: GameState, slot: number): ActionResult {
+export function putOnShelf(state: GameState, id: TobaccoId): ActionResult {
   if (state.phase === 'employed') {
     return { ok: false, message: 'Сначала свой зал' }
   }
-  ensureMenuSlots(state)
-  if (slot < 0 || slot >= menuSlotCount(state)) {
-    return { ok: false, message: 'Нет такого слота' }
+  if (!state.ownedTobacco[id]) {
+    return { ok: false, message: 'Сначала закажи на склад' }
   }
-  state.menuPickSlot = slot
-  return { ok: true }
+  if (isOnShelf(state, id)) {
+    return { ok: false, message: 'Уже на полке' }
+  }
+  const cap = shelfCapacity(state)
+  if (state.shelfActive.length >= cap) {
+    return {
+      ok: false,
+      message: `Полка полная (${cap}). Убери вкус или купи стеллаж.`,
+    }
+  }
+  state.shelfActive.push(id)
+  return { ok: true, message: `${getTobacco(id)?.name} — на полке` }
 }
 
-export function cancelMenuPick(state: GameState): void {
-  state.menuPickSlot = null
-}
-
-export function setMenuSlot(
-  state: GameState,
-  slot: number,
-  tobaccoId: TobaccoId | null,
-): ActionResult {
+export function removeFromShelf(state: GameState, id: TobaccoId): ActionResult {
   if (state.phase === 'employed') {
     return { ok: false, message: 'Сначала свой зал' }
   }
-  ensureMenuSlots(state)
-  const n = menuSlotCount(state)
-  if (slot < 0 || slot >= n) {
-    return { ok: false, message: 'Нет такого слота' }
+  const idx = state.shelfActive.indexOf(id)
+  if (idx < 0) {
+    return { ok: false, message: 'Этого вкуса нет на полке' }
   }
-  if (tobaccoId) {
-    if (!state.ownedTobacco[tobaccoId]) {
-      return { ok: false, message: 'Сначала купи вкус' }
-    }
-    for (let i = 0; i < n; i++) {
-      if (i !== slot && state.menuSlots[i] === tobaccoId) {
-        state.menuSlots[i] = null
-      }
-    }
+  state.shelfActive.splice(idx, 1)
+  return { ok: true, message: `${getTobacco(id)?.name} — убран с полки` }
+}
+
+export function maybeShelfFeedback(state: GameState): string | null {
+  if (state.phase === 'employed') return null
+  const mood = shelfMood(state)
+
+  if (mood === 'empty') {
+    if (state.flags.shelfEmptyWarned) return null
+    state.flags.shelfEmptyWarned = true
+    state.flags.shelfSparseWarned = true
+    return 'Табачная полка пуста — гости разворачиваются и не платят.'
   }
-  state.menuSlots[slot] = tobaccoId
-  state.menuPickSlot = null
-  return { ok: true }
+  state.flags.shelfEmptyWarned = false
+
+  if (mood === 'sparse') {
+    if (state.flags.shelfSparseWarned) return null
+    state.flags.shelfSparseWarned = true
+    state.flags.shelfRichToast = false
+    return 'На полке всего пара вкусов — гости возмущаются и уходят раньше.'
+  }
+  state.flags.shelfSparseWarned = false
+
+  if (mood === 'rich') {
+    if (state.flags.shelfRichToast) return null
+    state.flags.shelfRichToast = true
+    return 'Богатая полка — гости довольны, чаевые и поток выше.'
+  }
+  state.flags.shelfRichToast = false
+  return null
 }
 
 export function buyExpansion(state: GameState, id: ExpansionId): ActionResult {
@@ -391,4 +476,101 @@ export function buyExpansion(state: GameState, id: ExpansionId): ActionResult {
     ok: true,
     message: `Зона «${def.name}»: +${def.seats} мест`,
   }
+}
+
+export function openBranch(state: GameState, id: BranchId): ActionResult {
+  const check = openBranchCheck(state, id)
+  if (!check.ok) return check
+  const def = getBranch(id)!
+  state.cash -= def.cost
+  state.branches[id] = true
+  return {
+    ok: true,
+    message: `Открыт филиал «${def.name}» — сеть ×${(1 + def.incomeMult).toFixed(2)} к доходу`,
+  }
+}
+
+export function hireStaff(state: GameState, id: StaffId): ActionResult {
+  const check = hireStaffCheck(state, id)
+  if (!check.ok) return check
+  const role = getStaffRole(id)!
+  const grade = role.grades[0]
+  state.cash -= grade.hireCost
+  state.staffMembers[id] = [1]
+  state.flags.payrollWarned = false
+  return {
+    ok: true,
+    message: `Нанят: ${role.name} · ${grade.title}. Зарплата ${grade.salaryPerSec.toFixed(grade.salaryPerSec < 1 ? 2 : 1)}/с`,
+  }
+}
+
+export function upgradeStaff(state: GameState, id: StaffId, index: number): ActionResult {
+  const check = upgradeStaffMemberCheck(state, id, index)
+  if (!check.ok) return check
+  const role = getStaffRole(id)!
+  const members = [...staffMembers(state, id)]
+  const nextGrade = members[index] + 1
+  const grade = role.grades[nextGrade - 1]
+  state.cash -= grade.hireCost
+  members[index] = nextGrade
+  state.staffMembers[id] = members
+  state.flags.payrollWarned = false
+  const label = members.length > 1 ? ` · №${index + 1}` : ''
+  return {
+    ok: true,
+    message: `Повышен: ${role.name}${label} → ${grade.title}`,
+  }
+}
+
+export function addStaff(state: GameState, id: StaffId): ActionResult {
+  const check = addStaffCheck(state, id)
+  if (!check.ok) return check
+  const role = getStaffRole(id)!
+  const def = role.grades[0]
+  const cost = extraStaffHireCost(id, 1)
+  state.cash -= cost
+  state.staffMembers[id] = [...staffMembers(state, id), 1]
+  state.flags.payrollWarned = false
+  return {
+    ok: true,
+    message: `+1 ${role.name.toLowerCase()} · ${def.title} (с 1-го грейда). В команде ${staffHeadcount(state, id)}`,
+  }
+}
+
+export function fireStaff(state: GameState, id: StaffId, index: number): ActionResult {
+  const check = fireStaffMemberCheck(state, id, index)
+  if (!check.ok) return check
+  const role = getStaffRole(id)!
+  const members = [...staffMembers(state, id)]
+  members.splice(index, 1)
+  if (members.length) {
+    state.staffMembers[id] = members
+  } else {
+    delete state.staffMembers[id]
+  }
+  const label = members.length > 0 ? ` · осталось ${members.length}` : ''
+  return {
+    ok: true,
+    message:
+      members.length > 0
+        ? `${role.name} №${index + 1} уволен${label}`
+        : `${role.name} уволен — ФОТ снижен`,
+  }
+}
+
+export function maybePayrollFeedback(state: GameState): string | null {
+  if (state.phase === 'employed') return null
+  const payroll = staffPayrollPerSec(state)
+  if (payroll <= 0) {
+    state.flags.payrollWarned = false
+    return null
+  }
+  const net = loungeIncomePerSec(state)
+  if (net >= 0) {
+    state.flags.payrollWarned = false
+    return null
+  }
+  if (state.flags.payrollWarned) return null
+  state.flags.payrollWarned = true
+  return `ФОТ (${payroll.toFixed(1)}/с) съедает выручку — уволи кого-то во вкладке «Команда».`
 }

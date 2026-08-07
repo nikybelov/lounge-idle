@@ -1,3 +1,5 @@
+import type { StaffId } from '../data/staff'
+import type { BranchId } from '../data/branches'
 import type { ExpansionId } from '../data/expansions'
 import type { AchievementId } from '../data/achievements'
 import type { LoungeTierId } from '../data/loungeTiers'
@@ -7,9 +9,55 @@ import type { TaskId } from '../data/tasks'
 import type { TobaccoId } from '../data/tobacco'
 import type { UpgradeId } from '../data/upgrades'
 import type { VenueId } from '../data/venues'
+import type { CareerMilestoneId } from '../data/careerTrack'
+
+export type GuideStep =
+  | 'pick_venue'
+  | 'welcome'
+  | 'first_task'
+  | 'dual_tasks'
+  | 'reputation'
+  | 'halfway'
+  | 'lounge_ready'
+  | 'first_order'
+  | 'done'
 
 export type CareerPhase = 'employed' | 'dual' | 'ownOnly'
 export type Scene = 'job' | 'lounge'
+
+export interface CareerTrackState {
+  /** Завершённые полные рабочие дни (0 = первый день) */
+  workDays: number
+  /** Прогресс текущего дня, сек */
+  dayProgressSec: number
+  /** Всего активных секунд в этой карьере */
+  totalActiveSec: number
+  /** Веха → номер дня, когда достигнута */
+  milestones: Partial<Record<CareerMilestoneId, number>>
+}
+
+export interface PersonalState {
+  /** Узнаваемость — постоянный бонус к потоку гостей */
+  fame: number
+  /** Медийность — усиливает эффект блога и премий */
+  media: number
+  channelLevel: number
+  /** Прокачка канала: камера, монтаж, брендинг */
+  channelGear: {
+    camera: number
+    montage: number
+    branding: number
+  }
+  videosPosted: number
+  eventsHeld: number
+  awardAttempts: number
+  awardWins: number
+  videoReadyAt: number
+  eventReadyAt: number
+  awardReadyAt: number
+  eventBoostUntil: number
+  eventBoostAmount: number
+}
 
 export interface GameState {
   v: 1
@@ -25,11 +73,17 @@ export interface GameState {
   loungeClickMult: number
   loungeName: string
   owned: Record<UpgradeId, number>
-  shopOwned: Partial<Record<ShopItemId, boolean>>
+  shopOwned: Partial<Record<ShopItemId, number>>
   ownedTobacco: Partial<Record<TobaccoId, boolean>>
-  menuSlots: (TobaccoId | null)[]
-  menuPickSlot: number | null
+  /** Вкусы, выставленные на табачную полку */
+  shelfActive: TobaccoId[]
   expansions: Partial<Record<ExpansionId, boolean>>
+  /** Открытые точки сети лаунжей */
+  branches: Partial<Record<BranchId, boolean>>
+  /** Грейды каждого нанятого сотрудника по роли (1–4) */
+  staffMembers: Partial<Record<StaffId, number[]>>
+  personal: PersonalState
+  career: CareerTrackState
   taskReadyAt: Record<TaskId, number>
   taskDone: Record<TaskId, number>
   achievements: Partial<Record<AchievementId, boolean>>
@@ -41,6 +95,32 @@ export interface GameState {
     loungeOrders: number
     pickingLounge: boolean
     loungeOfferUnlocked: boolean
+    shelfSparseWarned: boolean
+    shelfRichToast: boolean
+    shelfEmptyWarned: boolean
+    /** Вкладка «Сеть» после авторского зала + увольнения */
+    empireOfferUnlocked: boolean
+    payrollWarned: boolean
+    guideStep: GuideStep
+    /** Индекс последнего шага, который игрок закрыл в coach */
+    guideAckedIndex: number
+    /** Coach «две задачи на смене» после открытия «Поменяй угли» */
+    coalsDualHintSeen: boolean
+    /** Показать intro-подсказку вкладки «Личное» после открытия зала */
+    personalIntroPending: boolean
+    tabHints: {
+      shop: boolean
+      tobacco: boolean
+      staff: boolean
+      network: boolean
+      personal: boolean
+      career: boolean
+    }
+    celebration: {
+      kind: 'lounge' | 'rank'
+      title: string
+      subtitle: string
+    } | null
   }
 }
 
@@ -67,10 +147,32 @@ export function createInitialState(now = Date.now()): GameState {
     },
     shopOwned: {},
     ownedTobacco: {},
-    menuSlots: [],
-    menuPickSlot: null,
+    shelfActive: [],
     expansions: {},
-    taskReadyAt: {
+    branches: {},
+      staffMembers: {},
+      personal: {
+        fame: 0,
+        media: 0,
+        channelLevel: 0,
+        channelGear: { camera: 0, montage: 0, branding: 0 },
+        videosPosted: 0,
+        eventsHeld: 0,
+        awardAttempts: 0,
+        awardWins: 0,
+        videoReadyAt: 0,
+        eventReadyAt: 0,
+        awardReadyAt: 0,
+        eventBoostUntil: 0,
+        eventBoostAmount: 0,
+      },
+      career: {
+        workDays: 0,
+        dayProgressSec: 0,
+        totalActiveSec: 0,
+        milestones: {},
+      },
+      taskReadyAt: {
       wash: 0,
       coals: 0,
       order: 0,
@@ -90,6 +192,24 @@ export function createInitialState(now = Date.now()): GameState {
       pickingLounge: false,
       /** Вкладка «Свой зал» открылась после первых 9k */
       loungeOfferUnlocked: false,
+      shelfSparseWarned: false,
+      shelfRichToast: false,
+      shelfEmptyWarned: false,
+      empireOfferUnlocked: false,
+      payrollWarned: false,
+      guideStep: 'pick_venue',
+      guideAckedIndex: -1,
+      coalsDualHintSeen: false,
+      personalIntroPending: false,
+      tabHints: {
+        shop: false,
+        tobacco: false,
+        staff: false,
+        network: false,
+        personal: false,
+        career: false,
+      },
+      celebration: null,
     },
   }
 }

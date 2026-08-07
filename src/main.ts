@@ -1,28 +1,57 @@
 import './styles/main.css'
 import {
-  applyOffline,
+  syncSessionTime,
   beginLoungePick,
-  beginMenuPick,
   buyUpgrade,
   buyShopItem,
   buyTobacco,
   buyExpansion,
   cancelLoungePick,
-  cancelMenuPick,
   canBrowseLoungeOffer,
+  canDoJobTasks,
   doJobTask,
   loungeOrder,
   maybeBrokeHint,
+  maybeShelfFeedback,
+  maybePayrollFeedback,
   minOpenLoungeCost,
   openLounge,
+  openBranch,
+  putOnShelf,
+  removeFromShelf,
+  hireStaff,
+  upgradeStaff,
+  addStaff,
+  fireStaff,
   quitJob,
-  setMenuSlot,
   setScene,
   syncLoungeOfferUnlock,
   tickIncome,
   canQuitJob,
 } from './game/career'
+import {
+  enterGuideMastersAward,
+  holdVenueEvent,
+  shootPersonalVideo,
+  startPersonalChannel,
+  upgradeChannelGear,
+} from './game/personal'
+import { canBrowseEmpire, syncEmpireUnlock } from './game/empire'
 import { evaluateAchievements } from './data/achievements'
+import { rankDef } from './data/ranks'
+import { JOB_TASKS } from './data/tasks'
+import { taskPay } from './data/shop'
+import { getVenue } from './data/venues'
+import {
+  markTabHintSeen,
+  syncGuideProgress,
+  storySubHintMessage,
+  tabHintMessage,
+  consumePersonalIntroHint,
+  applyBootGuideToState,
+} from './game/guide'
+import { syncCareerMilestones, tickWorkDays } from './game/workDays'
+import { archiveCareerRun, encodeCareerShare, decodeCareerShare } from './save/leaderboard'
 import { createInitialState, type GameState } from './game/state'
 import {
   createDebouncedSave,
@@ -39,8 +68,22 @@ import {
   announceAchievements,
   updateHud,
   updateJobCooldowns,
+  updatePersonalCooldowns,
+  maybePresentCelebration,
+  flushAchievementQueue,
+  juiceTaskReward,
+  juiceLoungeOrder,
+  juicePurchase,
   type MenuTab,
+  type CareerSubTab,
+  type StorySubTab,
+  isLoungeOnlyMenuTab,
+  setCareerCompareCard,
 } from './ui/shell'
+import { dismissGuideCoach, queueTabHint } from './ui/guideOverlay'
+import { initUiPolish } from './ui/atmosphere'
+import { primeAudio } from './ui/juice'
+import { loungeClickPower } from './game/economy'
 import {
   adminForceLounge,
   adminToJob,
@@ -49,6 +92,8 @@ import {
   mountAdminPanel,
 } from './admin'
 import type { LoungeTierId } from './data/loungeTiers'
+import type { BranchId } from './data/branches'
+import type { StaffId } from './data/staff'
 import type { TobaccoId } from './data/tobacco'
 import type { ExpansionId } from './data/expansions'
 import type { VenueId } from './data/venues'
@@ -59,6 +104,8 @@ const root = rootEl
 
 let state: GameState = loadState()
 let menuTab: MenuTab = 'story'
+let careerSubTab: CareerSubTab = 'track'
+let storySubTab: StorySubTab = 'tasks'
 let scheduleSave = createDebouncedSave(450)
 let lastTs = performance.now()
 let gameStarted = false
@@ -66,23 +113,41 @@ const admin = isAdminEnabled()
 
 const handlers = {
   onJobTask(id: Parameters<typeof doJobTask>[1]) {
+    primeAudio()
+    const task = JOB_TASKS.find((t) => t.id === id)
+    const mult =
+      rankDef(state.jobRank).payMult * getVenue(state.venueId).payMult
+    const payPreview = task
+      ? taskPay(task.pay, id, state.shopOwned, mult)
+      : 0
     const res = doJobTask(state, id, Date.now())
     if (!res.ok) {
       if (res.message) showToast(root, res.message)
       return
     }
+    if (payPreview > 0) {
+      juiceTaskReward(
+        root,
+        payPreview,
+        root.querySelector(`[data-task="${id}"]`) as HTMLElement | null,
+      )
+    }
     if (res.message) showToast(root, res.message)
     afterAction()
   },
   onLoungeOrder() {
+    primeAudio()
+    const amount = loungeClickPower(state)
     const res = loungeOrder(state)
     if (!res.ok) return
+    juiceLoungeOrder(root, amount)
     afterAction()
   },
   onBuy(id: Parameters<typeof buyUpgrade>[1]) {
     const res = buyUpgrade(state, id)
     if (!res.ok && res.message) showToast(root, res.message)
     if (!res.ok) return
+    juicePurchase(root)
     afterAction()
     maybeQuitToast()
   },
@@ -91,6 +156,7 @@ const handlers = {
     if (!res.ok && res.message) showToast(root, res.message)
     if (!res.ok) return
     if (res.message) showToast(root, res.message)
+    juicePurchase(root)
     afterAction()
   },
   onBuyTobacco(id: TobaccoId) {
@@ -100,27 +166,65 @@ const handlers = {
     if (res.message) showToast(root, res.message)
     afterAction()
   },
-  onBuyExpansion(id: ExpansionId) {
-    const res = buyExpansion(state, id)
+  onPutOnShelf(id: TobaccoId) {
+    const res = putOnShelf(state, id)
     if (!res.ok && res.message) showToast(root, res.message)
     if (!res.ok) return
     if (res.message) showToast(root, res.message)
     afterAction()
   },
-  onBeginMenuPick(slot: number) {
-    const res = beginMenuPick(state, slot)
+  onRemoveFromShelf(id: TobaccoId) {
+    const res = removeFromShelf(state, id)
     if (!res.ok && res.message) showToast(root, res.message)
     if (!res.ok) return
-    paint()
+    if (res.message) showToast(root, res.message)
+    afterAction()
   },
-  onCancelMenuPick() {
-    cancelMenuPick(state)
-    paint()
-  },
-  onSetMenuSlot(slot: number, id: TobaccoId | null) {
-    const res = setMenuSlot(state, slot, id)
+  onHireStaff(id: StaffId) {
+    const res = hireStaff(state, id)
     if (!res.ok && res.message) showToast(root, res.message)
     if (!res.ok) return
+    if (res.message) showToast(root, res.message)
+    juicePurchase(root)
+    afterAction()
+  },
+  onUpgradeStaff(id: StaffId, index: number) {
+    const res = upgradeStaff(state, id, index)
+    if (!res.ok && res.message) showToast(root, res.message)
+    if (!res.ok) return
+    if (res.message) showToast(root, res.message)
+    juicePurchase(root)
+    afterAction()
+  },
+  onAddStaff(id: StaffId) {
+    const res = addStaff(state, id)
+    if (!res.ok && res.message) showToast(root, res.message)
+    if (!res.ok) return
+    if (res.message) showToast(root, res.message)
+    juicePurchase(root)
+    afterAction()
+  },
+  onFireStaff(id: StaffId, index: number) {
+    const res = fireStaff(state, id, index)
+    if (!res.ok && res.message) showToast(root, res.message)
+    if (!res.ok) return
+    if (res.message) showToast(root, res.message)
+    afterAction()
+  },
+  onOpenBranch(id: BranchId) {
+    const res = openBranch(state, id)
+    if (!res.ok && res.message) showToast(root, res.message)
+    if (!res.ok) return
+    if (res.message) showToast(root, res.message)
+    juicePurchase(root)
+    afterAction()
+  },
+  onBuyExpansion(id: ExpansionId) {
+    const res = buyExpansion(state, id)
+    if (!res.ok && res.message) showToast(root, res.message)
+    if (!res.ok) return
+    if (res.message) showToast(root, res.message)
+    juicePurchase(root)
     afterAction()
   },
   onBeginLoungePick() {
@@ -140,6 +244,7 @@ const handlers = {
     if (!res.ok && res.message) showToast(root, res.message)
     if (!res.ok) return
     if (res.message) showToast(root, res.message)
+    juicePurchase(root)
     menuTab = 'story'
     afterAction()
   },
@@ -154,6 +259,47 @@ const handlers = {
     const res = setScene(state, scene)
     if (!res.ok && res.message) showToast(root, res.message)
     if (!res.ok) return
+    if (scene === 'lounge') storySubTab = 'tasks'
+    afterAction()
+  },
+  onStartChannel() {
+    const res = startPersonalChannel(state)
+    if (!res.ok && res.message) showToast(root, res.message)
+    if (!res.ok) return
+    if (res.message) showToast(root, res.message)
+    juicePurchase(root)
+    afterAction()
+  },
+  onUpgradeChannelGear(id: Parameters<typeof upgradeChannelGear>[1]) {
+    const res = upgradeChannelGear(state, id)
+    if (!res.ok && res.message) showToast(root, res.message)
+    if (!res.ok) return
+    if (res.message) showToast(root, res.message)
+    juicePurchase(root)
+    afterAction()
+  },
+  onShootVideo() {
+    primeAudio()
+    const res = shootPersonalVideo(state, Date.now())
+    if (!res.ok && res.message) showToast(root, res.message)
+    if (!res.ok) return
+    if (res.message) showToast(root, res.message)
+    juiceTaskReward(root, 0, root.querySelector('[data-personal-video]') as HTMLElement | null)
+    afterAction()
+  },
+  onHoldEvent() {
+    const res = holdVenueEvent(state, Date.now())
+    if (!res.ok && res.message) showToast(root, res.message)
+    if (!res.ok) return
+    if (res.message) showToast(root, res.message)
+    juicePurchase(root)
+    afterAction()
+  },
+  onEnterAward() {
+    const res = enterGuideMastersAward(state, Date.now())
+    if (!res.ok && res.message) showToast(root, res.message)
+    if (!res.ok) return
+    if (res.message) showToast(root, res.message)
     afterAction()
   },
   onMenuTab(tab: MenuTab) {
@@ -172,21 +318,100 @@ const handlers = {
       paint()
       return
     }
+    if (tab === 'network') {
+      syncEmpireUnlock(state)
+      if (!canBrowseEmpire(state)) {
+        showToast(
+          root,
+          'Сеть откроется после увольнения со смены',
+        )
+        return
+      }
+    }
     menuTab = tab
+    if (tab !== 'story') storySubTab = 'tasks'
+    if (state.phase === 'dual' && isLoungeOnlyMenuTab(tab)) {
+      state.scene = 'lounge'
+    }
+    const tabHint = tabHintMessage(state, tab)
+    if (tabHint) {
+      queueTabHint(tabHint, () => {
+        markTabHintSeen(state, tabHint.id)
+        scheduleSave(state)
+      })
+    }
     paint()
   },
+  onCareerSubTab(sub: CareerSubTab) {
+    careerSubTab = sub
+    paint()
+  },
+  onStorySubTab(sub: StorySubTab) {
+    storySubTab = sub
+    const hint = storySubHintMessage(state, sub)
+    if (hint) {
+      queueTabHint(hint, () => {
+        markTabHintSeen(state, hint.id)
+        scheduleSave(state)
+      })
+    }
+    paint()
+  },
+  onGuideAck() {
+    saveState(state)
+  },
   onReset() {
+    dismissGuideCoach(root)
+    const archived = archiveCareerRun(state)
     resetSave()
     state = createInitialState()
     menuTab = 'story'
     gameStarted = false
+    sessionStorage.setItem('lounge-idle-admin', '0')
+    const url = new URL(location.href)
+    url.searchParams.delete('boot')
+    url.searchParams.delete('preview')
+    url.searchParams.set('admin', '0')
+    history.replaceState(null, '', url.pathname + url.search + url.hash)
+    if (archived) {
+      showToast(root, `Карьера в зале славы · ${archived.score} очков · день ${archived.workDays}`)
+    }
     void startFromBoot()
+  },
+  onShareCareer() {
+    const code = encodeCareerShare(state)
+    if (navigator.clipboard?.writeText) {
+      void navigator.clipboard.writeText(code).then(() => {
+        showToast(root, 'Код карьеры скопирован — отправь другу')
+      }).catch(() => {
+        prompt('Код карьеры (скопируй вручную):', code)
+      })
+    } else {
+      prompt('Код карьеры (скопируй вручную):', code)
+    }
+  },
+  onImportCareer(code: string) {
+    const card = decodeCareerShare(code)
+    if (!card) {
+      showToast(root, 'Не разобрали код — проверь, что скопировали целиком')
+      return
+    }
+    setCareerCompareCard(card)
+    showToast(root, `Сравнение с ${card.n} · день ${card.d}`)
+    paint()
+  },
+  onClearCareerCompare() {
+    setCareerCompareCard(null)
+    paint()
   },
 }
 
 function afterAction(): void {
+  syncCareerMilestones(state)
   const offerWasLocked = !state.flags.loungeOfferUnlocked
   syncLoungeOfferUnlock(state)
+  const empireWasLocked = !state.flags.empireOfferUnlocked
+  syncEmpireUnlock(state)
   if (
     offerWasLocked &&
     state.flags.loungeOfferUnlocked &&
@@ -194,12 +419,41 @@ function afterAction(): void {
   ) {
     showToast(root, 'Вкладка «Свой зал» открыта — можно выбрать тариф')
   }
+  if (
+    empireWasLocked &&
+    state.flags.empireOfferUnlocked &&
+    state.phase === 'ownOnly'
+  ) {
+    showToast(root, 'Вкладка «Сеть» открыта — можно открыть второе заведение')
+  }
   const unlocked = evaluateAchievements(state)
   const hint = maybeBrokeHint(state)
   if (hint) showToast(root, hint)
+  const shelfHint = maybeShelfFeedback(state)
+  if (shelfHint) showToast(root, shelfHint)
+  const payrollHint = maybePayrollFeedback(state)
+  if (payrollHint) showToast(root, payrollHint)
+  syncGuideProgress(state)
   if (state.phase !== 'employed' && menuTab === 'own') menuTab = 'story'
+  if (state.phase === 'employed' && menuTab === 'tobacco') menuTab = 'story'
+  if (state.phase === 'employed' && menuTab === 'staff') menuTab = 'story'
+  if (state.phase === 'employed' && menuTab === 'personal') menuTab = 'story'
+  if (!canBrowseEmpire(state) && menuTab === 'network') menuTab = 'story'
   paint()
-  if (unlocked.length) announceAchievements(root, unlocked)
+  maybePresentCelebration(state, () => {
+    const personalHint = consumePersonalIntroHint(state)
+    if (personalHint) {
+      queueTabHint(personalHint, () => {
+        markTabHintSeen(state, 'personal')
+        scheduleSave(state)
+      })
+    }
+    scheduleSave(state)
+    paint()
+    flushAchievementQueue(root, state, menuTab)
+  })
+  if (unlocked.length) announceAchievements(root, state, menuTab, unlocked)
+  else flushAchievementQueue(root, state, menuTab)
   scheduleSave(state)
 }
 
@@ -212,7 +466,11 @@ function maybeQuitToast(): void {
 
 function paint(): void {
   if (!gameStarted) return
-  renderShell(root, state, handlers, menuTab, Date.now())
+  renderShell(root, state, handlers, menuTab, Date.now(), careerSubTab, storySubTab)
+}
+
+function passiveAccruesNow(): boolean {
+  return gameStarted && !document.hidden
 }
 
 function frame(ts: number): void {
@@ -222,24 +480,40 @@ function frame(ts: number): void {
   }
   const dt = Math.min(0.25, (ts - lastTs) / 1000)
   lastTs = ts
-  tickIncome(state, dt)
+  if (passiveAccruesNow()) {
+    tickIncome(state, dt)
+    tickWorkDays(state, dt)
+  }
+  syncCareerMilestones(state)
   updateHud(root, state)
-  if (menuTab === 'story' && state.scene === 'job') {
+  if (state.phase !== 'employed') {
+    const shelfHint = maybeShelfFeedback(state)
+    if (shelfHint) showToast(root, shelfHint)
+    const payrollHint = maybePayrollFeedback(state)
+    if (payrollHint) showToast(root, payrollHint)
+  }
+  if (menuTab === 'story' && canDoJobTasks(state)) {
     updateJobCooldowns(root, state, Date.now())
+  }
+  if (menuTab === 'personal' && state.phase !== 'employed') {
+    updatePersonalCooldowns(root, state, Date.now())
   }
   const unlocked = evaluateAchievements(state)
   if (unlocked.length) {
-    announceAchievements(root, unlocked)
-    if (menuTab === 'achievements') paint()
+    announceAchievements(root, state, menuTab, unlocked)
+    if (menuTab === 'career') paint()
     scheduleSave(state)
   }
   scheduleSave(state)
   requestAnimationFrame(frame)
 }
 
-function beginGame(offlineGain = 0): void {
+function beginGame(): void {
+  dismissGuideCoach(root)
   gameStarted = true
+  syncCareerMilestones(state)
   mountShell(root, handlers)
+  initUiPolish(root)
   if (admin) {
     mountAdminPanel(document.body, {
       onCash(amount) {
@@ -276,44 +550,56 @@ function beginGame(offlineGain = 0): void {
       },
     })
   }
+  syncLoungeOfferUnlock(state)
+  syncEmpireUnlock(state)
   paint()
   lastTs = performance.now()
-  if (offlineGain > 0.5) {
-    showToast(root, `Пока тебя не было, зал принёс +${Math.floor(offlineGain)}`)
-  }
   if (admin) {
     showToast(root, 'Режим ADMIN · панель справа внизу')
   }
 }
 
 async function startFromBoot(): Promise<void> {
-  if (admin) {
-    state = createInitialState()
-    state.onboarded = true
-    state.playerName = 'Admin'
-    state.venueId = 'smoke_river'
-    state.loungeName = 'Угол Admin'
-    adminUnlockAll(state)
-    saveState(state)
-    beginGame(0)
-    return
-  }
   const boot = await runBoot(root)
+  dismissGuideCoach(root)
   state = createInitialState()
   state.onboarded = true
   state.playerName = boot.playerName
   state.venueId = boot.venueId
   state.loungeName = `Угол ${boot.playerName}`
+  applyBootGuideToState(state, boot.venueGuideDone)
   saveState(state)
-  beginGame(0)
+  beginGame()
 }
 
 async function bootApp(): Promise<void> {
+  const params = new URLSearchParams(location.search)
+  if (params.get('boot') === 'name' || params.get('preview') === 'name') {
+    params.delete('boot')
+    params.delete('preview')
+    const clean = params.toString()
+    history.replaceState(null, '', location.pathname + (clean ? `?${clean}` : '') + location.hash)
+  }
+
+  if (params.get('reset') === '1') {
+    sessionStorage.setItem('lounge-idle-admin', '0')
+    params.delete('reset')
+    params.set('admin', '0')
+    const clean = params.toString()
+    history.replaceState(null, '', location.pathname + (clean ? `?${clean}` : '') + location.hash)
+    resetSave()
+    state = createInitialState()
+    gameStarted = false
+    await startFromBoot()
+    requestAnimationFrame(frame)
+    return
+  }
+
   if (!state.onboarded || !state.venueId || !state.playerName) {
     await startFromBoot()
   } else {
-    const offlineGain = applyOffline(state, Date.now())
-    beginGame(offlineGain)
+    syncSessionTime(state, Date.now())
+    beginGame()
   }
   requestAnimationFrame(frame)
 }
@@ -323,6 +609,7 @@ window.addEventListener('beforeunload', () => {
 })
 document.addEventListener('visibilitychange', () => {
   if (document.visibilityState === 'hidden' && state.onboarded) saveState(state)
+  if (gameStarted) updateHud(root, state)
 })
 
 void bootApp()

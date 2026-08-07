@@ -1,4 +1,5 @@
 import type { ShopItemId } from './shop'
+import { SHOP_ITEMS } from './shop'
 import type { UpgradeId } from './upgrades'
 
 export type LoungeTierId = 'nook' | 'hall' | 'signature'
@@ -23,7 +24,7 @@ export const LOUNGE_TIERS: LoungeTierDef[] = [
   {
     id: 'nook',
     name: 'Уголок',
-    blurb: 'Минимум для старта. Один стол — и дальше сам.',
+    blurb: 'Минимум для старта. Один стол — инструменты смены покупаешь сам.',
     cost: 9000,
     incomeMult: 1,
     clickMult: 1,
@@ -34,7 +35,7 @@ export const LOUNGE_TIERS: LoungeTierDef[] = [
   {
     id: 'hall',
     name: 'Малый зал',
-    blurb: 'Чуть жирнее старт: диван уже стоит, доход бодрее.',
+    blurb: 'Диван на старте + ёршик в комплекте. Остальное — на подработке.',
     cost: 15000,
     incomeMult: 1.2,
     clickMult: 1.15,
@@ -45,7 +46,7 @@ export const LOUNGE_TIERS: LoungeTierDef[] = [
   {
     id: 'signature',
     name: 'Авторский зал',
-    blurb: 'Дорого войти — зато меню, вытяжка на старте и ёршик в кармане.',
+    blurb: 'Меню и вытяжка на старте + ёршик и щипцы в комплекте.',
     cost: 20000,
     incomeMult: 1.45,
     clickMult: 1.3,
@@ -61,4 +62,15 @@ export function cheapestLoungeTier(): LoungeTierDef {
 
 export function getLoungeTier(id: LoungeTierId | null | undefined): LoungeTierDef {
   return LOUNGE_TIERS.find((t) => t.id === id) ?? LOUNGE_TIERS[0]
+}
+
+/** Что тариф даёт из инструментов смены (остальное — с нуля) */
+export function tierShopBonusLabel(tier: LoungeTierDef): string {
+  if (!tier.startShop.length) {
+    return 'инструменты смены — с нуля'
+  }
+  const names = tier.startShop
+    .map((id) => SHOP_ITEMS.find((i) => i.id === id)?.name ?? id)
+    .join(', ')
+  return `в комплекте: ${names}`
 }

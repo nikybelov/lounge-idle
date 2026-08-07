@@ -26,7 +26,7 @@ export const JOB_TASKS: JobTask[] = [
     hint: 'Жар без суеты',
     pay: 5,
     cooldownMs: 1900,
-    unlockAfter: { task: 'wash', count: 15 },
+    unlockAfter: { task: 'wash', count: 8 },
   },
   {
     id: 'order',
@@ -34,7 +34,7 @@ export const JOB_TASKS: JobTask[] = [
     hint: 'Стол ждёт',
     pay: 7,
     cooldownMs: 2300,
-    unlockAfter: { task: 'coals', count: 15 },
+    unlockAfter: { task: 'coals', count: 8 },
   },
 ]
 

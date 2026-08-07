@@ -1,0 +1,134 @@
+import { BRANCHES } from './branches'
+import { achievementProgress } from './achievements'
+import { branchCount } from '../game/empire'
+import { isBlogger, minChannelGearLevel } from './personal'
+import { rankDef, rankIndex } from './ranks'
+import type { GameState } from '../game/state'
+
+/** Активных секунд в игре = один рабочий день (вкладка открыта) */
+export const SECONDS_PER_WORK_DAY = 180
+
+export type CareerMilestoneId =
+  | 'open_lounge'
+  | 'dual_worker'
+  | 'own_boss'
+  | 'signature_hall'
+  | 'empire_start'
+  | 'full_network'
+  | 'blogger'
+  | 'rank_master'
+  | 'rank_senior'
+
+export interface CareerMilestoneDef {
+  id: CareerMilestoneId
+  title: string
+  blurb: string
+  check: (state: GameState) => boolean
+}
+
+export const CAREER_MILESTONES: CareerMilestoneDef[] = [
+  {
+    id: 'open_lounge',
+    title: 'Свой зал',
+    blurb: 'Открыл собственный лаунж',
+    check: (s) => s.phase !== 'employed',
+  },
+  {
+    id: 'dual_worker',
+    title: 'Трудяга',
+    blurb: 'Свой зал + первая смена',
+    check: (s) => s.phase === 'dual',
+  },
+  {
+    id: 'own_boss',
+    title: 'Сам себе хозяин',
+    blurb: 'Уволился — только свой бизнес',
+    check: (s) => s.phase === 'ownOnly',
+  },
+  {
+    id: 'signature_hall',
+    title: 'Авторский зал',
+    blurb: 'Топовый тариф лаунжа',
+    check: (s) => s.loungeTier === 'signature',
+  },
+  {
+    id: 'empire_start',
+    title: 'Сеть',
+    blurb: 'Первый филиал',
+    check: (s) => branchCount(s) >= 1,
+  },
+  {
+    id: 'full_network',
+    title: 'Вся сеть',
+    blurb: 'Все точки открыты',
+    check: (s) => branchCount(s) >= BRANCHES.length,
+  },
+  {
+    id: 'blogger',
+    title: 'Блогер',
+    blurb: 'Запустил «Дымной дневник»',
+    check: (s) => isBlogger(s.personal.channelLevel),
+  },
+  {
+    id: 'rank_master',
+    title: 'Кальянный мастер',
+    blurb: 'Первое повышение на смене',
+    check: (s) => rankIndex(s.jobRank) >= 1,
+  },
+  {
+    id: 'rank_senior',
+    title: 'Старший мастер',
+    blurb: 'Верхняя должность на смене',
+    check: (s) => s.jobRank === 'senior',
+  },
+]
+
+export interface CareerScorePart {
+  label: string
+  points: number
+}
+
+/** Раскладка очков карьеры для подсказки в UI */
+export function careerScoreBreakdown(state: GameState): CareerScorePart[] {
+  const parts: CareerScorePart[] = []
+  const { done } = achievementProgress(state)
+  if (done > 0) parts.push({ label: `Трофеи · ${done} шт.`, points: done * 15 })
+  if (state.phase === 'dual') parts.push({ label: 'Смена + свой зал', points: 40 })
+  if (state.phase === 'ownOnly') parts.push({ label: 'Только свой бизнес', points: 70 })
+  if (state.loungeTier === 'nook') parts.push({ label: 'Тариф «Угол»', points: 20 })
+  if (state.loungeTier === 'hall') parts.push({ label: 'Тариф «Зал»', points: 45 })
+  if (state.loungeTier === 'signature') parts.push({ label: 'Авторский зал', points: 80 })
+  const branches = branchCount(state)
+  if (branches > 0) parts.push({ label: `Филиалы · ${branches}`, points: branches * 30 })
+  const famePts = Math.min(40, Math.round(state.personal.fame * 0.5))
+  if (famePts > 0) parts.push({ label: 'Узнаваемость', points: famePts })
+  const videoLvl = minChannelGearLevel(state.personal.channelGear)
+  if (videoLvl > 0) parts.push({ label: `Ролики · ${videoLvl} ур.`, points: videoLvl * 5 })
+  const rankPts = rankIndex(state.jobRank) * 12
+  if (rankPts > 0) parts.push({ label: rankDef(state.jobRank).title, points: rankPts })
+  return parts
+}
+
+/** Сводный «вес» карьеры для таблицы лидеров */
+export function careerScore(state: GameState): number {
+  const { done } = achievementProgress(state)
+  let score = done * 15
+  if (state.phase === 'dual') score += 40
+  if (state.phase === 'ownOnly') score += 70
+  if (state.loungeTier === 'nook') score += 20
+  if (state.loungeTier === 'hall') score += 45
+  if (state.loungeTier === 'signature') score += 80
+  score += branchCount(state) * 30
+  score += Math.min(40, state.personal.fame * 0.5)
+  score += minChannelGearLevel(state.personal.channelGear) * 5
+  score += rankIndex(state.jobRank) * 12
+  return Math.round(score)
+}
+
+export function displayWorkDay(workDays: number): number {
+  return workDays + 1
+}
+
+export function workDayProgressRatio(dayProgressSec: number): number {
+  return Math.min(1, dayProgressSec / SECONDS_PER_WORK_DAY)
+}

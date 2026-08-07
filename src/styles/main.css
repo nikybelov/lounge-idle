@@ -112,6 +112,7 @@ body {
   color: var(--text);
   font-family: var(--font-body);
   -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
   overflow: hidden;
 }
 
@@ -134,6 +135,7 @@ body {
 #app {
   height: 100dvh;
   overflow: hidden;
+  touch-action: manipulation;
 }
 
 .app-shell {

@@ -612,4 +612,20 @@ document.addEventListener('visibilitychange', () => {
   if (gameStarted) updateHud(root, state)
 })
 
+/** Блокирует double-tap zoom и pinch на iOS/Android в игровом режиме. */
+function preventMobileZoomGestures(): void {
+  document.addEventListener(
+    'dblclick',
+    (e) => {
+      e.preventDefault()
+    },
+    { passive: false },
+  )
+  for (const type of ['gesturestart', 'gesturechange', 'gestureend'] as const) {
+    document.addEventListener(type, (e) => e.preventDefault())
+  }
+}
+
+preventMobileZoomGestures()
+
 void bootApp()

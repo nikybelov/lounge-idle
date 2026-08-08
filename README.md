@@ -22,13 +22,11 @@ npm run dev
 
 ## Публичная ссылка (GitHub Pages)
 
-Каждый пуш в `main` собирает игру и обновляет сайт автоматически (Actions → Deploy to GitHub Pages).
+**Играть:** https://nikybelov.github.io/lounge-idle/
 
-После первого деплоя ссылка будет вида:
+Каждый пуш в `main` собирает игру и обновляет сайт автоматически (Actions → **Deploy to GitHub Pages**).
 
-`https://<твой-логин>.github.io/lounge-idle/`
-
-Админ для тестов: добавь `?admin=1` к URL. Выключить: `?admin=0`.
+Админ для тестов: добавь `?admin=1` к URL. Выключить: `?admin=0`. Новая карьера: `?reset=1`.
 
 ## Стек
 

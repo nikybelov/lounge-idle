@@ -32,7 +32,7 @@ export function ambassadorTierIndex(id: TobaccoId): number {
   return i >= 0 ? i : 0
 }
 
-/** Порог для контракта: обе шкалы или суммарная репутация */
+/** Порог для контракта: обе шкалы или сводный рейтинг */
 export function ambassadorNeeds(id: TobaccoId): AmbassadorNeeds {
   const i = ambassadorTierIndex(id)
   return {

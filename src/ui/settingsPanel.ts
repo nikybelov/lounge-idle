@@ -1,4 +1,5 @@
 import { icon } from './icons'
+import { syncAmbientMusic } from './ambientMusic'
 import {
   applySettings,
   getSettings,
@@ -24,13 +25,23 @@ function settingsHtml(settings: GameSettings): string {
         <button type="button" class="settings-sheet__close" data-settings-close aria-label="Закрыть">${icon('close')}</button>
       </header>
       <div class="settings-sheet__body">
-        <label class="settings-row">
-          <span class="settings-row__copy">
-            <span class="settings-row__label">Звук</span>
-            <span class="settings-row__hint">Клики, монеты, fanfare</span>
-          </span>
-          <input type="checkbox" class="settings-toggle" data-setting="sound" ${settings.sound ? 'checked' : ''} />
-        </label>
+        <section class="settings-group" aria-labelledby="settings-sound-label">
+          <p id="settings-sound-label" class="settings-group__label">Звук</p>
+          <label class="settings-row settings-row--nested">
+            <span class="settings-row__copy">
+              <span class="settings-row__label">Эффекты</span>
+              <span class="settings-row__hint">Клики, монеты, fanfare</span>
+            </span>
+            <input type="checkbox" class="settings-toggle" data-setting="sound" ${settings.sound ? 'checked' : ''} />
+          </label>
+          <label class="settings-row settings-row--nested">
+            <span class="settings-row__copy">
+              <span class="settings-row__label">Музыка</span>
+              <span class="settings-row__hint">Тихий lounge-эмбиент · без треков</span>
+            </span>
+            <input type="checkbox" class="settings-toggle" data-setting="music" ${settings.music ? 'checked' : ''} />
+          </label>
+        </section>
         <label class="settings-row">
           <span class="settings-row__copy">
             <span class="settings-row__label">Подсказки Огонька</span>
@@ -49,7 +60,6 @@ function settingsHtml(settings: GameSettings): string {
             <option value="full" ${settings.reducedMotion === 'full' ? 'selected' : ''}>Все эффекты</option>
           </select>
         </div>
-        <p class="settings-note">Музыки пока нет — добавим отдельным переключателем позже.</p>
       </div>
       <footer class="settings-sheet__foot">
         <span class="settings-version">Дымная Империя · v${version}</span>
@@ -79,6 +89,12 @@ export function openSettingsPanel(root: HTMLElement, onChange: SettingsChangeHan
 
   overlay.querySelector('[data-setting="sound"]')!.addEventListener('change', (e) => {
     const next = patchSettings({ sound: (e.target as HTMLInputElement).checked })
+    onChange(next)
+  })
+
+  overlay.querySelector('[data-setting="music"]')!.addEventListener('change', (e) => {
+    const next = patchSettings({ music: (e.target as HTMLInputElement).checked })
+    syncAmbientMusic()
     onChange(next)
   })
 

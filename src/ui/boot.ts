@@ -1,7 +1,9 @@
 import { VENUES, type VenueId } from '../data/venues'
-import { DIFFICULTIES } from '../data/difficulty'
+import { DIFFICULTIES, difficultyFromVenue } from '../data/difficulty'
 import { bootDifficultyCoach, bootStartCoach, bootVenueCoach } from '../game/guide'
 import {
+  animateBootVenueEntrance,
+  animateContractEntrance,
   animateFireLoad,
   renderLoadingScreen,
   renderNameContractScreen,
@@ -25,6 +27,7 @@ function wireNameContract(
   root: HTMLElement,
   onSubmit: (name: string) => void,
 ): void {
+  const contract = root.querySelector('.boot--contract') as HTMLElement | null
   const input = root.querySelector('[data-name]') as HTMLInputElement
   const next = root.querySelector('[data-next]') as HTMLButtonElement
   const preview = root.querySelector('[data-employee-preview]') as HTMLElement | null
@@ -33,6 +36,7 @@ function wireNameContract(
     const name = input.value.trim()
     next.disabled = name.length < 2
     if (preview) preview.textContent = name || '—'
+    contract?.classList.toggle('boot-contract-signed', name.length >= 2)
   }
   sync()
   window.setTimeout(() => input.focus(), 120)
@@ -76,6 +80,7 @@ export function runBoot(root: HTMLElement): Promise<BootResult> {
     let bootFinished = false
 
     const updateVenueUi = (): void => {
+      root.dataset.difficulty = difficultyFromVenue(selected)
       root.querySelectorAll<HTMLElement>('[data-venue]').forEach((btn) => {
         btn.classList.toggle('active', btn.dataset.venue === selected)
       })
@@ -160,7 +165,9 @@ export function runBoot(root: HTMLElement): Promise<BootResult> {
 
       if (step === 'name') {
         dismissGuideCoach(root)
+        root.classList.remove('boot-welcome-leave')
         root.innerHTML = renderNameContractScreen()
+        animateContractEntrance(root)
         wireNameContract(root, (name) => {
           playerName = name
           step = 'venue'
@@ -175,7 +182,7 @@ export function runBoot(root: HTMLElement): Promise<BootResult> {
         const rec = v.id === RECOMMENDED_VENUE
         const diff = DIFFICULTIES[v.difficulty]
         return `
-          <button type="button" class="boot-venue ${active ? 'active' : ''}" data-venue="${v.id}">
+          <button type="button" class="boot-venue boot-venue--${v.id} ${active ? 'active' : ''}" data-venue="${v.id}">
             <span class="boot-venue-top">
               <span class="boot-venue-name">${v.name}${rec ? ' <em class="boot-rec">старт</em>' : ''}</span>
               <span class="boot-venue-vibe">${v.vibe}</span>
@@ -192,12 +199,17 @@ export function runBoot(root: HTMLElement): Promise<BootResult> {
       }).join('')
 
       root.innerHTML = `
-        <div class="boot boot--venue">
-          <div class="boot-card boot-wide">
-            <p class="boot-brand">Сложность и заведение</p>
-            <p class="boot-sub">Привет, ${escapeHtml(playerName)}. Заведение = <strong>сложность</strong> прохождения: оплата на смене, цены зала и сети.</p>
+        <div class="boot boot--venue" data-difficulty="${difficultyFromVenue(selected)}">
+          <div class="boot-venue-ambience" aria-hidden="true">
+            <span class="boot-venue-haze boot-venue-haze--1"></span>
+            <span class="boot-venue-haze boot-venue-haze--2"></span>
+            <span class="boot-venue-glow"></span>
+          </div>
+          <div class="boot-card boot-wide gradient-surface boot-venue-card">
+            <p class="boot-brand boot-venue-head">Сложность и заведение</p>
+            <p class="boot-sub boot-venue-intro">Привет, ${escapeHtml(playerName)}. Заведение = <strong>сложность</strong> прохождения: оплата на смене, цены зала и сети.</p>
             <div class="boot-venues" data-list>${list}</div>
-            <button type="button" class="boot-cta" data-start disabled>Начать смену здесь</button>
+            <button type="button" class="boot-cta boot-venue-start" data-start disabled>Начать смену здесь</button>
           </div>
         </div>
       `
@@ -221,6 +233,7 @@ export function runBoot(root: HTMLElement): Promise<BootResult> {
       })
 
       updateVenueUi()
+      animateBootVenueEntrance(root)
 
       if (!bootFinished) {
         requestAnimationFrame(() => showBootGuides())

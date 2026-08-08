@@ -75,7 +75,7 @@ export const ACHIEVEMENTS: AchievementDef[] = [
   {
     id: 'coals_hands',
     title: 'Доверили угли',
-    hint: 'Сделай «Помой кальян» 15 раз',
+    hint: 'Сделай «Поменяй угли» 15 раз',
     reward: 100,
     check: (s) => s.taskDone.wash >= 15,
   },
@@ -144,7 +144,7 @@ export const ACHIEVEMENTS: AchievementDef[] = [
   },
   {
     id: 'loyal_pockets',
-    title: 'Копил дольше нужного',
+    title: 'Копил дольше, чем нужно',
     hint: 'Накопи на смене лишнее до открытия своего зала',
     reward: 1200,
     check: (s) => s.flags.loyalPockets,
@@ -236,7 +236,7 @@ export const ACHIEVEMENTS: AchievementDef[] = [
   {
     id: 'first_hire',
     title: 'Не один',
-    hint: 'Наняй первого сотрудника в своём зале',
+    hint: 'Найми первого сотрудника в своём зале',
     reward: 800,
     check: (s) => hiredStaffCount(s) >= 1,
   },
@@ -332,7 +332,7 @@ export const ACHIEVEMENTS: AchievementDef[] = [
   },
   {
     id: 'hard_bare',
-    title: 'Подвал без щётки',
+    title: 'Подвал без шуруповёрта',
     hint: `На сложном: ${BARE_HANDS_WASH_NEED} моек без шуруповёрта`,
     reward: 5000,
     difficulty: 'hard',

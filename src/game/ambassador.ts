@@ -82,7 +82,7 @@ export function signAmbassador(state: GameState, id: TobaccoId): ActionResult {
   if (!isAmbassadorSectionUnlocked(state)) {
     return {
       ok: false,
-      message: `Нужно узн. ${AMBASSADOR_UNLOCK_FAME}+ и мед. ${AMBASSADOR_UNLOCK_MEDIA}+, репутация ${AMBASSADOR_UNLOCK_REP}+, лауреат «Гайд Мастерс» или 2+ филиала`,
+      message: `Нужно узн. ${AMBASSADOR_UNLOCK_FAME}+ и мед. ${AMBASSADOR_UNLOCK_MEDIA}+, рейтинг ${AMBASSADOR_UNLOCK_REP}+, лауреат «Гайд Мастерс» или 2+ филиала`,
     }
   }
   if (isAmbassador(state, id)) {
@@ -108,7 +108,7 @@ export function signAmbassador(state: GameState, id: TobaccoId): ActionResult {
     const rep = ambassadorReputationScore(state.personal.fame, state.personal.media)
     return {
       ok: false,
-      message: `Нужно узн. ${need.fame}+ и мед. ${need.media}+ или реп. ${need.rep}+ · сейчас ${state.personal.fame}/${state.personal.media} · реп. ${rep}`,
+      message: `Нужно узн. ${need.fame}+ и мед. ${need.media}+ или рейт. ${need.rep}+ · сейчас ${state.personal.fame}/${state.personal.media} · рейт. ${rep}`,
     }
   }
   const cost = ambassadorContractCost(def)

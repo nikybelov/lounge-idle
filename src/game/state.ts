@@ -142,6 +142,21 @@ export interface GameState {
     coalsDualHintSeen: boolean
     /** Показать intro-подсказку вкладки «Личное» после открытия зала */
     personalIntroPending: boolean
+    /** Одноразовые подсказки Огонька после основного гайда */
+    milestoneHints: {
+      guide_done: boolean
+      dual_phase: boolean
+      quit_ready: boolean
+      shelf_empty: boolean
+      shelf_sparse: boolean
+      payroll_heavy: boolean
+      broke_dual: boolean
+      network_unlock: boolean
+      first_promo: boolean
+      first_hire: boolean
+      rank_up: boolean
+      idle_nudge: boolean
+    }
     tabHints: {
       shop: boolean
       tobacco: boolean
@@ -256,6 +271,20 @@ export function createInitialState(now = Date.now()): GameState {
       guideAckedIndex: -1,
       coalsDualHintSeen: false,
       personalIntroPending: false,
+      milestoneHints: {
+        guide_done: false,
+        dual_phase: false,
+        quit_ready: false,
+        shelf_empty: false,
+        shelf_sparse: false,
+        payroll_heavy: false,
+        broke_dual: false,
+        network_unlock: false,
+        first_promo: false,
+        first_hire: false,
+        rank_up: false,
+        idle_nudge: false,
+      },
       tabHints: {
         shop: false,
         tobacco: false,

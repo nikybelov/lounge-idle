@@ -11,11 +11,21 @@ function ctx(): AudioContext | null {
   return audioCtx
 }
 
+export function getAudioContext(): AudioContext | null {
+  return ctx()
+}
+
+export function resumeAudioContext(): void {
+  const c = ctx()
+  if (c?.state === 'suspended') void c.resume()
+}
+
 export function primeAudio(): void {
   const c = ctx()
   if (!c || audioReady) return
-  if (c.state === 'suspended') void c.resume()
+  resumeAudioContext()
   audioReady = true
+  import('./ambientMusic').then(({ syncAmbientMusic }) => syncAmbientMusic())
 }
 
 function tone(
@@ -94,6 +104,115 @@ export function playFanfareSound(): void {
   ;[523, 659, 784, 1047].forEach((f, i) => {
     window.setTimeout(() => tone(f, 0.22, 'triangle', 0.045), i * 110)
   })
+}
+
+export function playRankUpSound(): void {
+  ;[440, 554, 659, 880, 988].forEach((f, i) => {
+    window.setTimeout(() => tone(f, 0.18, 'triangle', 0.048), i * 72)
+  })
+}
+
+export function playLoungeOpenSound(): void {
+  ;[392, 523, 659, 784, 988, 1175].forEach((f, i) => {
+    window.setTimeout(() => tone(f, 0.24, 'triangle', 0.05), i * 95)
+  })
+}
+
+export function flashLoungeStage(): void {
+  const stage = document.querySelector('.stage') as HTMLElement | null
+  if (!stage) return
+  stage.classList.remove('stage-flash', 'stage-flash--lounge')
+  void stage.offsetWidth
+  stage.classList.add('stage-flash', 'stage-flash--lounge')
+  window.setTimeout(() => {
+    stage.classList.remove('stage-flash', 'stage-flash--lounge')
+  }, 1200)
+}
+
+function burstCelebrationFx(wrap: HTMLElement, count = 16): void {
+  if (prefersReducedMotion()) return
+
+  const card = wrap.querySelector('.celebration-card') as HTMLElement | null
+  const layer = wrap.querySelector('.celebration-fx') as HTMLElement | null
+  if (!card || !layer) return
+
+  layer.replaceChildren()
+  const wrapRect = wrap.getBoundingClientRect()
+  const rect = card.getBoundingClientRect()
+  const cx = rect.left - wrapRect.left + rect.width * 0.5
+  const cy = rect.top - wrapRect.top + rect.height * 0.28
+  const colors = ['#e6c49a', '#e07a3a', '#f09555', '#fff3e6', '#ffd54a']
+
+  for (let i = 0; i < count; i++) {
+    const p = document.createElement('span')
+    p.className = 'celebration-burst-particle'
+    const angle = (i / count) * Math.PI * 2 + (Math.random() - 0.5) * 0.45
+    const dist = 42 + Math.random() * 88
+    p.style.left = `${cx}px`
+    p.style.top = `${cy}px`
+    p.style.setProperty('--dx', `${Math.cos(angle) * dist}px`)
+    p.style.setProperty('--dy', `${Math.sin(angle) * dist - 20}px`)
+    p.style.setProperty('--rot', `${Math.random() * 360}deg`)
+    p.style.setProperty('--delay', `${Math.random() * 80}ms`)
+    p.style.background = colors[i % colors.length]!
+    layer.appendChild(p)
+    window.setTimeout(() => p.remove(), 920)
+  }
+}
+
+function spawnLoungeConfetti(wrap: HTMLElement): void {
+  if (prefersReducedMotion()) return
+
+  const layer = wrap.querySelector('.celebration-confetti') as HTMLElement | null
+  if (!layer) return
+
+  layer.replaceChildren()
+  const colors = ['#e07a3a', '#ffd54a', '#f09555', '#e6c49a', '#6fd6a8', '#fff3e6', '#c45a28']
+
+  for (let i = 0; i < 40; i++) {
+    const p = document.createElement('span')
+    p.className = 'celebration-confetti-piece'
+    if (i % 3 === 0) p.classList.add('celebration-confetti-piece--rect')
+    p.style.left = `${-4 + Math.random() * 108}%`
+    p.style.setProperty('--fall', `${90 + Math.random() * 50}vh`)
+    p.style.setProperty('--drift', `${(Math.random() - 0.5) * 90}px`)
+    p.style.setProperty('--rot', `${Math.random() * 720}deg`)
+    p.style.setProperty('--delay', `${Math.random() * 420}ms`)
+    p.style.setProperty('--dur', `${1.9 + Math.random() * 1.5}s`)
+    p.style.background = colors[i % colors.length]!
+    layer.appendChild(p)
+    window.setTimeout(() => p.remove(), 3600)
+  }
+}
+
+export type CelebrationKind = 'lounge' | 'rank' | 'general'
+
+function celebrationKicker(kind: CelebrationKind): string {
+  if (kind === 'rank') return 'Повышение на смене'
+  if (kind === 'lounge') return 'Свой зал открыт'
+  return 'Вау-момент'
+}
+
+function celebrationCta(kind: CelebrationKind): string {
+  if (kind === 'rank') return 'Продолжить смену'
+  if (kind === 'lounge') return 'В свой зал'
+  return 'Погнали'
+}
+
+function celebrationAriaLabel(kind: CelebrationKind): string {
+  if (kind === 'rank') return 'Повышение на смене'
+  if (kind === 'lounge') return 'Открытие своего зала'
+  return 'Праздник'
+}
+
+function celebrationBadge(kind: CelebrationKind): string {
+  if (kind === 'rank') {
+    return '<div class="celebration-badge celebration-badge--rank" aria-hidden="true"><span class="celebration-badge-arrow">↑</span></div>'
+  }
+  if (kind === 'lounge') {
+    return '<div class="celebration-badge celebration-badge--lounge" aria-hidden="true"><span class="celebration-badge-lounge-mark"></span></div>'
+  }
+  return ''
 }
 
 function playDiplomaAcceptFanfare(): void {
@@ -250,18 +369,23 @@ export function showCelebration(
   title: string,
   subtitle: string,
   onDismiss: () => void,
+  kind: CelebrationKind = 'general',
 ): void {
   celebrationHost?.remove()
   const wrap = document.createElement('div')
-  wrap.className = 'celebration-fanfare in'
+  wrap.className = `celebration-fanfare celebration-fanfare--${kind} in`
   wrap.innerHTML = `
     <div class="celebration-backdrop"></div>
-    <div class="celebration-card gradient-surface gradient-surface--hero" role="dialog" aria-modal="true">
+    <div class="celebration-confetti" aria-hidden="true"></div>
+    <div class="celebration-fx" aria-hidden="true"></div>
+    <div class="celebration-ring" aria-hidden="true"></div>
+    <div class="celebration-card gradient-surface gradient-surface--hero celebration-card--${kind}" role="dialog" aria-modal="true" aria-label="${celebrationAriaLabel(kind)}">
       <div class="celebration-spark" aria-hidden="true"></div>
-      <p class="celebration-kicker">Вау-момент</p>
+      ${celebrationBadge(kind)}
+      <p class="celebration-kicker">${celebrationKicker(kind)}</p>
       <p class="celebration-title"></p>
       <p class="celebration-sub"></p>
-      <button type="button" class="celebration-btn">Погнали</button>
+      <button type="button" class="celebration-btn">${celebrationCta(kind)}</button>
     </div>
   `
   const titleEl = wrap.querySelector('.celebration-title') as HTMLElement
@@ -271,9 +395,27 @@ export function showCelebration(
   document.body.appendChild(wrap)
   celebrationHost = wrap
   document.body.classList.add('celebrate-locked')
-  playFanfareSound()
-  revealWords(titleEl, 85)
-  window.setTimeout(() => revealWords(subEl, 55), 280)
+
+  if (kind === 'rank') {
+    playRankUpSound()
+    requestAnimationFrame(() => burstCelebrationFx(wrap, 16))
+  } else if (kind === 'lounge') {
+    playLoungeOpenSound()
+    requestAnimationFrame(() => {
+      burstCelebrationFx(wrap, 24)
+      spawnLoungeConfetti(wrap)
+    })
+    window.setTimeout(() => flashLoungeStage(), 200)
+  } else {
+    playFanfareSound()
+    requestAnimationFrame(() => burstCelebrationFx(wrap, 16))
+  }
+
+  revealWords(titleEl, kind === 'rank' ? 95 : kind === 'lounge' ? 88 : 85)
+  window.setTimeout(
+    () => revealWords(subEl, 55),
+    kind === 'rank' ? 340 : kind === 'lounge' ? 320 : 280,
+  )
 
   const close = (): void => {
     wrap.classList.remove('in')

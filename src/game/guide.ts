@@ -1,14 +1,68 @@
 import { JOB_TASKS, isTaskUnlocked } from '../data/tasks'
 import { DIFFICULTIES } from '../data/difficulty'
 import { getVenue, type VenueId } from '../data/venues'
-import { minOpenLoungeCost, jobReputationPerSec, quitIncomeThreshold } from './career'
-import { formatMoney, loungeIncomePerSec } from './economy'
+import { rankDef } from '../data/ranks'
+import { PROMOTIONS } from '../data/promotions'
+import { STAFF_ROLES } from '../data/staff'
+import {
+  minOpenLoungeCost,
+  jobReputationPerSec,
+  quitIncomeThreshold,
+  canQuitJob,
+} from './career'
+import { formatMoney, loungeIncomePerSec, staffPayrollPerSec, staffPayrollShare } from './economy'
+import { shelfMood } from './appeal'
+import { canBrowseEmpire } from './empire'
+import {
+  isPromotionSlotUnlocked,
+  promotionGrade,
+} from './promotions'
+import { hireStaffCheck, staffHeadcount } from './staff'
 import { isCoachEnabled } from '../save/settings'
-import type { GameState, GuideStep } from './state'
+import { isCelebrationVisible } from '../ui/juice'
+import type { GameState, GuideStep, Scene } from './state'
 
 export type { GuideStep }
 
 export type TabHintId = 'shop' | 'tobacco' | 'staff' | 'network' | 'personal' | 'career'
+
+export type CoachMenuTab =
+  | 'story'
+  | 'own'
+  | 'tobacco'
+  | 'staff'
+  | 'personal'
+  | 'network'
+  | 'career'
+
+export type CoachStorySubTab = 'tasks' | 'shop'
+
+export interface CoachContext {
+  menuTab: CoachMenuTab
+  storySubTab: CoachStorySubTab
+  scene: Scene
+}
+
+export type MilestoneHintId =
+  | 'guide_done'
+  | 'dual_phase'
+  | 'quit_ready'
+  | 'shelf_empty'
+  | 'shelf_sparse'
+  | 'payroll_heavy'
+  | 'broke_dual'
+  | 'network_unlock'
+  | 'first_promo'
+  | 'first_hire'
+  | 'rank_up'
+  | 'idle_nudge'
+
+let lastPlayerInteractionAt = Date.now()
+const IDLE_NUDGE_MS = 120_000
+
+export function touchOgonokInteraction(): void {
+  lastPlayerInteractionAt = Date.now()
+}
 
 const STEP_ORDER: GuideStep[] = [
   'pick_venue',
@@ -40,7 +94,7 @@ export function bootDifficultyCoach(playerName: string): CoachDef {
     icon: '🔥',
     kicker: 'Огонёк · старт',
     title: `${playerName}, выбери сложность`,
-    body: 'Каждое заведение — свой уровень: лёгкий, средний или сложный. От него зависят оплата на смене, цены зала и сети. На весь прогон — потом не сменить.',
+    body: 'Каждое заведение — свой уровень: лёгкий, средний или сложный. От него зависят оплата на смене, цены зала и сети. На весь прогон — потом изменить нельзя.',
     target: '[data-list]',
     cta: 'Понятно, выбираю',
   }
@@ -96,9 +150,41 @@ export function markCoalsDualHintSeen(state: GameState): void {
   state.flags.coalsDualHintSeen = true
 }
 
-export function ackGuideCoach(state: GameState, dismissedStep?: GuideStep): void {
-  if (dismissedStep === 'dual_tasks') {
+export function markMilestoneHintSeen(
+  state: GameState,
+  id: MilestoneHintId,
+): void {
+  state.flags.milestoneHints[id] = true
+  switch (id) {
+    case 'quit_ready':
+      state.flags.sawQuitReady = true
+      break
+    case 'broke_dual':
+      state.flags.sawBrokeHint = true
+      break
+    case 'shelf_empty':
+      state.flags.shelfEmptyWarned = true
+      state.flags.shelfSparseWarned = true
+      break
+    case 'shelf_sparse':
+      state.flags.shelfSparseWarned = true
+      break
+    case 'payroll_heavy':
+      state.flags.payrollWarned = true
+      break
+    default:
+      break
+  }
+}
+
+export function ackGuideCoach(state: GameState, dismissedKey?: string): void {
+  if (dismissedKey === 'dual_tasks') {
     markCoalsDualHintSeen(state)
+    return
+  }
+  if (dismissedKey?.startsWith('milestone-')) {
+    const id = dismissedKey.slice('milestone-'.length) as MilestoneHintId
+    markMilestoneHintSeen(state, id)
     return
   }
   const idx = guideStepIndex(state.flags.guideStep)
@@ -199,6 +285,8 @@ export function syncGuideProgress(state: GameState): void {
 
 export interface CoachDef {
   step: GuideStep
+  /** Ключ overlay — по умолчанию step */
+  coachKey?: string
   stepNum: number
   icon: string
   kicker: string
@@ -208,11 +296,378 @@ export interface CoachDef {
   cta: string
 }
 
-export function guideCoach(state: GameState): CoachDef | null {
-  if (!isCoachEnabled()) return null
-  const dualTasks = coalsDualTasksCoach(state)
-  if (dualTasks) return dualTasks
+function milestoneCoachDef(
+  id: MilestoneHintId,
+  def: Omit<CoachDef, 'step' | 'coachKey'>,
+): CoachDef {
+  return {
+    step: 'done',
+    coachKey: `milestone-${id}`,
+    ...def,
+  }
+}
 
+function payrollHeavy(state: GameState): boolean {
+  if (state.phase === 'employed') return false
+  const payroll = staffPayrollPerSec(state)
+  if (payroll <= 0) return false
+  const net = loungeIncomePerSec(state)
+  const share = staffPayrollShare(state)
+  return net < 0 || share >= 0.4
+}
+
+function totalStaffHeadcount(state: GameState): number {
+  let count = 0
+  for (const role of STAFF_ROLES) {
+    count += staffHeadcount(state, role.id)
+  }
+  return count
+}
+
+function firstUnlockedPromotion(state: GameState) {
+  for (const def of PROMOTIONS) {
+    if (isPromotionSlotUnlocked(state, def.id)) return def
+  }
+  return null
+}
+
+function idleTabNudge(
+  state: GameState,
+  ctx: CoachContext,
+): Omit<CoachDef, 'step' | 'coachKey' | 'stepNum'> | null {
+  if (state.phase === 'employed' && ctx.menuTab !== 'story') {
+    return {
+      icon: '🔥',
+      kicker: 'Огонёк · куда',
+      title: 'Смена ждёт',
+      body: 'Пока работаешь на чужой точке — вкладка «Сюжет» и задачи смены.',
+      target: '[data-menu-tab="story"]',
+      cta: 'К сюжету',
+    }
+  }
+  if (
+    state.phase === 'dual' &&
+    ctx.menuTab === 'story' &&
+    ctx.scene === 'job' &&
+    canQuitJob(state)
+  ) {
+    return {
+      icon: '🚪',
+      kicker: 'Огонёк · куда',
+      title: 'Зал уже тянет',
+      body: 'Переключись на «Мой зал» — там заказы и прокачка. Или увольняйся, когда созреешь.',
+      target: '[data-go="lounge"]',
+      cta: 'В зал',
+    }
+  }
+  if (
+    state.phase !== 'employed' &&
+    shelfMood(state) === 'empty' &&
+    ctx.menuTab !== 'tobacco'
+  ) {
+    return {
+      icon: '📦',
+      kicker: 'Огонёк · куда',
+      title: 'Полка пустует',
+      body: 'Гости без вкусов не платят — загляни во вкладку «Табак».',
+      target: '[data-menu-tab="tobacco"]',
+      cta: 'К табаку',
+    }
+  }
+  if (payrollHeavy(state) && ctx.menuTab !== 'staff') {
+    return {
+      icon: '👥',
+      kicker: 'Огонёк · куда',
+      title: 'ФОТ давит',
+      body: 'Зарплаты съедают выручку — проверь состав во вкладке «Команда».',
+      target: '[data-menu-tab="staff"]',
+      cta: 'К команде',
+    }
+  }
+  return null
+}
+
+/** Coach после праздника повышения */
+export function rankUpCoach(state: GameState): CoachDef | null {
+  if (state.flags.milestoneHints.rank_up) return null
+  return milestoneCoachDef('rank_up', {
+    stepNum: 0,
+    icon: '↑',
+    kicker: 'Огонёк · карьера',
+    title: `Ранг «${rankDef(state.jobRank).title}»`,
+    body: 'Загляни во вкладку «Карьера»: сводка, трофеи и сравнение с друзьями. Каждое повышение бустит оплату на смене.',
+    target: '[data-menu-tab="career"]',
+    cta: 'К карьере',
+  })
+}
+
+/** Одноразовые подсказки Огонька после основного гайда */
+export function milestoneCoach(
+  state: GameState,
+  ctx?: CoachContext,
+): CoachDef | null {
+  if (!isCoachEnabled() || !isGuideDone(state)) return null
+  if (isCelebrationVisible()) return null
+
+  const m = state.flags.milestoneHints
+
+  if (!m.guide_done) {
+    return milestoneCoachDef('guide_done', {
+      stepNum: 0,
+      icon: '🔥',
+      kicker: 'Огонёк · рядом',
+      title: 'Я никуда не делся',
+      body: 'Вкладки сверху откроются по мере роста. Буду подсвечивать важное — табак, команда, личный бренд, сеть.',
+      target: '.menu-shell',
+      cta: 'Понятно, Огонёк',
+    })
+  }
+
+  if (state.phase === 'dual' && !m.dual_phase) {
+    return milestoneCoachDef('dual_phase', {
+      stepNum: 0,
+      icon: '🔀',
+      kicker: 'Огонёк · два режима',
+      title: 'Смена и свой зал',
+      body: '«Смена» — подработка и карьера. «Мой зал» — заказы и прокачка. Переключайся здесь, когда нужно.',
+      target: '[data-go="job"], [data-go="lounge"]',
+      cta: 'Ясно',
+    })
+  }
+
+  const promo = firstUnlockedPromotion(state)
+  if (
+    promo &&
+    promotionGrade(state, promo.id) === 0 &&
+    !m.first_promo
+  ) {
+    return milestoneCoachDef('first_promo', {
+      stepNum: 0,
+      icon: '📣',
+      kicker: 'Огонёк · маркетинг',
+      title: 'Акции разблокированы',
+      body: `«${promo.name}» доступна — прокачай грейд и запускай всплеск гостей. Блок «Акции» в обзоре зала.`,
+      target: '[data-promotions]',
+      cta: 'К акциям',
+    })
+  }
+
+  if (
+    state.phase !== 'employed' &&
+    totalStaffHeadcount(state) === 0 &&
+    hireStaffCheck(state, 'host').ok &&
+    !m.first_hire
+  ) {
+    return milestoneCoachDef('first_hire', {
+      stepNum: 0,
+      icon: '👋',
+      kicker: 'Огонёк · команда',
+      title: 'Пора нанять хостес',
+      body: 'Первый сотрудник поднимает поток гостей. Хватило на «Хостес» — жми во вкладке «Команда».',
+      target: '[data-hire-staff="host"], [data-menu-tab="staff"]',
+      cta: 'К команде',
+    })
+  }
+
+  if (state.phase === 'dual' && canQuitJob(state) && !m.quit_ready) {
+    return milestoneCoachDef('quit_ready', {
+      stepNum: 0,
+      icon: '🚪',
+      kicker: 'Огонёк · карьера',
+      title: 'Можно уволиться',
+      body: `Свой зал уже даёт ${quitIncomeThreshold(state)}/с — порог пройден (сейчас ${formatMoney(loungeIncomePerSec(state))}/с). Увольнение откроет вкладку «Сеть».`,
+      target: '[data-quit]',
+      cta: 'Посмотрю',
+    })
+  }
+
+  if (
+    state.phase !== 'employed' &&
+    shelfMood(state) === 'empty' &&
+    !m.shelf_empty
+  ) {
+    return milestoneCoachDef('shelf_empty', {
+      stepNum: 0,
+      icon: '📦',
+      kicker: 'Огонёк · полка',
+      title: 'Полка пуста',
+      body: 'Без вкусов на полке гости не платят. Закажи табак на склад и выставь во вкладке «Табак».',
+      target: '[data-menu-tab="tobacco"]',
+      cta: 'К табаку',
+    })
+  }
+
+  if (
+    state.phase !== 'employed' &&
+    shelfMood(state) === 'sparse' &&
+    !m.shelf_sparse
+  ) {
+    return milestoneCoachDef('shelf_sparse', {
+      stepNum: 0,
+      icon: '🌿',
+      kicker: 'Огонёк · полка',
+      title: 'Мало вкусов',
+      body: 'Пара позиций на полке — гости уходят раньше. Добавь вкусов на склад и выставь их.',
+      target: '[data-menu-tab="tobacco"]',
+      cta: 'Понятно',
+    })
+  }
+
+  if (payrollHeavy(state) && !m.payroll_heavy) {
+    const payroll = staffPayrollPerSec(state)
+    const net = loungeIncomePerSec(state)
+    const body =
+      net < 0
+        ? `ФОТ ${payroll < 10 ? payroll.toFixed(1) : formatMoney(payroll)}/с съедает выручку. Загляни во вкладку «Команда» — может, кого-то убрать.`
+        : `ФОТ уже ${Math.round(staffPayrollShare(state) * 100)}% выручки — команда дорогая. «Команда» → проверь состав.`
+    return milestoneCoachDef('payroll_heavy', {
+      stepNum: 0,
+      icon: '👥',
+      kicker: 'Огонёк · ФОТ',
+      title: 'Зарплаты давят',
+      body,
+      target: '[data-menu-tab="staff"]',
+      cta: 'К команде',
+    })
+  }
+
+  if (
+    state.phase === 'dual' &&
+    state.cash <= 120 &&
+    !m.broke_dual
+  ) {
+    return milestoneCoachDef('broke_dual', {
+      stepNum: 0,
+      icon: '💸',
+      kicker: 'Огонёк · касса',
+      title: 'Касса пустеет',
+      body: 'На старой смене тебя не уволят — можно подработать в режиме «Смена» и поднять выручку.',
+      target: '[data-go="job"]',
+      cta: 'На смену',
+    })
+  }
+
+  if (
+    canBrowseEmpire(state) &&
+    state.flags.empireOfferUnlocked &&
+    !m.network_unlock
+  ) {
+    return milestoneCoachDef('network_unlock', {
+      stepNum: 0,
+      icon: '🗺️',
+      kicker: 'Огонёк · сеть',
+      title: 'Сеть открыта',
+      body: 'После увольнения или параллельно — вкладка «Сеть»: второй зал усилит всю империю.',
+      target: '[data-menu-tab="network"]',
+      cta: 'Посмотрю',
+    })
+  }
+
+  if (
+    ctx &&
+    !m.idle_nudge &&
+    Date.now() - lastPlayerInteractionAt >= IDLE_NUDGE_MS
+  ) {
+    const nudge = idleTabNudge(state, ctx)
+    if (nudge) {
+      return milestoneCoachDef('idle_nudge', { stepNum: 0, ...nudge })
+    }
+  }
+
+  return null
+}
+
+/** Контекстная подсказка по тапу на чип Огонька */
+export function contextualOgonokTip(
+  state: GameState,
+  ctx: CoachContext,
+): CoachDef | null {
+  if (!isCoachEnabled() || !isGuideDone(state)) return null
+
+  const pending = milestoneCoach(state, ctx)
+  if (pending) return pending
+
+  const idle = idleTabNudge(state, ctx)
+  if (idle) {
+    return {
+      step: 'done',
+      coachKey: 'context-tip',
+      stepNum: 0,
+      ...idle,
+    }
+  }
+
+  if (state.phase === 'employed') {
+    return {
+      step: 'done',
+      coachKey: 'context-tip',
+      stepNum: 0,
+      icon: '🎯',
+      kicker: 'Огонёк · цель',
+      title: 'Сейчас главное',
+      body: goalLine(state) || 'Копи на свой зал — задачи смены и пассив.',
+      target: '[data-goal], [data-job-tasks]',
+      cta: 'Понятно',
+    }
+  }
+
+  if (state.scene === 'lounge' && ctx.menuTab === 'story') {
+    return {
+      step: 'done',
+      coachKey: 'context-tip',
+      stepNum: 0,
+      icon: '🌬️',
+      kicker: 'Огонёк · зал',
+      title: 'Сейчас главное',
+      body: goalLine(state) || 'Принимай заказы на сцене и качай зал в списке ниже.',
+      target: '[data-cta], [data-menu-tab="story"]',
+      cta: 'Ясно',
+    }
+  }
+
+  return {
+    step: 'done',
+    coachKey: 'context-tip',
+    stepNum: 0,
+    icon: '🔥',
+    kicker: 'Огонёк · подсказка',
+    title: 'Сейчас главное',
+    body: goalLine(state) || 'Качай зал, команду и личный бренд — я подсвечу важное.',
+    target: '[data-goal]',
+    cta: 'Понятно',
+  }
+}
+
+export function ogonyokChipVisible(state: GameState): boolean {
+  return isCoachEnabled() && isGuideDone(state)
+}
+
+export function ogonyokChipPulse(
+  state: GameState,
+  ctx?: CoachContext,
+): boolean {
+  if (!ogonyokChipVisible(state)) return false
+  return milestoneCoach(state, ctx) !== null
+}
+
+/** Пульс вкладки, пока ждёт milestone-подсказку */
+export function milestoneTabPing(
+  state: GameState,
+  ctx?: CoachContext,
+): string | null {
+  const coach = milestoneCoach(state, ctx)
+  if (!coach?.target) return null
+  if (coach.target.includes('tobacco')) return 'tobacco'
+  if (coach.target.includes('staff') || coach.target.includes('hire-staff')) {
+    return 'staff'
+  }
+  if (coach.target.includes('network')) return 'network'
+  if (coach.target.includes('career')) return 'career'
+  if (coach.target.includes('data-promotions')) return 'story'
+  return null
+}
+
+function mainGuideCoach(state: GameState): CoachDef | null {
   if (!shouldShowCoach(state)) return null
 
   const step = state.flags.guideStep
@@ -248,10 +703,10 @@ export function guideCoach(state: GameState): CoachDef | null {
         stepNum,
         icon: '✨',
         kicker: `Шаг ${stepNum} · первый idle`,
-        title: 'Репутация капает сама',
+        title: 'Пассив капает сам',
         body: rep > 0
-          ? `Блок «Репутация» справа — +${rep < 1 ? rep.toFixed(2) : formatMoney(rep)}/с без кликов.`
-          : 'Ещё пара задач — и справа появится пассив «Репутация».',
+          ? `Блок «Пассив» справа — +${rep < 1 ? rep.toFixed(2) : formatMoney(rep)}/с в кассу без кликов.`
+          : 'Ещё пара задач — и справа появится пассив на смене.',
         target: rep > 0 ? '[data-reputation-wrap]' : '[data-task="wash"]',
         cta: 'Круто',
       }
@@ -293,6 +748,20 @@ export function guideCoach(state: GameState): CoachDef | null {
   }
 }
 
+export function guideCoach(
+  state: GameState,
+  ctx?: CoachContext,
+): CoachDef | null {
+  if (!isCoachEnabled()) return null
+  const dualTasks = coalsDualTasksCoach(state)
+  if (dualTasks) return dualTasks
+
+  const main = mainGuideCoach(state)
+  if (main) return main
+
+  return milestoneCoach(state, ctx)
+}
+
 export function goalLine(state: GameState): string {
   if (isGuideDone(state)) {
     if (state.phase === 'employed') {
@@ -315,7 +784,7 @@ export function goalLine(state: GameState): string {
     case 'first_task':
       return 'Цель: копить на свой лаунж'
     case 'reputation':
-      return 'Цель: репутация + задачи → свой зал'
+      return 'Цель: пассив + задачи → свой зал'
     case 'halfway':
       return `Цель: ${formatMoney(minOpenLoungeCost(state))} · уже близко`
     case 'lounge_ready':
@@ -334,7 +803,7 @@ const TAB_HINTS: Record<
   shop: {
     icon: '🧰',
     title: 'Инструменты смены',
-    body: 'Покупай и улучшай — до 4 уровней, задачи быстрее и платят больше. Шуруповёрт для мойки необязателен: 35 моек без него — трофей «Голыми руками» в «Трофеях». Тариф зала с ёршиком в комплекте это закрывает.',
+    body: 'Покупай и улучшай — до 4 уровней, задачи быстрее и платят больше. Шуруповёрт для мойки необязателен: 35 моек без него — трофей «Голыми руками» в «Трофеях». Тариф зала с шуруповёртом в комплекте закрывает это.',
     cta: 'Понятно',
   },
   tobacco: {

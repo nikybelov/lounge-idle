@@ -130,7 +130,7 @@ export const PROMOTIONS: PromotionDef[] = [
     grades: [
       {
         grade: 1,
-        title: 'Мини-дегуст на полке',
+        title: 'Мини-дегустация на полке',
         upgradeCost: 1400,
         launchCost: 260,
         passiveGuest: 0.02,
@@ -150,7 +150,7 @@ export const PROMOTIONS: PromotionDef[] = [
       },
       {
         grade: 3,
-        title: 'Блогер на дегуст',
+        title: 'Блогер на дегустации',
         upgradeCost: 15_000,
         launchCost: 680,
         passiveGuest: 0.075,

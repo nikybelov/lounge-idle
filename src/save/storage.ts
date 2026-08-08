@@ -188,6 +188,36 @@ export function loadState(): GameState {
           parsed.flags?.coalsDualHintSeen ??
           (hasProgress && (parsed.taskDone?.wash ?? 0) >= 8),
         personalIntroPending: parsed.flags?.personalIntroPending ?? false,
+        milestoneHints: {
+          guide_done: parsed.flags?.milestoneHints?.guide_done ?? false,
+          dual_phase: parsed.flags?.milestoneHints?.dual_phase ?? false,
+          quit_ready:
+            parsed.flags?.milestoneHints?.quit_ready ??
+            parsed.flags?.sawQuitReady ??
+            false,
+          shelf_empty:
+            parsed.flags?.milestoneHints?.shelf_empty ??
+            parsed.flags?.shelfEmptyWarned ??
+            false,
+          shelf_sparse:
+            parsed.flags?.milestoneHints?.shelf_sparse ??
+            parsed.flags?.shelfSparseWarned ??
+            false,
+          payroll_heavy:
+            parsed.flags?.milestoneHints?.payroll_heavy ??
+            parsed.flags?.payrollWarned ??
+            false,
+          broke_dual:
+            parsed.flags?.milestoneHints?.broke_dual ??
+            parsed.flags?.sawBrokeHint ??
+            false,
+          network_unlock:
+            parsed.flags?.milestoneHints?.network_unlock ?? false,
+          first_promo: parsed.flags?.milestoneHints?.first_promo ?? false,
+          first_hire: parsed.flags?.milestoneHints?.first_hire ?? false,
+          rank_up: parsed.flags?.milestoneHints?.rank_up ?? false,
+          idle_nudge: parsed.flags?.milestoneHints?.idle_nudge ?? false,
+        },
         tabHints: {
           shop: parsed.flags?.tabHints?.shop ?? hasProgress,
           tobacco: parsed.flags?.tabHints?.tobacco ?? hasProgress,

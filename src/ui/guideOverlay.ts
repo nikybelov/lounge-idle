@@ -15,6 +15,8 @@ let host: HTMLElement | null = null
 let activeStep: string | null = null
 let pendingTabHint: TabHintDef | null = null
 let pendingTabHintAck: (() => void) | null = null
+let pendingMilestoneCoach: CoachDef | null = null
+let pendingMilestoneCoachAck: (() => void) | null = null
 let onAckCallback: ((step?: GuideStep) => void) | null = null
 let activeMascotStep: string | null = null
 let lockedMascotStage: MascotStageId | null = null
@@ -436,6 +438,10 @@ export function hasPendingTabHint(): boolean {
   return pendingTabHint !== null
 }
 
+export function hasPendingMilestoneCoach(): boolean {
+  return pendingMilestoneCoach !== null
+}
+
 export function queueTabHint(hint: TabHintDef, onAck?: () => void): void {
   if (!isCoachEnabled()) {
     onAck?.()
@@ -445,17 +451,26 @@ export function queueTabHint(hint: TabHintDef, onAck?: () => void): void {
   pendingTabHintAck = onAck ?? null
 }
 
+export function queueMilestoneCoach(coach: CoachDef, onAck?: () => void): void {
+  if (!isCoachEnabled()) {
+    onAck?.()
+    return
+  }
+  pendingMilestoneCoach = coach
+  pendingMilestoneCoachAck = onAck ?? null
+}
+
 export function syncGuideOverlay(
   root: HTMLElement,
   coach: CoachDef | null,
-  onAck: (step?: GuideStep) => void,
+  onAck: (key?: string) => void,
 ): void {
   if (coach) {
     const wrap = host
     const alreadyShowing =
       wrap &&
       !wrap.hidden &&
-      activeStep === coach.step
+      activeStep === (coach.coachKey ?? coach.step)
 
     if (alreadyShowing) {
       wrap.querySelector('[data-body]')!.textContent = coach.body
@@ -468,7 +483,7 @@ export function syncGuideOverlay(
     present(
       root,
       {
-        key: coach.step,
+        key: coach.coachKey ?? coach.step,
         icon: coach.icon,
         kicker: coach.kicker,
         title: coach.title,
@@ -480,6 +495,32 @@ export function syncGuideOverlay(
         mode: 'coach',
       },
       onAck,
+    )
+    return
+  }
+
+  if (pendingMilestoneCoach) {
+    const milestone = pendingMilestoneCoach
+    present(
+      root,
+      {
+        key: milestone.coachKey ?? milestone.step,
+        icon: milestone.icon,
+        kicker: milestone.kicker,
+        title: milestone.title,
+        body: milestone.body,
+        cta: milestone.cta,
+        target: milestone.target,
+        stepNum: milestone.stepNum,
+        totalSteps: GUIDE_STEPS_TOTAL,
+        mode: 'coach',
+      },
+      (key) => {
+        pendingMilestoneCoach = null
+        pendingMilestoneCoachAck?.()
+        pendingMilestoneCoachAck = null
+        onAck(key)
+      },
     )
     return
   }

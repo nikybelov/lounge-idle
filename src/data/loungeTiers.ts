@@ -35,7 +35,7 @@ export const LOUNGE_TIERS: LoungeTierDef[] = [
   {
     id: 'hall',
     name: 'Малый зал',
-    blurb: 'Диван на старте + ёршик в комплекте. Остальное — на подработке.',
+    blurb: 'Диван на старте + шуруповёрт в комплекте. Остальное — на подработке.',
     cost: 17_500,
     incomeMult: 1.2,
     clickMult: 1.15,
@@ -46,7 +46,7 @@ export const LOUNGE_TIERS: LoungeTierDef[] = [
   {
     id: 'signature',
     name: 'Авторский зал',
-    blurb: 'Меню и вытяжка на старте + ёршик и щипцы в комплекте.',
+    blurb: 'Меню и вытяжка на старте + шуруповёрт и щипцы в комплекте.',
     cost: 23_000,
     incomeMult: 1.45,
     clickMult: 1.3,

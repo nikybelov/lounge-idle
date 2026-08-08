@@ -23,7 +23,7 @@ export interface DifficultyDef {
   quitIncome: number
   /** Бонус к награде за трофей */
   achievementReward: number
-  /** Сверх минимума на «копил дольше нужного» */
+  /** Сверх минимума на «копил дольше, чем нужно» */
   loyalPocketsExtra: number
 }
 

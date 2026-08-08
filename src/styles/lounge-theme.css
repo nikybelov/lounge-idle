@@ -1,0 +1,388 @@
+/* Дымный лаунж — единая визуальная система (mood, boot, celebrations, shop) */
+
+/* —— Difficulty mood tokens —— */
+#app[data-difficulty='easy'] {
+  --mood-accent: #6fd6a8;
+  --mood-accent-dim: rgba(90, 200, 160, 0.55);
+  --mood-glow: rgba(90, 200, 180, 0.2);
+  --mood-bg: rgba(40, 90, 80, 0.12);
+}
+
+#app[data-difficulty='normal'] {
+  --mood-accent: var(--ember-bright);
+  --mood-accent-dim: rgba(224, 122, 58, 0.55);
+  --mood-glow: rgba(224, 122, 58, 0.22);
+  --mood-bg: rgba(224, 122, 58, 0.1);
+}
+
+#app[data-difficulty='hard'] {
+  --mood-accent: #d4a0a0;
+  --mood-accent-dim: rgba(180, 100, 100, 0.5);
+  --mood-glow: rgba(120, 100, 100, 0.18);
+  --mood-bg: rgba(80, 60, 60, 0.14);
+}
+
+#app[data-difficulty] .goal-strip {
+  border-bottom-color: color-mix(in srgb, var(--mood-accent) 35%, transparent);
+  box-shadow: inset 3px 0 0 var(--mood-accent);
+}
+
+#app[data-difficulty='easy'] .goal-strip {
+  background: linear-gradient(
+    90deg,
+    rgba(90, 200, 180, 0.14) 0%,
+    rgba(90, 200, 180, 0.04) 52%,
+    transparent 100%
+  );
+}
+
+#app[data-difficulty='hard'] .goal-strip {
+  background: linear-gradient(
+    90deg,
+    rgba(120, 90, 90, 0.16) 0%,
+    rgba(80, 60, 60, 0.06) 52%,
+    transparent 100%
+  );
+}
+
+#app[data-difficulty] .rate-block:not(.rate-block--day):not(.rate-block--rep) {
+  background:
+    linear-gradient(var(--mood-bg), var(--mood-bg)) padding-box,
+    linear-gradient(135deg, rgba(255, 255, 255, 0.08), var(--mood-accent-dim), rgba(255, 255, 255, 0.04)) border-box;
+}
+
+/* —— Stage: venue mood (job scene) —— */
+.stage[data-scene='job'][data-venue='neon_haze'] .stage-bg {
+  background:
+    radial-gradient(75% 85% at 78% 18%, rgba(90, 200, 180, 0.16), transparent 52%),
+    radial-gradient(55% 70% at 15% 85%, rgba(224, 122, 58, 0.1), transparent 55%),
+    linear-gradient(165deg, #1a2420 0%, var(--bg0) 74%);
+}
+
+.stage[data-scene='job'][data-venue='neon_haze'] .embers {
+  right: 22%;
+  background: radial-gradient(circle, rgba(90, 200, 180, 0.35), transparent 68%);
+}
+
+.stage[data-scene='job'][data-venue='smoke_river'] .stage-bg {
+  background:
+    radial-gradient(80% 90% at 82% 22%, rgba(224, 122, 58, 0.24), transparent 50%),
+    radial-gradient(60% 75% at 18% 78%, rgba(212, 165, 116, 0.14), transparent 55%),
+    linear-gradient(165deg, #2a1c14 0%, var(--bg0) 75%);
+}
+
+.stage[data-scene='job'][data-venue='basement'] .stage-bg {
+  background:
+    radial-gradient(70% 80% at 70% 15%, rgba(100, 90, 85, 0.12), transparent 50%),
+    radial-gradient(50% 60% at 20% 90%, rgba(60, 50, 48, 0.2), transparent 55%),
+    linear-gradient(165deg, #1a1614 0%, #0a0807 78%);
+}
+
+.stage[data-scene='job'][data-venue='basement'] .haze {
+  opacity: 0.35;
+  background: radial-gradient(ellipse at 40% 30%, rgba(180, 170, 160, 0.08), transparent 65%);
+}
+
+.stage[data-scene='job'][data-venue='basement'] .embers {
+  opacity: 0.45;
+  background: radial-gradient(circle, rgba(120, 100, 90, 0.25), transparent 68%);
+}
+
+.stage[data-scene='lounge'][data-tier='nook'] .stage-bg {
+  background:
+    radial-gradient(75% 85% at 80% 18%, rgba(224, 122, 58, 0.2), transparent 50%),
+    linear-gradient(165deg, #261c15 0%, var(--bg0) 74%);
+}
+
+/* —— Boot —— */
+.boot[data-difficulty='easy'] {
+  background:
+    radial-gradient(90% 65% at 50% 0%, rgba(90, 200, 180, 0.14), transparent 55%),
+    radial-gradient(70% 45% at 100% 100%, rgba(40, 60, 55, 0.35), transparent 50%),
+    linear-gradient(180deg, #1a2420 0%, var(--bg0) 72%);
+}
+
+.boot[data-difficulty='hard'] {
+  background:
+    radial-gradient(85% 60% at 40% 0%, rgba(100, 80, 75, 0.12), transparent 52%),
+    radial-gradient(65% 50% at 100% 100%, rgba(40, 32, 28, 0.45), transparent 50%),
+    linear-gradient(180deg, #1a1614 0%, #0a0807 72%);
+}
+
+.boot-card {
+  border: 1px solid transparent;
+  background:
+    linear-gradient(165deg, rgba(255, 255, 255, 0.06), var(--card) 45%) padding-box,
+    linear-gradient(135deg, rgba(255, 255, 255, 0.14), rgba(224, 122, 58, 0.28), rgba(255, 255, 255, 0.05)) border-box;
+}
+
+.boot-brand {
+  font-family: var(--font-display);
+  letter-spacing: -0.02em;
+}
+
+.boot--loading .boot-splash-brand {
+  text-shadow: 0 4px 32px rgba(224, 122, 58, 0.35);
+}
+
+.boot--welcome .mascot-speech {
+  border: 1px solid transparent;
+  background:
+    linear-gradient(165deg, rgba(42, 32, 24, 0.98), var(--card)) padding-box,
+    linear-gradient(135deg, rgba(255, 255, 255, 0.1), rgba(224, 122, 58, 0.35), rgba(255, 255, 255, 0.05)) border-box;
+}
+
+.boot--contract .boot-contract-btn:not(:disabled) {
+  animation: lounge-afford-glow 3.2s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .boot--contract .boot-contract-btn:not(:disabled) {
+    animation: none;
+  }
+}
+
+.boot-venue {
+  position: relative;
+  overflow: visible;
+  border-radius: var(--radius-sm);
+  transition:
+    border-color 0.15s ease,
+    background 0.15s ease,
+    box-shadow 0.15s ease;
+}
+
+.boot-venue::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 3px;
+  background: var(--line-strong);
+  opacity: 0.6;
+}
+
+.boot-venue--neon_haze::before {
+  background: linear-gradient(180deg, #6fd6a8, rgba(90, 200, 180, 0.2));
+}
+
+.boot-venue--smoke_river::before {
+  background: linear-gradient(180deg, var(--ember-bright), rgba(224, 122, 58, 0.2));
+}
+
+.boot-venue--basement::before {
+  background: linear-gradient(180deg, #a89090, rgba(100, 80, 80, 0.2));
+}
+
+.boot-venue.active {
+  box-shadow:
+    inset 0 0 0 1px rgba(224, 122, 58, 0.12),
+    0 0 24px var(--mood-glow, rgba(224, 122, 58, 0.1));
+}
+
+.boot-venue.active.boot-venue--neon_haze {
+  border-color: rgba(90, 200, 180, 0.45);
+  background: rgba(90, 200, 180, 0.08);
+}
+
+.boot-venue.active.boot-venue--basement {
+  border-color: rgba(160, 120, 120, 0.4);
+  background: rgba(80, 60, 60, 0.12);
+}
+
+.boot-cta:not(:disabled) {
+  border: 1px solid transparent;
+  background:
+    linear-gradient(180deg, var(--ember-bright), var(--ember-soft)) padding-box,
+    linear-gradient(135deg, rgba(255, 220, 170, 0.4), rgba(224, 122, 58, 0.6)) border-box;
+  box-shadow: 0 4px 20px rgba(224, 122, 58, 0.25);
+}
+
+/* —— In-game shop (закупка зала) —— */
+.lounge-shop {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 10px 12px 12px;
+  margin: 4px 0 8px;
+  border-radius: var(--radius);
+  border: 1px solid transparent;
+  background:
+    linear-gradient(165deg, rgba(224, 122, 58, 0.04), rgba(14, 11, 8, 0.5) 55%) padding-box,
+    linear-gradient(135deg, rgba(255, 255, 255, 0.08), rgba(212, 165, 116, 0.22), rgba(255, 255, 255, 0.04)) border-box;
+}
+
+.lounge-shop .section-label {
+  margin-top: 0;
+  color: var(--gold-dim);
+}
+
+.lounge-shop .section-label::after {
+  background: linear-gradient(90deg, rgba(212, 165, 116, 0.25), transparent);
+}
+
+.row-btn.upgrade .row-meta small {
+  display: block;
+  margin-top: 2px;
+  font-size: 0.62rem;
+  font-weight: 600;
+  color: var(--ember-bright);
+  opacity: 0.85;
+}
+
+.row-btn.upgrade.afford:not(:disabled) {
+  animation: lounge-afford-glow 3.2s ease-in-out infinite;
+}
+
+@keyframes lounge-afford-glow {
+  0%, 100% {
+    box-shadow:
+      var(--shadow-sm),
+      0 0 14px rgba(224, 122, 58, 0.08),
+      inset 3px 0 0 var(--ember),
+      inset 0 1px 0 rgba(255, 255, 255, 0.05);
+  }
+  50% {
+    box-shadow:
+      var(--shadow-sm),
+      0 0 22px rgba(224, 122, 58, 0.16),
+      inset 3px 0 0 var(--ember-bright),
+      inset 0 1px 0 rgba(255, 255, 255, 0.06);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .row-btn.upgrade.afford:not(:disabled) {
+    animation: none;
+  }
+}
+
+.settings-motion-reduce .row-btn.upgrade.afford:not(:disabled) {
+  animation: none;
+}
+
+/* —— Milestone cards —— */
+.milestone {
+  border: 1px solid transparent;
+  background:
+    linear-gradient(165deg, rgba(255, 255, 255, 0.03), rgba(32, 24, 18, 0.6)) padding-box,
+    linear-gradient(135deg, rgba(255, 255, 255, 0.06), rgba(224, 122, 58, 0.14), rgba(255, 255, 255, 0.03)) border-box;
+}
+
+.milestone-head span:first-child {
+  font-family: var(--font-display);
+  font-size: 0.92rem;
+  letter-spacing: -0.01em;
+}
+
+/* —— Celebrations (poster frame) —— */
+.achieve-fanfare-card,
+.celebration-card {
+  position: relative;
+}
+
+.achieve-fanfare-card::before,
+.achieve-fanfare-card::after,
+.celebration-card::before,
+.celebration-card::after {
+  content: '';
+  position: absolute;
+  width: 18px;
+  height: 18px;
+  pointer-events: none;
+  opacity: 0.45;
+}
+
+.achieve-fanfare-card::before,
+.celebration-card::before {
+  top: 10px;
+  left: 10px;
+  border-top: 1px solid var(--gold);
+  border-left: 1px solid var(--gold);
+}
+
+.achieve-fanfare-card::after,
+.celebration-card::after {
+  bottom: 10px;
+  right: 10px;
+  border-bottom: 1px solid var(--gold);
+  border-right: 1px solid var(--gold);
+}
+
+.achieve-fanfare-title,
+.celebration-title {
+  text-shadow: 0 2px 24px rgba(224, 122, 58, 0.25);
+}
+
+.celebration-title {
+  font-size: clamp(1.65rem, 6.5vw, 2rem);
+  letter-spacing: -0.03em;
+}
+
+.achieve-fanfare-kicker,
+.celebration-kicker {
+  font-family: var(--font-display);
+  font-style: italic;
+  letter-spacing: 0.08em;
+  text-transform: none;
+}
+
+.celebration-fanfare--rank .celebration-title {
+  background: linear-gradient(180deg, #fff8ee 0%, var(--gold) 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+.celebration-fanfare--lounge .celebration-title {
+  background: linear-gradient(180deg, #fff8ee 0%, var(--gold) 55%, var(--ember-bright) 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+.celebration-fanfare--lounge .celebration-kicker {
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  font-style: normal;
+  font-size: 0.62rem;
+}
+
+.boot--venue .boot-venue-head {
+  font-family: var(--font-display);
+  letter-spacing: -0.02em;
+  text-align: center;
+}
+
+.boot--venue[data-difficulty='easy'] .boot-venue-glow {
+  background: radial-gradient(ellipse at center, rgba(90, 200, 180, 0.14), transparent 68%);
+}
+
+.boot--venue[data-difficulty='hard'] .boot-venue-glow {
+  background: radial-gradient(ellipse at center, rgba(120, 90, 90, 0.12), transparent 68%);
+}
+
+/* —— Menu & CTA polish —— */
+.menu-btn.active {
+  box-shadow:
+    inset 0 -2px 0 var(--ember),
+    0 0 16px rgba(224, 122, 58, 0.08);
+}
+
+.app-shell--lounge .panel {
+  border-top-color: rgba(224, 122, 58, 0.14);
+  background:
+    linear-gradient(180deg, rgba(22, 16, 12, 0.98) 0%, var(--panel) 100%);
+}
+
+.app-shell--lounge .tagline {
+  color: rgba(210, 198, 178, 0.88);
+}
+
+.stage-live-badge {
+  font-family: var(--font-display);
+  font-style: italic;
+  letter-spacing: 0.04em;
+  text-transform: none;
+}

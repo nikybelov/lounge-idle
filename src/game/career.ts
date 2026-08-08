@@ -69,7 +69,7 @@ import { syncProgressFlags } from './progressFlags'
 
 export { minOpenLoungeCost, loungeTierCost, quitIncomeThreshold } from './difficulty'
 
-/** Пассив «репутация на смене» — первый idle до своего зала */
+/** Пассивный доход на смене — первый idle до своего зала */
 export function jobReputationPerSec(state: GameState): number {
   if (state.phase !== 'employed') return 0
   const total =

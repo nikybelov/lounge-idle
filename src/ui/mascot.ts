@@ -1,3 +1,5 @@
+import { revealWords } from './textReveal'
+
 /** Маскот — Огонёк (живое пламя). */
 export const MASCOT_NAME = 'Огонёк'
 
@@ -260,6 +262,11 @@ export function showMascotConfirm(
 export function showMascotWelcome(root: HTMLElement, onContinue: () => void): void {
   root.innerHTML = `
     <div class="boot boot--welcome">
+      <div class="boot-welcome-ambience" aria-hidden="true">
+        <span class="boot-welcome-haze boot-welcome-haze--1"></span>
+        <span class="boot-welcome-haze boot-welcome-haze--2"></span>
+        <span class="boot-welcome-glow"></span>
+      </div>
       <div class="mascot-welcome-overlay">
         ${mascotBubbleHtml({
           title: `Привет! Я ${MASCOT_NAME}`,
@@ -272,7 +279,20 @@ export function showMascotWelcome(root: HTMLElement, onContinue: () => void): vo
     </div>
   `
 
+  const overlay = root.querySelector('.mascot-welcome-overlay') as HTMLElement
+  const titleEl = root.querySelector('.mascot-speech-title') as HTMLElement
+  const bodyEl = root.querySelector('.mascot-speech-body') as HTMLElement
+
+  requestAnimationFrame(() => {
+    overlay?.classList.add('mascot-welcome-in')
+    revealWords(titleEl, 75)
+    window.setTimeout(() => revealWords(bodyEl, 48), 180)
+  })
+
   root.querySelector('[data-mascot-ok]')!.addEventListener('click', () => {
-    onContinue()
+    const boot = root.querySelector('.boot--welcome') as HTMLElement | null
+    overlay?.classList.add('mascot-welcome-out')
+    boot?.classList.add('boot-welcome-leave')
+    window.setTimeout(onContinue, 260)
   })
 }

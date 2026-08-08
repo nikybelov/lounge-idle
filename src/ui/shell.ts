@@ -15,6 +15,7 @@ import {
   scaledStaffHireCost,
   scaledUpgradeCost,
   getDifficulty,
+  resolveDifficulty,
 } from '../game/difficulty'
 import { DIFFICULTIES } from '../data/difficulty'
 import {
@@ -166,9 +167,25 @@ import { loadHallOfFame, type CareerShareCard } from '../save/leaderboard'
 import { UPGRADES } from '../data/upgrades'
 import type { TaskId } from '../data/tasks'
 import type { UpgradeId } from '../data/upgrades'
-import { ackGuideCoach, goalLine, guideCoach } from '../game/guide'
+import {
+  ackGuideCoach,
+  goalLine,
+  guideCoach,
+  markMilestoneHintSeen,
+  milestoneTabPing,
+  ogonyokChipPulse,
+  ogonyokChipVisible,
+  rankUpCoach,
+  type CoachContext,
+} from '../game/guide'
 import { initStageAtmosphere, syncStageAtmosphere } from './atmosphere'
-import { syncGuideOverlay, isGuideCoachVisible, hasPendingTabHint } from './guideOverlay'
+import {
+  hasPendingMilestoneCoach,
+  hasPendingTabHint,
+  isGuideCoachVisible,
+  queueMilestoneCoach,
+  syncGuideOverlay,
+} from './guideOverlay'
 import { updateLoungeStageArt } from './loungeStage'
 import { revealWords } from './textReveal'
 import {
@@ -345,14 +362,33 @@ function updateRateHud(
         : 'Пассивный доход зала — только пока ты в игре'
 }
 
-function updateGoalStrip(root: HTMLElement, state: GameState): void {
+function coachContext(
+  menuTab: MenuTab,
+  storySubTab: StorySubTab,
+  scene: GameState['scene'],
+): CoachContext {
+  return { menuTab, storySubTab, scene }
+}
+
+function updateGoalStrip(root: HTMLElement, state: GameState, ctx: CoachContext): void {
+  const row = root.querySelector('.goal-strip-row') as HTMLElement | null
   const el = root.querySelector('[data-goal]') as HTMLElement | null
-  if (!el) return
+  const chip = root.querySelector('[data-ogonyok-tip]') as HTMLButtonElement | null
   const text = goalLine(state)
-  el.textContent = text
-  el.hidden = !text
-  if (text) {
-    el.title = text
+
+  if (el) {
+    el.textContent = text
+    el.hidden = !text
+    if (text) el.title = text
+  }
+
+  if (row) row.hidden = !text && !ogonyokChipVisible(state)
+
+  if (chip) {
+    const show = ogonyokChipVisible(state)
+    chip.hidden = !show
+    chip.classList.toggle('goal-strip-ogonyok--pulse', ogonyokChipPulse(state, ctx))
+    chip.title = 'Подсказка от Огонька'
   }
 }
 
@@ -367,7 +403,7 @@ function updateTopbarHints(root: HTMLElement, state: GameState): void {
 
   const repWrap = root.querySelector('[data-reputation-wrap]') as HTMLElement | null
   if (repWrap && !repWrap.hidden) {
-    repWrap.title = 'Репутация с задач на смене — нужна для повышений'
+    repWrap.title = 'Пассивный доход на смене — капает в кассу после нескольких задач'
   }
 
   const cta = root.querySelector('[data-cta]') as HTMLButtonElement | null
@@ -398,6 +434,7 @@ function updateWorkDayHud(root: HTMLElement, state: GameState): void {
 function canPresentAchievements(state: GameState, _menuTab: MenuTab): boolean {
   if (isGuideCoachVisible()) return false
   if (hasPendingTabHint()) return false
+  if (hasPendingMilestoneCoach()) return false
   if (guideCoach(state)) return false
   if (isCelebrationVisible()) return false
   return true
@@ -512,6 +549,7 @@ export interface ShellHandlers {
   onImportCareer: (code: string) => void
   onClearCareerCompare: () => void
   onOpenSettings: () => void
+  onOgonokTip: () => void
 }
 
 let careerCompareCard: CareerShareCard | null = null
@@ -581,7 +619,7 @@ export function mountShell(root: HTMLElement, handlers: ShellHandlers): void {
           <span class="rate-sub" data-rate-sub hidden></span>
         </div>
         <div class="rate-block rate-block--rep" data-reputation-wrap hidden>
-          <span class="rate-label">Репутация</span>
+          <span class="rate-label">Пассив</span>
           <span class="rate-value" data-reputation>0/с</span>
         </div>
         <div class="rate-block rate-block--day workday-clock" data-workday-wrap hidden>
@@ -592,11 +630,17 @@ export function mountShell(root: HTMLElement, handlers: ShellHandlers): void {
           ${icon('settings', 'topbar-settings__icon')}
         </button>
       </header>
-      <p class="goal-strip" data-goal hidden></p>
+      <div class="goal-strip-row">
+        <button type="button" class="goal-strip-ogonyok" data-ogonyok-tip hidden aria-label="Подсказка от Огонёка">
+          <span class="goal-strip-ogonyok__glyph" aria-hidden="true">🔥</span>
+        </button>
+        <p class="goal-strip" data-goal hidden></p>
+      </div>
 
       <main class="stage">
         <div class="stage-bg" aria-hidden="true"></div>
         <div class="stage-frame" aria-hidden="true"></div>
+        <span class="stage-live-badge" data-stage-badge hidden>Живой зал</span>
         <div class="haze" aria-hidden="true"></div>
         <div class="embers" aria-hidden="true"></div>
         ${stageSceneArt()}
@@ -649,10 +693,18 @@ export function mountShell(root: HTMLElement, handlers: ShellHandlers): void {
     handlers.onOpenSettings()
   })
 
+  root.querySelector('[data-ogonyok-tip]')?.addEventListener('click', () => {
+    handlers.onOgonokTip()
+  })
+
   ensureAchieveFanfare()
 }
 
-export function updateHud(root: HTMLElement, state: GameState): void {
+export function updateHud(
+  root: HTMLElement,
+  state: GameState,
+  ctx?: CoachContext,
+): void {
   syncLoungeOfferUnlock(state)
   const cashEl = root.querySelector('[data-cash]') as HTMLElement | null
   const rateWrap = root.querySelector('[data-rate-wrap]') as HTMLElement | null
@@ -666,7 +718,7 @@ export function updateHud(root: HTMLElement, state: GameState): void {
   cashEl.textContent = formatMoney(state.cash)
   if (cashLabel) cashLabel.textContent = cashHudLabel(state)
   updateRateHud(rateWrap, rateLabel, rateEl, rateSub, state)
-  updateGoalStrip(root, state)
+  if (ctx) updateGoalStrip(root, state, ctx)
   updateWorkDayHud(root, state)
   updateTopbarHints(root, state)
   if (cta && state.scene === 'lounge' && !cta.hidden) {
@@ -898,6 +950,7 @@ export function renderShell(
   careerSubTab: CareerSubTab = 'track',
   storySubTab: StorySubTab = 'tasks',
 ): void {
+  const ctx = coachContext(menuTab, storySubTab, state.scene)
   syncAchievementContext(root, state, menuTab)
   // Если stage был повреждён (старый баг data-menu) — пересобираем оболочку
   if (!root.querySelector('[data-brand]') || !root.querySelector('[data-menu-primary]')) {
@@ -922,12 +975,26 @@ export function renderShell(
   cashEl.textContent = formatMoney(state.cash)
   if (cashLabel) cashLabel.textContent = cashHudLabel(state)
   updateRateHud(rateWrap, rateLabel, rateEl, rateSub, state)
-  updateGoalStrip(root, state)
+  if (ctx) updateGoalStrip(root, state, ctx)
   updateWorkDayHud(root, state)
   updateTopbarHints(root, state)
   updateLoungeStageArt(root, state)
+
+  if (state.onboarded) {
+    root.dataset.difficulty = resolveDifficulty(state)
+  } else {
+    delete root.dataset.difficulty
+  }
+
   initStageAtmosphere(stage)
   syncStageAtmosphere(stage)
+
+  const shell = root.querySelector('.app-shell') as HTMLElement | null
+  shell?.classList.toggle('app-shell--lounge', state.scene === 'lounge' && state.phase !== 'employed')
+  const stageBadge = root.querySelector('[data-stage-badge]') as HTMLElement | null
+  if (stageBadge) {
+    stageBadge.hidden = stage.dataset.loungeLive !== '1'
+  }
 
   stage.dataset.scene = state.scene
   stage.dataset.phase = state.phase
@@ -1034,6 +1101,11 @@ export function renderShell(
     root.querySelector('[data-menu-tab="personal"]')?.classList.add('tab-ping')
   }
 
+  const milestonePing = milestoneTabPing(state, ctx)
+  if (milestonePing) {
+    root.querySelector(`[data-menu-tab="${milestonePing}"]`)?.classList.add('tab-ping')
+  }
+
   nav.innerHTML = ''
   const subRows: string[] = []
 
@@ -1083,11 +1155,11 @@ export function renderShell(
   })
 
   const syncGuide = (): void => {
-    const coach = guideCoach(state)
+    const coach = guideCoach(state, ctx)
     const coachForTab =
       coach?.step === 'dual_tasks' && menuTab !== 'story' ? null : coach
-    syncGuideOverlay(root, coachForTab, (dismissedStep) => {
-      ackGuideCoach(state, dismissedStep)
+    syncGuideOverlay(root, coachForTab, (dismissedKey) => {
+      ackGuideCoach(state, dismissedKey)
       handlers.onGuideAck()
       flushAchievementQueue(root, state, menuTab)
     })
@@ -1311,7 +1383,7 @@ function renderOwnLoungePanel(state: GameState): string {
           }
           ${
             bareHandsStillPossible(state.shopOwned, state.taskDone.wash)
-              ? ' Трофей «Голыми руками» — только без ёршика: «Уголок» или 35 моек до открытия зала с ёршиком в комплекте.'
+              ? ' Трофей «Голыми руками» — только без шуруповёрта: «Уголок» или 35 моек до тарифа с инструментом в комплекте.'
               : ''
           }
         </p>
@@ -1472,7 +1544,7 @@ function renderCareerTrophiesPanel(state: GameState): string {
         <p class="achieve-summary-count">${done} из ${total} · +15 очков карьеры за каждый${diffLabel ? ` · ${diffLabel}` : ''}</p>
         <div class="bar"><i style="width:${total ? (done / total) * 100 : 0}%"></i></div>
       </div>
-      <p class="row-sub shop-note">В одном прохождении: «Голыми руками» и «Копил» — до открытия зала; «Трудяга» — не увольняйся после открытия; «Авторский зал» — выбери тариф при открытии.</p>
+      <p class="row-sub shop-note">В одном прохождении: «Голыми руками» и «Копил дольше, чем нужно» — до открытия зала; «Трудяга» — не увольняйся после открытия; «Авторский зал» — выбери тариф при открытии.</p>
       ${rows}
     </div>
   `
@@ -1532,10 +1604,10 @@ function renderAmbassadorBlock(state: GameState): string {
       <div class="milestone career">
         <div class="milestone-head">
           <span>Контракт с брендом</span>
-          <span>${p.fame}/${AMBASSADOR_UNLOCK_FAME} узн. · ${p.media}/${AMBASSADOR_UNLOCK_MEDIA} мед. · реп. ${rep}/${AMBASSADOR_UNLOCK_REP}</span>
+          <span>${p.fame}/${AMBASSADOR_UNLOCK_FAME} узн. · ${p.media}/${AMBASSADOR_UNLOCK_MEDIA} мед. · рейт. ${rep}/${AMBASSADOR_UNLOCK_REP}</span>
         </div>
         <div class="bar"><i style="width:${prog}%"></i></div>
-        <p class="row-sub shop-note">Узн. и мед. вместе, репутация (узн.+мед.×0.55), лауреат «Гайд Мастерс» или 2 филиала — откроют контракты раньше</p>
+        <p class="row-sub shop-note">Узн. и мед. вместе, рейтинг (узн.+мед.×0.55), лауреат «Гайд Мастерс» или 2 филиала — откроют контракты раньше</p>
       </div>
     `
   }
@@ -1597,7 +1669,7 @@ function renderAmbassadorBlock(state: GameState): string {
     const reqLine =
       (fameOk && mediaOk) || repOk
         ? `${bonusLabel} · ${personalBonusLabel} · контракт ${formatMoney(cost)}`
-        : `Нужно узн. ${need.fame}+ и мед. ${need.media}+ или реп. ${need.rep}+ · сейчас ${p.fame}/${p.media} · реп. ${rep}`
+        : `Нужно узн. ${need.fame}+ и мед. ${need.media}+ или рейт. ${need.rep}+ · сейчас ${p.fame}/${p.media} · рейт. ${rep}`
 
     return `
       <button type="button" class="row-btn shop ${can ? 'afford' : ''}" data-ambassador-sign="${t.id}" ${can ? '' : 'disabled'}>
@@ -2721,7 +2793,7 @@ function renderPromotionsBlock(state: GameState, now: number): string {
   return `
     <p class="section-label">Акции</p>
     ${sectionPurpose('Прокачай грейд → запускай — всплеск гостей на время')}
-    <div class="promo-list">${cards}</div>
+    <div class="promo-list" data-promotions>${cards}</div>
   `
 }
 
@@ -2852,7 +2924,7 @@ function renderLoungePanel(state: GameState, now: number): string {
       }
       <p class="section-label">Закупка зала</p>
       ${sectionPurpose('Доход/с и места · прогресс открывает акции и расширения')}
-      ${rows}
+      <div class="lounge-shop">${rows}</div>
       <p class="section-label">Расширения</p>
       ${expansionRows}
       ${quit}
@@ -2891,19 +2963,31 @@ export function maybePresentCelebration(
 ): void {
   const c = state.flags.celebration
   if (!c) return
+  const kind = c.kind
   state.flags.celebration = null
-  if (c.kind === 'award') {
+  if (kind === 'award') {
     showGuideMastersDiploma(state.playerName, c.subtitle, onDismiss)
     return
   }
-  showCelebration(c.title, c.subtitle, onDismiss)
-  if (c.kind === 'lounge') {
-    document.querySelector('.stage')?.classList.add('stage-flash')
-    window.setTimeout(
-      () => document.querySelector('.stage')?.classList.remove('stage-flash'),
-      700,
-    )
+  const finish = (): void => {
+    if (kind === 'rank') {
+      const coach = rankUpCoach(state)
+      if (coach) {
+        queueMilestoneCoach(coach, () => {
+          markMilestoneHintSeen(state, 'rank_up')
+          onDismiss()
+        })
+        return
+      }
+    }
+    onDismiss()
   }
+  showCelebration(
+    c.title,
+    c.subtitle,
+    finish,
+    kind === 'lounge' ? 'lounge' : kind === 'rank' ? 'rank' : 'general',
+  )
 }
 
 export function juiceTaskReward(

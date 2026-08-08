@@ -2,6 +2,7 @@ export type ReducedMotionPref = 'system' | 'reduce' | 'full'
 
 export interface GameSettings {
   sound: boolean
+  music: boolean
   reducedMotion: ReducedMotionPref
   coachHints: boolean
 }
@@ -10,6 +11,7 @@ const KEY = 'lounge-idle-settings-v1'
 
 const DEFAULTS: GameSettings = {
   sound: true,
+  music: true,
   reducedMotion: 'system',
   coachHints: true,
 }
@@ -30,6 +32,7 @@ export function loadSettings(): GameSettings {
     const parsed = JSON.parse(raw) as Partial<GameSettings>
     cached = {
       sound: parsed.sound ?? DEFAULTS.sound,
+      music: parsed.music ?? DEFAULTS.music,
       reducedMotion: parsed.reducedMotion ?? DEFAULTS.reducedMotion,
       coachHints: parsed.coachHints ?? DEFAULTS.coachHints,
     }
@@ -52,6 +55,10 @@ export function patchSettings(patch: Partial<GameSettings>): GameSettings {
 
 export function isSoundEnabled(): boolean {
   return cached.sound
+}
+
+export function isMusicEnabled(): boolean {
+  return cached.music
 }
 
 export function isCoachEnabled(): boolean {

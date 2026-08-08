@@ -1,0 +1,53 @@
+---
+description: Curated skills for Дымная Империя — idle loop, lounge UI, juice, ship
+alwaysApply: true
+---
+
+# Skill stack (whitelist only)
+
+Read matching `SKILL.md` from disk **before** implementing. Use **only** skills listed here — do not pull from the full MengTo library (Three.js, ARPG, landing pages, Tailwind demos).
+
+## Always read first (game core)
+
+| Skill | Path | Use for |
+|-------|------|---------|
+| hookah-game-design | `~/.cursor/skills/hookah-game-design/SKILL.md` | Theme, Russian copy, zones, staff names |
+| browser-idle-tycoon | `~/.cursor/skills/browser-idle-tycoon/SKILL.md` | Economy, upgrades, managers, prestige, save |
+| web-game-scaffold | `~/.cursor/skills/web-game-scaffold/SKILL.md` | Vite, mobile, deploy |
+
+## MengTo whitelist (`~/.cursor/skills/<name>/SKILL.md`)
+
+| When | Skill |
+|------|-------|
+| Panels, cards, HUD | `glass-dark-ui`, `dark-glass-clean-layout`, `beam-glow-states`, `beautiful-shadows`, `css-border-gradient`, `nested-container-frames` |
+| Boot, contract, modals | `design-first-ui-prompting`, `animation-on-scroll`, `high-contrast-skeuomorphic-clean`, `progressive-blur` |
+| Stage mood, background | `atmosphere-background`, `dither-background`, `ambient-section-particles`, `reveal-hover-effect` |
+| Celebrations, rank-up copy | `staggered-word-reveal`, `animation-systems` |
+| Tap juice, motion, perf | `animation-systems`, `optimize-web-animations`, `marquee-loop` |
+| Sound | `build-game-audio-feedback` |
+| Design refs → code (Никита) | `html-to-interaction-prompts` |
+| Placeholder art / textures | `unsplash-asset-images` |
+| QA, plain-language check | `audit-verify-explain-grade-5`, `test-playable-web-games` |
+| Changelog, version screen | `build-game-changelog` |
+| Build & deploy | `ship-web-games` |
+
+## Task → repo paths
+
+| Feature | Start in |
+|---------|----------|
+| Balance, tasks, ranks | `src/game/`, `src/data/` |
+| Shell, panels, FAB | `src/ui/shell.ts`, `src/styles/main.css` |
+| Boot, contract, venue | `src/ui/boot.ts`, `bootScreens.ts`, `mascot.ts` |
+| Coach / Огонёк | `src/ui/guideOverlay.ts`, `src/game/guide.ts` |
+| Juice | `src/ui/juice.ts` |
+| Lounge stage | `src/ui/loungeStage.ts` |
+| Save | `src/save/storage.ts` |
+
+## Conventions
+
+- Stack: Vite + TS + vanilla DOM — no React, Phaser, or Three.js unless user asks
+- Particles/backgrounds: canvas or CSS only; pause offscreen (`optimize-web-animations`)
+- UI: Russian; mascot **Огонёк**
+- Minimal diffs; match surrounding code
+
+Missing skills: `./scripts/install-lounge-skills.sh`

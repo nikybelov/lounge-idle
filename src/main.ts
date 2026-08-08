@@ -1,4 +1,5 @@
 import './styles/main.css'
+import './styles/lounge-theme.css'
 import {
   syncSessionTime,
   beginLoungePick,
@@ -58,6 +59,9 @@ import {
   tabHintMessage,
   consumePersonalIntroHint,
   applyBootGuideToState,
+  ackGuideCoach,
+  contextualOgonokTip,
+  touchOgonokInteraction,
 } from './game/guide'
 import { tickWorkDays } from './game/workDays'
 import { archiveCareerRun, encodeCareerShare, decodeCareerShare } from './save/leaderboard'
@@ -68,7 +72,7 @@ import {
   resetSave,
   saveState,
 } from './save/storage'
-import { applySettings, loadSettings } from './save/settings'
+import { applySettings, isCoachEnabled, loadSettings } from './save/settings'
 import { formatMoney } from './game/economy'
 import { runBoot } from './ui/boot'
 import { openSettingsPanel } from './ui/settingsPanel'
@@ -95,8 +99,9 @@ import {
   isLoungeOnlyMenuTab,
   setCareerCompareCard,
 } from './ui/shell'
-import { dismissGuideCoach, queueTabHint } from './ui/guideOverlay'
+import { dismissGuideCoach, presentStandaloneCoach, queueTabHint } from './ui/guideOverlay'
 import { initUiPolish } from './ui/atmosphere'
+import { syncAmbientMusic } from './ui/ambientMusic'
 import { primeAudio } from './ui/juice'
 import { loungeClickPower } from './game/economy'
 import {
@@ -127,6 +132,10 @@ let scheduleSave = createDebouncedSave(450)
 let lastTs = performance.now()
 let gameStarted = false
 const admin = isAdminEnabled()
+
+function hudCoachContext() {
+  return { menuTab, storySubTab, scene: state.scene }
+}
 
 const handlers = {
   onJobTask(id: Parameters<typeof doJobTask>[1]) {
@@ -383,6 +392,7 @@ const handlers = {
     afterAction()
   },
   onMenuTab(tab: MenuTab) {
+    touchOgonokInteraction()
     if (tab === 'own') {
       syncLoungeOfferUnlock(state)
       if (!canBrowseLoungeOffer(state)) {
@@ -423,10 +433,12 @@ const handlers = {
     paint()
   },
   onCareerSubTab(sub: CareerSubTab) {
+    touchOgonokInteraction()
     careerSubTab = sub
     paint()
   },
   onStorySubTab(sub: StorySubTab) {
+    touchOgonokInteraction()
     storySubTab = sub
     const hint = storySubHintMessage(state, sub)
     if (hint) {
@@ -439,6 +451,23 @@ const handlers = {
   },
   onGuideAck() {
     saveState(state)
+  },
+  onOgonokTip() {
+    touchOgonokInteraction()
+    const ctx = hudCoachContext()
+    const tip = contextualOgonokTip(state, ctx)
+    if (!tip) return
+    presentStandaloneCoach(
+      root,
+      tip,
+      () => {
+        ackGuideCoach(state, tip.coachKey ?? tip.step)
+        saveState(state)
+        paint()
+        flushAchievementQueue(root, state, menuTab)
+      },
+      tip.coachKey ?? 'context-tip',
+    )
   },
   onReset() {
     void confirmAndResetCareer()
@@ -472,6 +501,7 @@ const handlers = {
   onOpenSettings() {
     openSettingsPanel(root, () => {
       applySettings(root)
+      syncAmbientMusic()
       dismissGuideCoach(root)
       paint()
     })
@@ -485,6 +515,7 @@ function onAchievementsUnlocked(unlocked: ReturnType<typeof evaluateAchievements
 }
 
 function afterAction(): void {
+  touchOgonokInteraction()
   syncProgressFlags(state)
   const offerWasLocked = !state.flags.loungeOfferUnlocked
   syncLoungeOfferUnlock(state)
@@ -500,17 +531,20 @@ function afterAction(): void {
   if (
     empireWasLocked &&
     state.flags.empireOfferUnlocked &&
-    state.phase === 'ownOnly'
+    state.phase === 'ownOnly' &&
+    !isCoachEnabled()
   ) {
     showToast(root, 'Вкладка «Сеть» открыта — можно открыть второе заведение')
   }
   const unlocked = evaluateAchievements(state)
-  const hint = maybeBrokeHint(state)
-  if (hint) showToast(root, hint)
-  const shelfHint = maybeShelfFeedback(state)
-  if (shelfHint) showToast(root, shelfHint)
-  const payrollHint = maybePayrollFeedback(state)
-  if (payrollHint) showToast(root, payrollHint)
+  if (!isCoachEnabled()) {
+    const hint = maybeBrokeHint(state)
+    if (hint) showToast(root, hint)
+    const shelfHint = maybeShelfFeedback(state)
+    if (shelfHint) showToast(root, shelfHint)
+    const payrollHint = maybePayrollFeedback(state)
+    if (payrollHint) showToast(root, payrollHint)
+  }
   syncGuideProgress(state)
   if (state.phase !== 'employed' && menuTab === 'own') menuTab = 'story'
   if (state.phase === 'employed' && menuTab === 'tobacco') menuTab = 'story'
@@ -536,10 +570,14 @@ function afterAction(): void {
 }
 
 function maybeQuitToast(): void {
-  if (state.phase !== 'dual' || state.flags.sawQuitReady) return
-  if (!canQuitJob(state)) return
-  state.flags.sawQuitReady = true
-  showToast(root, 'Свой зал тянет сам — можно уволиться со смены.')
+  if (!isCoachEnabled()) {
+    if (state.phase !== 'dual' || state.flags.sawQuitReady) return
+    if (!canQuitJob(state)) return
+    state.flags.sawQuitReady = true
+    showToast(root, 'Свой зал тянет сам — можно уволиться со смены.')
+    return
+  }
+  // milestone quit_ready — через guideCoach
 }
 
 function paint(): void {
@@ -562,8 +600,8 @@ function frame(ts: number): void {
     tickIncome(state, dt)
     tickWorkDays(state, dt)
   }
-  updateHud(root, state)
-  if (state.phase !== 'employed') {
+  updateHud(root, state, hudCoachContext())
+  if (state.phase !== 'employed' && !isCoachEnabled()) {
     const shelfHint = maybeShelfFeedback(state)
     if (shelfHint) showToast(root, shelfHint)
     const payrollHint = maybePayrollFeedback(state)
@@ -591,6 +629,8 @@ function beginGame(): void {
   mountShell(root, handlers)
   applySettings(root)
   initUiPolish(root)
+  primeAudio()
+  syncAmbientMusic()
   if (admin) {
     mountAdminPanel(document.body, {
       onCash(amount) {
@@ -719,7 +759,7 @@ window.addEventListener('beforeunload', () => {
 })
 document.addEventListener('visibilitychange', () => {
   if (document.visibilityState === 'hidden' && state.onboarded) saveState(state)
-  if (gameStarted) updateHud(root, state)
+  if (gameStarted) updateHud(root, state, hudCoachContext())
 })
 
 /** Блокирует double-tap zoom и pinch на iOS/Android в игровом режиме. */

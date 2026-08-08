@@ -37,7 +37,7 @@ export const CHANNEL_GEAR: ChannelGearDef[] = [
   },
   {
     id: 'montage',
-    name: 'Монтаж и монтажка',
+    name: 'Монтаж и софт',
     blurb: 'Монтаж быстрее — короче перезарядка между роликами',
     baseCost: 260,
     costMult: 1.24,

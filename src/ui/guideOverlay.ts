@@ -9,6 +9,7 @@ import {
   type MascotStageId,
 } from './guideMascot'
 import { playUnlockSound } from './juice'
+import { isCoachEnabled } from '../save/settings'
 
 let host: HTMLElement | null = null
 let activeStep: string | null = null
@@ -31,7 +32,6 @@ function ensureHost(): HTMLElement {
   el.innerHTML = `
     <div class="guide-coach-spot" data-spot aria-hidden="true"></div>
     <div class="guide-coach-arrow" data-arrow aria-hidden="true"></div>
-    <div class="guide-mascot" data-mascot hidden aria-hidden="true"></div>
     <div class="guide-coach-card" data-card>
       <div class="guide-coach-progress" data-progress aria-hidden="true"></div>
       <div class="guide-coach-icon" data-icon aria-hidden="true" hidden></div>
@@ -40,6 +40,7 @@ function ensureHost(): HTMLElement {
       <p class="guide-coach-body" data-body></p>
       <button type="button" class="guide-coach-btn" data-ok></button>
     </div>
+    <div class="guide-mascot" data-mascot hidden aria-hidden="true"></div>
   `
   document.body.appendChild(el)
   host = el
@@ -436,6 +437,10 @@ export function hasPendingTabHint(): boolean {
 }
 
 export function queueTabHint(hint: TabHintDef, onAck?: () => void): void {
+  if (!isCoachEnabled()) {
+    onAck?.()
+    return
+  }
   pendingTabHint = hint
   pendingTabHintAck = onAck ?? null
 }

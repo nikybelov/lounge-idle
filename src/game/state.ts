@@ -9,7 +9,10 @@ import type { TaskId } from '../data/tasks'
 import type { TobaccoId } from '../data/tobacco'
 import type { UpgradeId } from '../data/upgrades'
 import type { VenueId } from '../data/venues'
+import type { DifficultyId } from '../data/difficulty'
 import type { CareerMilestoneId } from '../data/careerTrack'
+import type { PromotionId } from '../data/promotions'
+import type { TelegramToolkitLevels } from '../data/personal'
 
 export type GuideStep =
   | 'pick_venue'
@@ -53,10 +56,32 @@ export interface PersonalState {
   awardAttempts: number
   awardWins: number
   videoReadyAt: number
+  videoBoostUntil: number
+  videoBoostAmount: number
+  /** После ролика — окно для бонусного поста в Telegram */
+  videoPromoReadyUntil: number
   eventReadyAt: number
   awardReadyAt: number
   eventBoostUntil: number
   eventBoostAmount: number
+  /** Telegram-канал: 0 = нет, 1–4 = грейд */
+  telegramGrade: number
+  telegramPosts: number
+  telegramPostReadyAt: number
+  telegramBoostUntil: number
+  telegramBoostAmount: number
+  /** Прокачка инструментов Telegram */
+  telegramToolkit: TelegramToolkitLevels
+  /** Контракт амбассадора — только один бренд за раз */
+  ambassadorOf: Partial<Record<TobaccoId, boolean>>
+}
+
+export interface PromotionsState {
+  grades: Partial<Record<PromotionId, number>>
+  activeId: PromotionId | null
+  activeUntil: number
+  activeBoost: number
+  readyAt: Partial<Record<PromotionId, number>>
 }
 
 export interface GameState {
@@ -68,6 +93,8 @@ export interface GameState {
   onboarded: boolean
   playerName: string
   venueId: VenueId | null
+  /** Задаётся при выборе заведения на старте — влияет на экономику зала и сети */
+  difficulty: DifficultyId | null
   loungeTier: LoungeTierId | null
   loungeIncomeMult: number
   loungeClickMult: number
@@ -83,6 +110,7 @@ export interface GameState {
   /** Грейды каждого нанятого сотрудника по роли (1–4) */
   staffMembers: Partial<Record<StaffId, number[]>>
   personal: PersonalState
+  promotions: PromotionsState
   career: CareerTrackState
   taskReadyAt: Record<TaskId, number>
   taskDone: Record<TaskId, number>
@@ -101,6 +129,12 @@ export interface GameState {
     /** Вкладка «Сеть» после авторского зала + увольнения */
     empireOfferUnlocked: boolean
     payrollWarned: boolean
+    /** Был период «смена + свой зал» — для трофея «Трудяга» */
+    hadDualPhase: boolean
+    /** Накопил лишнее на смене до открытия зала */
+    loyalPockets: boolean
+    /** 35+ моек без шуруповёрта — можно купить инструмент позже */
+    bareHandsEarned: boolean
     guideStep: GuideStep
     /** Индекс последнего шага, который игрок закрыл в coach */
     guideAckedIndex: number
@@ -117,7 +151,7 @@ export interface GameState {
       career: boolean
     }
     celebration: {
-      kind: 'lounge' | 'rank'
+      kind: 'lounge' | 'rank' | 'award'
       title: string
       subtitle: string
     } | null
@@ -134,6 +168,7 @@ export function createInitialState(now = Date.now()): GameState {
     onboarded: false,
     playerName: '',
     venueId: null,
+    difficulty: null,
     loungeTier: null,
     loungeIncomeMult: 1,
     loungeClickMult: 1,
@@ -161,10 +196,27 @@ export function createInitialState(now = Date.now()): GameState {
         awardAttempts: 0,
         awardWins: 0,
         videoReadyAt: 0,
+        videoBoostUntil: 0,
+        videoBoostAmount: 0,
+        videoPromoReadyUntil: 0,
         eventReadyAt: 0,
         awardReadyAt: 0,
         eventBoostUntil: 0,
         eventBoostAmount: 0,
+        telegramGrade: 0,
+        telegramPosts: 0,
+        telegramPostReadyAt: 0,
+        telegramBoostUntil: 0,
+        telegramBoostAmount: 0,
+        telegramToolkit: { content: 0, visual: 0, reach: 0 },
+        ambassadorOf: {},
+      },
+      promotions: {
+        grades: {},
+        activeId: null,
+        activeUntil: 0,
+        activeBoost: 0,
+        readyAt: {},
       },
       career: {
         workDays: 0,
@@ -197,6 +249,9 @@ export function createInitialState(now = Date.now()): GameState {
       shelfEmptyWarned: false,
       empireOfferUnlocked: false,
       payrollWarned: false,
+      hadDualPhase: false,
+      loyalPockets: false,
+      bareHandsEarned: false,
       guideStep: 'pick_venue',
       guideAckedIndex: -1,
       coalsDualHintSeen: false,

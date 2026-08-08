@@ -1,7 +1,6 @@
 import {
   BROKE_THRESHOLD,
   JOB_TASKS,
-  QUIT_INCOME_THRESHOLD,
   isTaskUnlocked,
   type TaskId,
 } from '../data/tasks'
@@ -17,7 +16,6 @@ import {
 import { canPromote, nextRank, rankDef } from '../data/ranks'
 import { getVenue } from '../data/venues'
 import {
-  cheapestLoungeTier,
   getLoungeTier,
   type LoungeTierId,
 } from '../data/loungeTiers'
@@ -30,7 +28,6 @@ import {
   hireStaffCheck,
   staffHeadcount,
   staffMembers,
-  staffPayrollPerSec,
   upgradeStaffMemberCheck,
 } from './staff'
 import {
@@ -53,9 +50,24 @@ import {
   isUpgradeUnlocked,
   loungeClickPower,
   loungeIncomePerSec,
+  staffPayrollPerSec,
+  staffPayrollShare,
   upgradeCost,
 } from './economy'
 import type { GameState, Scene } from './state'
+import {
+  loungeTierCost,
+  minOpenLoungeCost,
+  quitIncomeThreshold,
+  scaledBranchCost,
+  scaledExpansionCost,
+  scaledShiftShopCost,
+  scaledStaffHireCost,
+  scaledUpgradeCost,
+} from './difficulty'
+import { syncProgressFlags } from './progressFlags'
+
+export { minOpenLoungeCost, loungeTierCost, quitIncomeThreshold } from './difficulty'
 
 /** Пассив «репутация на смене» — первый idle до своего зала */
 export function jobReputationPerSec(state: GameState): number {
@@ -70,20 +82,15 @@ export type ActionResult =
   | { ok: true; message?: string }
   | { ok: false; message: string }
 
-export function minOpenLoungeCost(): number {
-  return cheapestLoungeTier().cost
-}
-
-/** Вкладка выбора зала доступна */
 export function canBrowseLoungeOffer(state: GameState): boolean {
   return (
     state.phase === 'employed' &&
-    (state.flags.loungeOfferUnlocked || state.cash >= minOpenLoungeCost())
+    (state.flags.loungeOfferUnlocked || state.cash >= minOpenLoungeCost(state))
   )
 }
 
 export function syncLoungeOfferUnlock(state: GameState): void {
-  if (state.phase === 'employed' && state.cash >= minOpenLoungeCost()) {
+  if (state.phase === 'employed' && state.cash >= minOpenLoungeCost(state)) {
     state.flags.loungeOfferUnlocked = true
   }
 }
@@ -100,7 +107,7 @@ export function beginLoungePick(state: GameState): ActionResult {
   if (!canBrowseLoungeOffer(state)) {
     return {
       ok: false,
-      message: `Нужно ещё ${Math.ceil(minOpenLoungeCost() - state.cash)}`,
+      message: `Нужно ещё ${Math.ceil(minOpenLoungeCost(state) - state.cash)}`,
     }
   }
   state.flags.pickingLounge = false
@@ -116,14 +123,16 @@ export function openLounge(state: GameState, tierId: LoungeTierId): ActionResult
     return { ok: false, message: 'Угол уже твой' }
   }
   const tier = getLoungeTier(tierId)
-  if (state.cash < tier.cost) {
+  const cost = loungeTierCost(state, tier.cost)
+  if (state.cash < cost) {
     return {
       ok: false,
-      message: `Нужно ещё ${Math.ceil(tier.cost - state.cash)}`,
+      message: `Нужно ещё ${Math.ceil(cost - state.cash)}`,
     }
   }
-  state.cash -= tier.cost
+  state.cash -= cost
   state.phase = 'dual'
+  state.flags.hadDualPhase = true
   state.scene = 'lounge'
   state.flags.pickingLounge = false
   state.flags.loungeOfferUnlocked = false
@@ -167,12 +176,12 @@ export function openLounge(state: GameState, tierId: LoungeTierId): ActionResult
 }
 
 export function shopItemCost(state: GameState, baseCost: number): number {
-  return Math.max(1, Math.floor(baseCost * getVenue(state.venueId).shopPriceMult))
+  return scaledShiftShopCost(state, baseCost)
 }
 
 export function canQuitJob(state: GameState): boolean {
   return (
-    state.phase === 'dual' && loungeIncomePerSec(state) >= QUIT_INCOME_THRESHOLD
+    state.phase === 'dual' && loungeIncomePerSec(state) >= quitIncomeThreshold(state)
   )
 }
 
@@ -183,7 +192,7 @@ export function quitJob(state: GameState): ActionResult {
   if (!canQuitJob(state)) {
     return {
       ok: false,
-      message: `Нужен свой доход от ${QUIT_INCOME_THRESHOLD}/сек`,
+      message: `Нужен свой доход от ${quitIncomeThreshold(state)}/сек`,
     }
   }
   state.phase = 'ownOnly'
@@ -275,6 +284,8 @@ export function doJobTask(state: GameState, taskId: TaskId, now: number): Action
         getVenue(state.venueId).cooldownMult,
     )
 
+  syncProgressFlags(state)
+
   const parts: string[] = []
   const unlocked = newlyUnlockedTasks(state, before)
   if (unlocked.length) parts.push(`Открыто: ${unlocked.join(', ')}`)
@@ -328,7 +339,7 @@ export function buyUpgrade(state: GameState, id: UpgradeId): ActionResult {
     return { ok: false, message: 'Ещё рано' }
   }
   const level = state.owned[id]
-  const cost = upgradeCost(def, level)
+  const cost = scaledUpgradeCost(state, upgradeCost(def, level))
   if (state.cash < cost) {
     return { ok: false, message: 'Не хватает' }
   }
@@ -467,10 +478,11 @@ export function buyExpansion(state: GameState, id: ExpansionId): ActionResult {
       message: `Нужно больше мебели (ур. ${def.needFurniture})`,
     }
   }
-  if (state.cash < def.cost) {
+  const cost = scaledExpansionCost(state, def.cost)
+  if (state.cash < cost) {
     return { ok: false, message: 'Не хватает' }
   }
-  state.cash -= def.cost
+  state.cash -= cost
   state.expansions[id] = true
   return {
     ok: true,
@@ -482,7 +494,8 @@ export function openBranch(state: GameState, id: BranchId): ActionResult {
   const check = openBranchCheck(state, id)
   if (!check.ok) return check
   const def = getBranch(id)!
-  state.cash -= def.cost
+  const cost = scaledBranchCost(state, def.cost)
+  state.cash -= cost
   state.branches[id] = true
   return {
     ok: true,
@@ -495,7 +508,8 @@ export function hireStaff(state: GameState, id: StaffId): ActionResult {
   if (!check.ok) return check
   const role = getStaffRole(id)!
   const grade = role.grades[0]
-  state.cash -= grade.hireCost
+  const cost = scaledStaffHireCost(state, grade.hireCost)
+  state.cash -= cost
   state.staffMembers[id] = [1]
   state.flags.payrollWarned = false
   return {
@@ -511,7 +525,8 @@ export function upgradeStaff(state: GameState, id: StaffId, index: number): Acti
   const members = [...staffMembers(state, id)]
   const nextGrade = members[index] + 1
   const grade = role.grades[nextGrade - 1]
-  state.cash -= grade.hireCost
+  const cost = scaledStaffHireCost(state, grade.hireCost)
+  state.cash -= cost
   members[index] = nextGrade
   state.staffMembers[id] = members
   state.flags.payrollWarned = false
@@ -527,7 +542,7 @@ export function addStaff(state: GameState, id: StaffId): ActionResult {
   if (!check.ok) return check
   const role = getStaffRole(id)!
   const def = role.grades[0]
-  const cost = extraStaffHireCost(id, 1)
+  const cost = scaledStaffHireCost(state, extraStaffHireCost(id, 1))
   state.cash -= cost
   state.staffMembers[id] = [...staffMembers(state, id), 1]
   state.flags.payrollWarned = false
@@ -566,11 +581,16 @@ export function maybePayrollFeedback(state: GameState): string | null {
     return null
   }
   const net = loungeIncomePerSec(state)
-  if (net >= 0) {
+  const share = staffPayrollShare(state)
+  const heavy = net < 0 || share >= 0.4
+  if (!heavy) {
     state.flags.payrollWarned = false
     return null
   }
   if (state.flags.payrollWarned) return null
   state.flags.payrollWarned = true
-  return `ФОТ (${payroll.toFixed(1)}/с) съедает выручку — уволи кого-то во вкладке «Команда».`
+  if (net < 0) {
+    return `ФОТ (${payroll.toFixed(1)}/с) съедает выручку — уволи кого-то во вкладке «Команда».`
+  }
+  return `ФОТ ${Math.round(share * 100)}% выручки — команда дорогая, подумай об оптимизации.`
 }

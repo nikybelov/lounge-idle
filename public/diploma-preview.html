@@ -1,0 +1,122 @@
+<!doctype html>
+<html lang="ru">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Диплом — превью</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,500;9..40,600;9..40,700&family=Fraunces:opsz,wght@9..144,600;9..144,700&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="/src/styles/main.css" />
+    <style>
+      html,
+      body {
+        height: 100%;
+        margin: 0;
+        background: #0e0b08;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="celebration-fanfare guide-masters-diploma-fanfare in">
+      <div class="celebration-backdrop"></div>
+      <div class="guide-masters-diploma-fx" aria-hidden="true"></div>
+      <div class="guide-masters-diploma-fire" aria-hidden="true">
+        <div class="guide-masters-diploma-fire-core"></div>
+      </div>
+      <div class="guide-masters-diploma-embers" aria-hidden="true"></div>
+      <div class="guide-masters-diploma-cheers" aria-hidden="true"></div>
+      <div class="guide-masters-diploma-stage">
+        <p class="guide-masters-diploma-kicker">Диплом обладателя премии</p>
+        <article class="guide-masters-diploma guide-masters-diploma--portrait" aria-label="Диплом лауреата премии Гайд Мастерс">
+          <div class="guide-masters-diploma-mat">
+            <div class="guide-masters-diploma-frame">
+              <div class="guide-masters-diploma-face">
+                <div class="guide-masters-diploma-shine" aria-hidden="true"></div>
+                <div class="guide-masters-diploma-glow" aria-hidden="true"></div>
+                <p class="guide-masters-diploma-brand">Guide<br />Master's</p>
+                <img
+                  class="guide-masters-diploma-seal"
+                  src="/assets/guide-masters-seal.png"
+                  width="108"
+                  height="108"
+                  alt=""
+                />
+                <div class="guide-masters-diploma-recipient">
+                  <span class="guide-masters-diploma-chevron" aria-hidden="true">&gt;</span>
+                  <p class="guide-masters-diploma-name">НИКИТА</p>
+                </div>
+                <p class="guide-masters-diploma-caption">Обладатель премии</p>
+              </div>
+            </div>
+          </div>
+        </article>
+        <p class="guide-masters-diploma-sub">
+          ×1.25 узн. и мед. к узнаваемости и медийности — навсегда
+        </p>
+        <button type="button" class="celebration-btn guide-masters-diploma-btn" id="accept">
+          Принять диплом
+        </button>
+      </div>
+    </div>
+    <script type="module">
+      const wrap = document.querySelector('.guide-masters-diploma-fanfare')
+      const btn = document.getElementById('accept')
+      btn?.addEventListener('click', () => {
+        if (wrap.classList.contains('guide-masters-diploma-fanfare--accept')) return
+        btn.disabled = true
+        btn.textContent = 'Принято!'
+        wrap.classList.add('guide-masters-diploma-fanfare--accept')
+        const layer = wrap.querySelector('.guide-masters-diploma-fx')
+        const diploma = wrap.querySelector('.guide-masters-diploma')
+        if (layer && diploma) {
+          const wrapRect = wrap.getBoundingClientRect()
+          const rect = diploma.getBoundingClientRect()
+          const cx = rect.left - wrapRect.left + rect.width * 0.5
+          const cy = rect.top - wrapRect.top + rect.height * 0.42
+          const colors = ['#ffd8b0', '#f09555', '#e07a3a', '#fff3e6', '#e6c49a']
+          for (let i = 0; i < 24; i++) {
+            const p = document.createElement('span')
+            p.className = 'diploma-burst-particle'
+            const angle = (i / 24) * Math.PI * 2
+            const dist = 56 + Math.random() * 100
+            p.style.left = `${cx}px`
+            p.style.top = `${cy}px`
+            p.style.setProperty('--dx', `${Math.cos(angle) * dist}px`)
+            p.style.setProperty('--dy', `${Math.sin(angle) * dist - 30}px`)
+            p.style.setProperty('--rot', `${Math.random() * 360}deg`)
+            p.style.background = colors[i % colors.length]
+            layer.appendChild(p)
+          }
+        }
+        const embers = wrap.querySelector('.guide-masters-diploma-embers')
+        if (embers) {
+          for (let i = 0; i < 18; i++) {
+            const ember = document.createElement('span')
+            ember.className = 'diploma-ember'
+            ember.style.left = `${wrap.clientWidth * (0.12 + Math.random() * 0.76)}px`
+            ember.style.bottom = `${8 + Math.random() * 24}px`
+            ember.style.setProperty('--rise', `${120 + Math.random() * 160}px`)
+            ember.style.setProperty('--drift', `${(Math.random() - 0.5) * 70}px`)
+            embers.appendChild(ember)
+          }
+        }
+        const cheers = wrap.querySelector('.guide-masters-diploma-cheers')
+        if (cheers) {
+          ;['Овации!', '👏', 'Браво!', '🔥', '✨'].forEach((label, i) => {
+            const chip = document.createElement('span')
+            chip.className = 'diploma-cheer'
+            chip.textContent = label
+            chip.style.left = `${wrap.clientWidth * (0.12 + i * 0.16)}px`
+            chip.style.top = `${wrap.clientHeight * (0.3 + (i % 2) * 0.06)}px`
+            chip.style.setProperty('--delay', `${i * 90}ms`)
+            cheers.appendChild(chip)
+          })
+        }
+      })
+    </script>
+  </body>
+</html>

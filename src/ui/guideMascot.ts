@@ -204,6 +204,8 @@ export function pickMascotStage(
   }
 }
 
+import { prefersReducedMotion } from '../save/settings'
+
 export function reducedMotionPreferred(): boolean {
-  return window.matchMedia('(prefers-reduced-motion: reduce)').matches
+  return prefersReducedMotion()
 }

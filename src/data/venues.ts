@@ -1,15 +1,17 @@
+import type { DifficultyId } from './difficulty'
+
 export type VenueId = 'basement' | 'smoke_river' | 'neon_haze'
 
 export interface VenueDef {
   id: VenueId
   name: string
+  /** Сложность прохождения — выбор заведения = выбор режима */
+  difficulty: DifficultyId
   blurb: string
   /** Множитель выплат за задачи смены */
   payMult: number
   /** Множитель кулдауна задач (<1 = быстрее) */
   cooldownMult: number
-  /** Множитель цен магазина смены */
-  shopPriceMult: number
   vibe: string
 }
 
@@ -17,29 +19,29 @@ export const VENUES: VenueDef[] = [
   {
     id: 'basement',
     name: 'Подвал на Лесной',
-    blurb: 'Платят мало, задачи тянутся — зато инструменты почти даром.',
-    payMult: 0.7,
+    difficulty: 'hard',
+    blurb: 'Платят мало, задачи тянутся — зато упрямство здесь ценят.',
+    payMult: 0.76,
     cooldownMult: 1.25,
-    shopPriceMult: 0.65,
-    vibe: 'дешёвый шоп · медленно',
+    vibe: 'мало платят · медленно',
   },
   {
     id: 'smoke_river',
     name: 'Дым у реки',
+    difficulty: 'normal',
     blurb: 'Классика: честная оплата, обычный темп, обычный магазин.',
     payMult: 1,
     cooldownMult: 1,
-    shopPriceMult: 1,
     vibe: 'баланс',
   },
   {
     id: 'neon_haze',
     name: 'Неон и дымка',
-    blurb: 'Премиум-зал: жирная оплата и быстрые задачи, магазин кусается.',
-    payMult: 1.35,
+    difficulty: 'easy',
+    blurb: 'Премиум-зал: жирная оплата и быстрые задачи.',
+    payMult: 1.26,
     cooldownMult: 0.85,
-    shopPriceMult: 1.2,
-    vibe: 'жирно · быстро · шоп',
+    vibe: 'жирно · быстро',
   },
 ]
 

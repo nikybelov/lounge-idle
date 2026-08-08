@@ -1,6 +1,9 @@
-import { JOB_TASKS, isTaskUnlocked, QUIT_INCOME_THRESHOLD } from '../data/tasks'
-import { minOpenLoungeCost, jobReputationPerSec } from './career'
+import { JOB_TASKS, isTaskUnlocked } from '../data/tasks'
+import { DIFFICULTIES } from '../data/difficulty'
+import { getVenue, type VenueId } from '../data/venues'
+import { minOpenLoungeCost, jobReputationPerSec, quitIncomeThreshold } from './career'
 import { formatMoney, loungeIncomePerSec } from './economy'
+import { isCoachEnabled } from '../save/settings'
 import type { GameState, GuideStep } from './state'
 
 export type { GuideStep }
@@ -30,19 +33,34 @@ export function applyBootGuideToState(state: GameState, venueGuideDone: boolean)
   }
 }
 
+export function bootDifficultyCoach(playerName: string): CoachDef {
+  return {
+    step: 'pick_venue',
+    stepNum: 1,
+    icon: '🔥',
+    kicker: 'Огонёк · старт',
+    title: `${playerName}, выбери сложность`,
+    body: 'Каждое заведение — свой уровень: лёгкий, средний или сложный. От него зависят оплата на смене, цены зала и сети. На весь прогон — потом не сменить.',
+    target: '[data-list]',
+    cta: 'Понятно, выбираю',
+  }
+}
+
 export function bootVenueCoach(
   playerName: string,
-  venueId: string,
+  venueId: VenueId,
 ): CoachDef {
+  const venue = getVenue(venueId)
+  const diff = DIFFICULTIES[venue.difficulty]
   return {
     step: 'pick_venue',
     stepNum: 1,
     icon: '🏪',
-    kicker: 'Шаг 1 · выбор',
-    title: `${playerName}, куда устроиться?`,
-    body: 'Смена — стартовый капитал на свой лаунж. Сравни оплату, темп и цены шопа — сменить потом нельзя.',
+    kicker: 'Огонёк · режим',
+    title: `${playerName}, «${diff.label}» — ${venue.name}`,
+    body: `${venue.blurb} Смотри бейдж и цифры на карточке — так и будет на всём проходе.`,
     target: `[data-venue="${venueId}"]`,
-    cta: 'Понятно',
+    cta: 'Подходит',
   }
 }
 
@@ -51,7 +69,7 @@ export function bootStartCoach(): CoachDef {
     step: 'pick_venue',
     stepNum: 1,
     icon: '🚀',
-    kicker: 'Шаг 1 · старт',
+    kicker: 'Огонёк · финиш',
     title: 'Погнали на смену',
     body: 'Жми «Начать смену» — дальше покажем, как копить и открыть свой зал.',
     target: '[data-start]',
@@ -91,6 +109,7 @@ export function ackGuideCoach(state: GameState, dismissedStep?: GuideStep): void
 
 /** Одноразовый coach, когда открывается «Поменяй угли» рядом с «Помой кальян» */
 export function coalsDualTasksCoach(state: GameState): CoachDef | null {
+  if (!isCoachEnabled()) return null
   if (state.flags.coalsDualHintSeen) return null
   if (state.phase === 'ownOnly') return null
   if (state.phase === 'employed' && state.scene !== 'job') return null
@@ -149,7 +168,7 @@ export function syncGuideProgress(state: GameState): void {
     state.phase === 'employed' &&
     (state.flags.guideStep === 'reputation' ||
       state.flags.guideStep === 'first_task') &&
-    state.cash >= minOpenLoungeCost() * 0.45
+    state.cash >= minOpenLoungeCost(state) * 0.45
   ) {
     advanceGuide(state, 'halfway')
   }
@@ -190,6 +209,7 @@ export interface CoachDef {
 }
 
 export function guideCoach(state: GameState): CoachDef | null {
+  if (!isCoachEnabled()) return null
   const dualTasks = coalsDualTasksCoach(state)
   if (dualTasks) return dualTasks
 
@@ -242,7 +262,7 @@ export function guideCoach(state: GameState): CoachDef | null {
         icon: '🎯',
         kicker: `Шаг ${stepNum} · полпути`,
         title: 'Уже близко к своему залу',
-        body: `Накоплено ${formatMoney(state.cash)} из ${formatMoney(minOpenLoungeCost())}. Не останавливайся — скоро откроешь двери.`,
+        body: `Накоплено ${formatMoney(state.cash)} из ${formatMoney(minOpenLoungeCost(state))}. Не останавливайся — скоро откроешь двери.`,
         target: '[data-goal]',
         cta: 'Дальше',
       }
@@ -264,8 +284,8 @@ export function guideCoach(state: GameState): CoachDef | null {
         icon: '🌬️',
         kicker: `Шаг ${stepNum} · твой лаунж`,
         title: 'Зал ожил — принимай гостей',
-        body: 'Жми «Принять заказ». Кнопка всегда внизу, даже если ты в другой вкладке.',
-        target: '[data-cta], [data-fab-order]',
+        body: 'Жми «Принять заказ» на сцене зала — во вкладке «Сюжет».',
+        target: '[data-cta]',
         cta: 'Принимаю',
       }
     default:
@@ -276,27 +296,28 @@ export function guideCoach(state: GameState): CoachDef | null {
 export function goalLine(state: GameState): string {
   if (isGuideDone(state)) {
     if (state.phase === 'employed') {
-      return `Цель: ${formatMoney(minOpenLoungeCost())} на свой зал`
+      return `Цель: ${formatMoney(minOpenLoungeCost(state))} на свой зал`
     }
     if (state.phase === 'dual') {
       const inc = loungeIncomePerSec(state)
-      if (inc >= QUIT_INCOME_THRESHOLD) {
-        return 'Цель: зал на 6/с — можно уволиться или остаться трудягой'
+      const quitNeed = quitIncomeThreshold(state)
+      if (inc >= quitNeed) {
+        return `Цель: ${quitNeed}/с — можно уволиться или остаться трудягой`
       }
-      return `Цель: прокачай зал до 6/с (сейчас ${formatMoney(inc)}/с)`
+      return `Цель: прокачай зал до ${quitNeed}/с (сейчас ${formatMoney(inc)}/с)`
     }
     return 'Цель: полка, команда, сеть — расти дальше'
   }
   switch (state.flags.guideStep) {
     case 'pick_venue':
-      return 'Цель: выбрать заведение и начать смену'
+      return 'Цель: выбрать сложность и заведение'
     case 'welcome':
     case 'first_task':
       return 'Цель: копить на свой лаунж'
     case 'reputation':
       return 'Цель: репутация + задачи → свой зал'
     case 'halfway':
-      return `Цель: ${formatMoney(minOpenLoungeCost())} · уже близко`
+      return `Цель: ${formatMoney(minOpenLoungeCost(state))} · уже близко`
     case 'lounge_ready':
       return 'Цель: открыть свой зал — вкладка «Свой зал»'
     case 'first_order':

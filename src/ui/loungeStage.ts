@@ -36,6 +36,12 @@ export function renderLoungeStageSvg(state: GameState): string {
     furniture += sofaSvg(30 + i * 44, i === sofaSlots - 1 ? 0.5 : 0.15)
   }
 
+  const emptyFloor =
+    tableSlots === 0 && sofaSlots === 0
+      ? `<rect x="28" y="56" width="164" height="16" rx="2" fill="none" stroke="rgba(212,165,116,0.16)" stroke-dasharray="5 4"/>
+         <text x="110" y="67" text-anchor="middle" fill="rgba(212,165,116,0.35)" font-size="7" font-family="system-ui,sans-serif">купи стол в «Свой зал»</text>`
+      : ''
+
   const shelfRows = menu > 0 ? Math.min(4, menu + 1) : 0
   let shelf = ''
   for (let i = 0; i < shelfRows; i++) {
@@ -51,7 +57,7 @@ export function renderLoungeStageSvg(state: GameState): string {
 
   const staffDots =
     staff > 0
-      ? Array.from({ length: staff }, (_, i) => {
+      ? Array.from({ length: Math.min(staff, 8) }, (_, i) => {
           const cx = 42 + i * 14
           return `<circle cx="${cx}" cy="44" r="3.5" fill="rgba(240,160,90,0.75)"/><path d="M${cx - 5} 54 Q${cx} 48 ${cx + 5} 54" stroke="rgba(240,160,90,0.5)" fill="none"/>`
         }).join('')
@@ -77,6 +83,7 @@ export function renderLoungeStageSvg(state: GameState): string {
       <ellipse cx="110" cy="100" rx="92" ry="9" fill="rgba(0,0,0,0.52)"/>
       <path d="M16 74 L16 38 L44 26 L176 26 L204 38 L204 74 Z" fill="rgba(38,26,20,0.94)" stroke="rgba(212,165,116,0.2)"/>
       ${tierAccent}
+      ${emptyFloor}
       ${furniture}
       ${shelf}
       <path d="M108 26 Q108 10 116 4 Q124 -2 132 6" stroke="rgba(210,200,190,0.5)" stroke-width="2.8" stroke-linecap="round" opacity="${smokeOpacity}"/>
@@ -90,15 +97,28 @@ export function renderLoungeStageSvg(state: GameState): string {
   `
 }
 
+export function shouldShowLiveLoungeStage(state: GameState): boolean {
+  return state.scene === 'lounge' && state.phase !== 'employed'
+}
+
 export function updateLoungeStageArt(root: HTMLElement, state: GameState): void {
+  const stage = root.querySelector('.stage') as HTMLElement | null
   const art = root.querySelector('.stage-art') as HTMLElement | null
   if (!art) return
+
+  const showLive = shouldShowLiveLoungeStage(state)
+  if (stage) {
+    if (showLive) stage.dataset.loungeLive = '1'
+    else delete stage.dataset.loungeLive
+  }
+
   const live = art.querySelector('.stage-svg--live') as SVGSVGElement | null
-  if (state.scene !== 'lounge' || state.phase === 'employed') {
+  if (!showLive) {
     live?.remove()
     art.dataset.live = '0'
     return
   }
+
   art.dataset.live = '1'
   const html = renderLoungeStageSvg(state)
   if (live) {

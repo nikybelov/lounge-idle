@@ -203,6 +203,60 @@ export function pickMascotSlot(stepKey: string, cardPlacement: string): MascotSl
   return slots[hash % slots.length]!
 }
 
+export function mascotConfirmHtml(opts: {
+  title: string
+  body: string
+  confirmCta: string
+  cancelCta: string
+  pose?: MascotPose
+}): string {
+  const pose = opts.pose ?? 'point'
+  return `
+    <div class="mascot-bubble mascot-bubble--confirm">
+      <div class="mascot-figure mascot-figure--${pose}">${mascotSvg(pose)}</div>
+      <div class="mascot-speech">
+        <p class="mascot-speech-kicker">${MASCOT_NAME}</p>
+        <p class="mascot-speech-title">${opts.title}</p>
+        <p class="mascot-speech-body">${opts.body}</p>
+        <div class="mascot-speech-actions">
+          <button type="button" class="text-btn mascot-speech-cancel" data-mascot-cancel>${opts.cancelCta}</button>
+          <button type="button" class="boot-cta mascot-speech-btn" data-mascot-confirm>${opts.confirmCta}</button>
+        </div>
+      </div>
+    </div>
+  `
+}
+
+export function showMascotConfirm(
+  root: HTMLElement,
+  opts: {
+    title: string
+    body: string
+    confirmCta: string
+    cancelCta: string
+    pose?: MascotPose
+  },
+): Promise<boolean> {
+  return new Promise((resolve) => {
+    const overlay = document.createElement('div')
+    overlay.className = 'mascot-confirm-overlay'
+    overlay.innerHTML = mascotConfirmHtml(opts)
+    root.appendChild(overlay)
+    requestAnimationFrame(() => overlay.classList.add('visible'))
+
+    const finish = (ok: boolean): void => {
+      overlay.classList.remove('visible')
+      window.setTimeout(() => {
+        overlay.remove()
+        resolve(ok)
+      }, 180)
+    }
+
+    overlay.querySelector('[data-mascot-confirm]')!.addEventListener('click', () => finish(true))
+    overlay.querySelector('[data-mascot-cancel]')!.addEventListener('click', () => finish(false))
+  })
+}
+
 export function showMascotWelcome(root: HTMLElement, onContinue: () => void): void {
   root.innerHTML = `
     <div class="boot boot--welcome">

@@ -1,10 +1,5 @@
 import { achievementProgress } from '../data/achievements'
-import {
-  CAREER_MILESTONES,
-  careerScore,
-  displayWorkDay,
-  type CareerMilestoneId,
-} from '../data/careerTrack'
+import { careerScore, displayWorkDay, type CareerMilestoneId } from '../data/careerTrack'
 import type { CareerPhase, GameState } from '../game/state'
 
 const KEY = 'lounge-idle-hall-v1'
@@ -99,13 +94,3 @@ export function decodeCareerShare(raw: string): CareerShareCard | null {
   }
 }
 
-export function milestoneCompareLines(
-  self: Partial<Record<CareerMilestoneId, number>>,
-  other: Partial<Record<CareerMilestoneId, number>>,
-): { title: string; selfDay: number | null; otherDay: number | null }[] {
-  return CAREER_MILESTONES.map((def) => ({
-    title: def.title,
-    selfDay: self[def.id] ?? null,
-    otherDay: other[def.id] ?? null,
-  })).filter((row) => row.selfDay != null || row.otherDay != null)
-}

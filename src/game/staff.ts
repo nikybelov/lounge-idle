@@ -9,6 +9,7 @@ import {
   type StaffId,
 } from '../data/staff'
 import type { GameState } from './state'
+import { scaledStaffHireCost } from './difficulty'
 
 export { maxTeamHeadcount }
 
@@ -49,13 +50,11 @@ export function managerPayrollDiscount(state: GameState): number {
   return getStaffGradeDef('manager', grade)?.managerDiscount ?? 0
 }
 
-export function staffPayrollPerSec(state: GameState): number {
+export function staffBasePayrollPerSec(state: GameState): number {
   let sum = 0
   for (const { def } of eachMember(state)) {
     sum += def.salaryPerSec
   }
-  const discount = managerPayrollDiscount(state)
-  if (discount > 0) sum *= 1 - discount
   return sum
 }
 
@@ -83,8 +82,7 @@ export function canManageStaff(state: GameState): boolean {
   return state.phase !== 'employed'
 }
 
-export function staffPayrollLabel(state: GameState): string {
-  const payroll = staffPayrollPerSec(state)
+export function staffPayrollLabel(state: GameState, payroll: number): string {
   if (payroll <= 0) return 'ФОТ: только ты'
   const discount = managerPayrollDiscount(state)
   const discountNote =
@@ -107,10 +105,11 @@ export function hireStaffCheck(
   }
   const grade = getStaffGradeDef(id, 1)
   if (!grade) return { ok: false, message: 'Нет такой роли' }
-  if (state.cash < grade.hireCost) {
+  const cost = scaledStaffHireCost(state, grade.hireCost)
+  if (state.cash < cost) {
     return {
       ok: false,
-      message: `Не хватает · нужно ещё ${Math.ceil(grade.hireCost - state.cash)}`,
+      message: `Не хватает · нужно ещё ${Math.ceil(cost - state.cash)}`,
     }
   }
   return { ok: true }
@@ -132,10 +131,11 @@ export function upgradeStaffMemberCheck(
   if (current >= 4) return { ok: false, message: 'Максимальный грейд' }
   const next = getStaffGradeDef(id, current + 1)
   if (!next) return { ok: false, message: 'Максимальный грейд' }
-  if (state.cash < next.hireCost) {
+  const cost = scaledStaffHireCost(state, next.hireCost)
+  if (state.cash < cost) {
     return {
       ok: false,
-      message: `Не хватает · нужно ещё ${Math.ceil(next.hireCost - state.cash)}`,
+      message: `Не хватает · нужно ещё ${Math.ceil(cost - state.cash)}`,
     }
   }
   return { ok: true }
@@ -156,7 +156,7 @@ export function addStaffCheck(
   if (count >= max) {
     return { ok: false, message: `Максимум ${max} на этой роли` }
   }
-  const cost = extraStaffHireCost(id, 1)
+  const cost = scaledStaffHireCost(state, extraStaffHireCost(id, 1))
   if (state.cash < cost) {
     return {
       ok: false,

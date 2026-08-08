@@ -7,8 +7,24 @@ import {
 } from '../data/upgrades'
 import { guestTraffic, expansionIncomeBonus, shelfBonuses } from './appeal'
 import { empireClickMult, empireIncomeMult } from './empire'
-import { staffBonuses, staffPayrollPerSec } from './staff'
+import { staffBonuses, staffBasePayrollPerSec, hiredStaffCount, managerPayrollDiscount, maxTeamHeadcount } from './staff'
 import type { GameState } from './state'
+
+/** ФОТ: базовые ставки или доля от валовой выручки — что больше (при росте зала команда «съедает» прибыль) */
+export function staffPayrollPerSec(state: GameState): number {
+  const base = staffBasePayrollPerSec(state)
+  const headcount = hiredStaffCount(state)
+  if (headcount <= 0) return 0
+
+  const gross = loungeGrossIncomePerSec(state)
+  const teamFill = headcount / maxTeamHeadcount()
+  const targetShare = 0.12 + teamFill * 0.24
+  let payroll = Math.max(base, gross * targetShare)
+
+  const discount = managerPayrollDiscount(state)
+  if (discount > 0) payroll *= 1 - discount
+  return payroll
+}
 
 export function upgradeCost(def: UpgradeDef, level: number): number {
   return Math.floor(def.baseCost * COST_GROWTH ** level)

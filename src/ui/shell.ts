@@ -4,9 +4,19 @@ import {
   canQuitJob,
   jobReputationPerSec,
   minOpenLoungeCost,
+  quitIncomeThreshold,
   shopItemCost,
   syncLoungeOfferUnlock,
 } from '../game/career'
+import {
+  loungeTierCost,
+  scaledBranchCost,
+  scaledExpansionCost,
+  scaledStaffHireCost,
+  scaledUpgradeCost,
+  getDifficulty,
+} from '../game/difficulty'
+import { DIFFICULTIES } from '../data/difficulty'
 import {
   branchCount,
   canBrowseEmpire,
@@ -24,16 +34,14 @@ import {
   loungeClickPower,
   loungeGrossIncomePerSec,
   loungeIncomePerSec,
+  staffPayrollPerSec,
   staffPayrollShare,
   upgradeCost,
 } from '../game/economy'
 import {
   hiredStaffCount,
   maxTeamHeadcount,
-  staffBonuses,
   staffMembers,
-  staffPayrollLabel,
-  staffPayrollPerSec,
 } from '../game/staff'
 import {
   STAFF_ROLES,
@@ -45,7 +53,6 @@ import {
 import type { GameState } from '../game/state'
 import {
   JOB_TASKS,
-  QUIT_INCOME_THRESHOLD,
   isTaskUnlocked,
   taskUnlockHint,
 } from '../data/tasks'
@@ -73,28 +80,62 @@ import {
   CHANNEL_GEAR,
   CHANNEL_START_COST,
   EVENT_COST,
+  EVENT_TRAFFIC_BOOST,
+  EVENT_FAME_GAIN,
+  AWARD_WIN_FAME,
+  AWARD_WIN_MEDIA,
   VIDEO_BASE_COST,
   channelTierLabel,
   channelTrafficBonus,
   gearUpgradeCost,
-  minChannelGearLevel,
+  channelVideoGrade,
+  videoActionRewards,
+  videoShootCost,
   videoCooldownMs,
-  videoRewards,
   videoTierRequirementHint,
+  TELEGRAM_TOOLKIT,
+  getTelegramGradeDef,
+  telegramPassiveTraffic,
+  telegramPostBoostPreview,
+  telegramToolkitUpgradeCost,
   canShootVideo,
   isBlogger,
+  isGuideMastersWinner,
+  personalRepBonusLabel,
 } from '../data/personal'
 import {
   awardWinBreakdown,
   eventBoostRemainingSec,
+  telegramBoostRemainingSec,
+  telegramStatusLine,
+  videoBoostRemainingSec,
+  personalVenueReach,
+  mediaActionReachHint,
+  mediaSynergyHint,
   personalStatusLine,
   personalTitle,
 } from '../game/personal'
-import type { ChannelGearId } from '../data/personal'
+import {
+  ambassadorCount,
+  ambassadorSectionProgress,
+  canSignAmbassador,
+  currentAmbassadorId,
+  isAmbassador,
+  isAmbassadorSectionUnlocked,
+} from '../game/ambassador'
+import {
+  AMBASSADOR_UNLOCK_FAME,
+  AMBASSADOR_UNLOCK_MEDIA,
+  AMBASSADOR_UNLOCK_REP,
+  ambassadorContractCost,
+  ambassadorNeeds,
+  ambassadorReputationScore,
+  ambassadorShelfBonusLabel,
+} from '../data/ambassador'
+import type { ChannelGearId, TelegramToolkitId } from '../data/personal'
 import {
   guestTraffic,
   shelfActiveCount,
-  shelfBonuses,
   shelfCapacity,
   shelfMood,
   tobaccoStockCount,
@@ -105,11 +146,12 @@ import {
 import { EXPANSIONS, type ExpansionId } from '../data/expansions'
 import {
   ACHIEVEMENTS,
+  achievementDifficultyOnly,
   achievementProgress,
+  isAchievementUnlocked,
   type AchievementDef,
 } from '../data/achievements'
 import {
-  CAREER_MILESTONES,
   SECONDS_PER_WORK_DAY,
   careerScore,
   careerScoreBreakdown,
@@ -120,11 +162,7 @@ import {
   formatGameClock,
   workDayGameClock,
 } from '../game/workDays'
-import {
-  loadHallOfFame,
-  milestoneCompareLines,
-  type CareerShareCard,
-} from '../save/leaderboard'
+import { loadHallOfFame, type CareerShareCard } from '../save/leaderboard'
 import { UPGRADES } from '../data/upgrades'
 import type { TaskId } from '../data/tasks'
 import type { UpgradeId } from '../data/upgrades'
@@ -142,6 +180,7 @@ import {
   primeAudio,
   pulseCashHud,
   showCelebration,
+  showGuideMastersDiploma,
   spawnFloatCash,
   spawnTapSparks,
 } from './juice'
@@ -154,11 +193,37 @@ import {
   taskIcon,
   tabIcon,
   tierIcon,
+  promotionIcon,
   upgradeIcon,
 } from './icons'
+import {
+  PROMOTIONS,
+  getPromotionGradeDef,
+  type PromotionId,
+} from '../data/promotions'
+import {
+  activePromotionLabel,
+  canLaunchPromotion,
+  isPromotionSlotUnlocked,
+  isPromotionsUnlocked,
+  promotionGrade,
+  promotionLaunchReadyAt,
+} from '../game/promotions'
+import {
+  renderGearGradeRow,
+  renderTelegramToolkitRow,
+  renderShopGradeRow,
+  renderUpgradeGradeRow,
+  gradeDotsHtml,
+} from './gradeUi'
 
 function cashHudLabel(state: GameState): string {
   return state.scene === 'job' ? 'Касса' : 'Выручка'
+}
+
+/** Одна строка «зачем» под заголовком секции — только если секция неочевидна */
+function sectionPurpose(text: string): string {
+  return `<p class="section-purpose">${text}</p>`
 }
 
 function menuTabButton(
@@ -198,7 +263,7 @@ function upgradeUnlockHint(
     .filter(([id, need]) => (owned[id as UpgradeId] ?? 0) < (need ?? 0))
     .map(([id, need]) => {
       const prereq = UPGRADES.find((u) => u.id === id)
-      return `${prereq?.name ?? id} ур.${need}`
+      return `${prereq?.name ?? id} — ${need}+ ур.`
     })
   return missing.length ? `Сначала: ${missing.join(', ')}` : def.blurb
 }
@@ -276,7 +341,7 @@ function updateRateHud(
     !inGame
       ? 'Пассив копится только пока игра открыта'
       : payroll > 0
-        ? `Выручка ${formatMoney(gross)}/с минус зарплата · норма ФОТ ~30–35%`
+        ? `Выручка ${formatMoney(gross)}/с минус зарплата · полная смена ≈ 30–36% ФОТ`
         : 'Пассивный доход зала — только пока ты в игре'
 }
 
@@ -303,11 +368,6 @@ function updateTopbarHints(root: HTMLElement, state: GameState): void {
   const repWrap = root.querySelector('[data-reputation-wrap]') as HTMLElement | null
   if (repWrap && !repWrap.hidden) {
     repWrap.title = 'Репутация с задач на смене — нужна для повышений'
-  }
-
-  const fab = root.querySelector('[data-fab-order]') as HTMLButtonElement | null
-  if (fab && !fab.hidden) {
-    fab.title = 'Быстрый заказ — основной доход зала, пока нет команды'
   }
 
   const cta = root.querySelector('[data-cta]') as HTMLButtonElement | null
@@ -364,23 +424,21 @@ export function flushAchievementQueue(
   tryPresentAchievements(root, state, menuTab)
 }
 
-function updateOrderFab(
-  root: HTMLElement,
+/** Кнопка «Принять заказ» — только вкладка «Сюжет», свой зал, не «Инструменты» */
+function showLoungeOrderCta(
   state: GameState,
   menuTab: MenuTab,
-): void {
-  const fab = root.querySelector('[data-fab-order]') as HTMLButtonElement | null
-  if (!fab) return
-  const showLounge =
-    state.phase !== 'employed' &&
-    state.scene === 'lounge' &&
-    isLoungeOnlyMenuTab(menuTab)
-  fab.hidden = !showLounge
-  document.body.classList.toggle('has-order-fab', showLounge)
-  if (showLounge) {
-    fab.textContent = `Принять заказ · +${formatMoney(loungeClickPower(state))}`
-    fab.title = 'Быстрый заказ — основной доход зала, пока нет команды'
-  }
+  storySubTab: StorySubTab,
+): boolean {
+  if (state.scene !== 'lounge') return false
+  if (menuTab !== 'story') return false
+  if (storySubTab === 'shop' && canAccessShiftShop(state)) return false
+  return true
+}
+
+function syncOrderCta(root: HTMLElement, state: GameState): void {
+  const pay = root.querySelector('[data-cta-pay]') as HTMLElement | null
+  if (pay) pay.textContent = `+${formatMoney(loungeClickPower(state))}`
 }
 
 /** Подраздел смены: задачи и инструменты */
@@ -437,6 +495,14 @@ export interface ShellHandlers {
   onShootVideo: () => void
   onHoldEvent: () => void
   onEnterAward: () => void
+  onUpgradePromotion: (id: PromotionId) => void
+  onLaunchPromotion: (id: PromotionId) => void
+  onCreateTelegram: () => void
+  onUpgradeTelegram: () => void
+  onUpgradeTelegramToolkit: (id: TelegramToolkitId) => void
+  onPostTelegram: () => void
+  onSignAmbassador: (id: TobaccoId) => void
+  onBreakAmbassador: (id: TobaccoId) => void
   onMenuTab: (tab: MenuTab) => void
   onCareerSubTab: (sub: CareerSubTab) => void
   onStorySubTab: (sub: StorySubTab) => void
@@ -445,6 +511,7 @@ export interface ShellHandlers {
   onShareCareer: () => void
   onImportCareer: (code: string) => void
   onClearCareerCompare: () => void
+  onOpenSettings: () => void
 }
 
 let careerCompareCard: CareerShareCard | null = null
@@ -455,6 +522,7 @@ export function setCareerCompareCard(card: CareerShareCard | null): void {
 
 let toastTimer: ReturnType<typeof setTimeout> | null = null
 let achieveQueue: AchievementDef[] = []
+const achieveFanfareSeen = new Set<string>()
 let achieveShowing = false
 let achieveHost: HTMLElement | null = null
 let achieveCtx: { root: HTMLElement; state: GameState; menuTab: MenuTab } | null =
@@ -520,6 +588,9 @@ export function mountShell(root: HTMLElement, handlers: ShellHandlers): void {
           <span class="rate-label">Смена · день <span data-workday-num>1</span></span>
           <span class="rate-value workday-clock-digital" data-workday-time>08:00</span>
         </div>
+        <button type="button" class="topbar-settings" data-settings-open aria-label="Настройки">
+          ${icon('settings', 'topbar-settings__icon')}
+        </button>
       </header>
       <p class="goal-strip" data-goal hidden></p>
 
@@ -532,7 +603,14 @@ export function mountShell(root: HTMLElement, handlers: ShellHandlers): void {
         <div class="stage-copy">
           <p class="brand" data-brand></p>
           <p class="tagline" data-tagline></p>
-          <button type="button" class="cta" data-cta hidden>Принять заказ</button>
+          <button type="button" class="order-cta" data-cta hidden aria-label="Принять заказ гостя">
+            <span class="order-cta__icon" aria-hidden="true">${icon('order')}</span>
+            <span class="order-cta__copy">
+              <span class="order-cta__label">Принять заказ</span>
+              <span class="order-cta__hint">Чаевые и выручка</span>
+            </span>
+            <span class="order-cta__pay" data-cta-pay>+0 ₽</span>
+          </button>
         </div>
         <p class="toast" data-toast hidden></p>
       </main>
@@ -549,7 +627,6 @@ export function mountShell(root: HTMLElement, handlers: ShellHandlers): void {
           <div class="panel-scroll-fade panel-scroll-fade--bottom" aria-hidden="true"></div>
         </div>
       </section>
-      <button type="button" class="order-fab" data-fab-order hidden>Принять заказ</button>
     </div>
   `
 
@@ -562,15 +639,14 @@ export function mountShell(root: HTMLElement, handlers: ShellHandlers): void {
     cta.classList.add('pulse')
   })
 
-  root.querySelector('[data-fab-order]')?.addEventListener('click', () => {
-    primeAudio()
-    handlers.onLoungeOrder()
-  })
-
   root.querySelector('[data-menu-shell]')!.addEventListener('click', (e) => {
     const btn = (e.target as HTMLElement).closest<HTMLElement>('[data-menu-tab]')
     if (!btn?.dataset.menuTab) return
     handlers.onMenuTab(btn.dataset.menuTab as MenuTab)
+  })
+
+  root.querySelector('[data-settings-open]')!.addEventListener('click', () => {
+    handlers.onOpenSettings()
   })
 
   ensureAchieveFanfare()
@@ -594,7 +670,7 @@ export function updateHud(root: HTMLElement, state: GameState): void {
   updateWorkDayHud(root, state)
   updateTopbarHints(root, state)
   if (cta && state.scene === 'lounge' && !cta.hidden) {
-    cta.textContent = `Принять заказ · +${formatMoney(loungeClickPower(state))}`
+    syncOrderCta(root, state)
   }
 
   const ownTab = root.querySelector<HTMLButtonElement>('[data-menu-tab="own"]')
@@ -604,7 +680,7 @@ export function updateHud(root: HTMLElement, state: GameState): void {
     ownTab.classList.toggle('ready', ready)
     ownTab.title = ready
       ? 'Выбор своего зала'
-      : `Накопи ${formatMoney(minOpenLoungeCost())}`
+      : `Накопи ${formatMoney(minOpenLoungeCost(state))}`
   }
 
   const networkTab = root.querySelector<HTMLButtonElement>('[data-menu-tab="network"]')
@@ -619,7 +695,7 @@ export function updateHud(root: HTMLElement, state: GameState): void {
     const def = UPGRADES.find((u) => u.id === id)
     if (!def) return
     const unlocked = isUpgradeUnlocked(state, def)
-    const cost = upgradeCost(def, state.owned[id])
+    const cost = scaledUpgradeCost(state, upgradeCost(def, state.owned[id]))
     const canBuy = unlocked && state.cash >= cost
     btn.disabled = !canBuy
     btn.classList.toggle('afford', canBuy)
@@ -652,7 +728,7 @@ export function updateHud(root: HTMLElement, state: GameState): void {
   if (quitBtn) quitBtn.disabled = !canQuitJob(state)
 
   if (state.phase === 'employed') {
-    const openCost = minOpenLoungeCost()
+    const openCost = minOpenLoungeCost(state)
     const openMilestone = root.querySelector('[data-open]')?.closest('.milestone')
     const head = openMilestone?.querySelector('.milestone-head span:last-child')
     if (head) {
@@ -669,7 +745,8 @@ export function updateHud(root: HTMLElement, state: GameState): void {
     const def = EXPANSIONS.find((e) => e.id === id)
     if (!def || state.expansions[id]) return
     const unlocked = furnitureLevel(state) >= def.needFurniture
-    const canBuy = unlocked && state.cash >= def.cost
+    const expCost = scaledExpansionCost(state, def.cost)
+    const canBuy = unlocked && state.cash >= expCost
     btn.disabled = !canBuy
     btn.classList.toggle('afford', canBuy)
   })
@@ -677,12 +754,13 @@ export function updateHud(root: HTMLElement, state: GameState): void {
   root.querySelectorAll<HTMLButtonElement>('[data-tier]').forEach((btn) => {
     const tier = LOUNGE_TIERS.find((t) => t.id === btn.dataset.tier)
     if (!tier) return
-    const can = state.cash >= tier.cost
+    const tierCost = loungeTierCost(state, tier.cost)
+    const can = state.cash >= tierCost
     btn.disabled = !can
     btn.classList.toggle('afford', can)
     const sub = btn.querySelector('.row-sub')
     if (sub && !can) {
-      const need = Math.ceil(tier.cost - state.cash)
+      const need = Math.ceil(tierCost - state.cash)
       sub.textContent = `Ещё ${formatMoney(need)} — и можно открыть`
     }
   })
@@ -733,6 +811,16 @@ export function showToast(root: HTMLElement, message: string): void {
   }, 2800)
 }
 
+export function syncAchievementFanfareSeen(state: GameState): void {
+  for (const def of ACHIEVEMENTS) {
+    if (isAchievementUnlocked(state, def.id)) achieveFanfareSeen.add(def.id)
+  }
+}
+
+export function resetAchievementFanfareSeen(): void {
+  achieveFanfareSeen.clear()
+}
+
 /** Очередь баннеров достижений — закрывается только кнопкой «Круто» */
 export function announceAchievements(
   root: HTMLElement,
@@ -740,7 +828,14 @@ export function announceAchievements(
   menuTab: MenuTab,
   unlocked: AchievementDef[],
 ): void {
-  if (unlocked.length) achieveQueue.push(...unlocked)
+  const fresh = unlocked.filter(
+    (def) =>
+      isAchievementUnlocked(state, def.id) &&
+      !achieveFanfareSeen.has(def.id) &&
+      !achieveQueue.some((q) => q.id === def.id),
+  )
+  for (const def of fresh) achieveFanfareSeen.add(def.id)
+  if (fresh.length) achieveQueue.push(...fresh)
   if (!achieveQueue.length) return
   tryPresentAchievements(root, state, menuTab)
 }
@@ -830,7 +925,6 @@ export function renderShell(
   updateGoalStrip(root, state)
   updateWorkDayHud(root, state)
   updateTopbarHints(root, state)
-  updateOrderFab(root, state, menuTab)
   updateLoungeStageArt(root, state)
   initStageAtmosphere(stage)
   syncStageAtmosphere(stage)
@@ -858,11 +952,13 @@ export function renderShell(
     brand.textContent = getVenue(state.venueId).name
     const rank = rankDef(state.jobRank).title
     const who = state.playerName ? `${state.playerName} · ` : ''
+    const diffNote = state.difficulty ? ` · ${getDifficulty(state).label}` : ''
     tagline.textContent =
       state.phase === 'employed'
-        ? `${who}${rank}`
-        : `${who}${rank} · можно на смену`
+        ? `${who}${rank}${diffNote}`
+        : `${who}${rank}${diffNote} · можно на смену`
     cta.hidden = true
+    delete stage.dataset.hasCta
   } else {
     brand.textContent = state.loungeName
     const multNote =
@@ -875,10 +971,14 @@ export function renderShell(
         ? ` · ${networkLabel(state)} ×${empireIncomeMult(state).toFixed(2)}`
         : ''
     tagline.textContent = `Гости ${trafficLabel(traffic)} · ×${traffic.toFixed(2)}${multNote}${empireNote}`
-    cta.hidden = menuTab !== 'story'
-    cta.textContent = `Принять заказ · +${formatMoney(loungeClickPower(state))}`
-    if (cta.hidden) delete stage.dataset.hasCta
-    else stage.dataset.hasCta = '1'
+    const showOrder = showLoungeOrderCta(state, menuTab, storySubTab)
+    cta.hidden = !showOrder
+    if (showOrder) {
+      stage.dataset.hasCta = '1'
+      syncOrderCta(root, state)
+    } else {
+      delete stage.dataset.hasCta
+    }
   }
 
   const ownReady = canBrowseLoungeOffer(state)
@@ -896,7 +996,7 @@ export function renderShell(
           locked: !ownReady,
           title: ownReady
             ? 'Выбор своего зала'
-            : `Накопи ${formatMoney(minOpenLoungeCost())}`,
+            : `Накопи ${formatMoney(minOpenLoungeCost(state))}`,
         })
       : '',
   ]
@@ -944,7 +1044,6 @@ export function renderShell(
       <div class="subnav-row subnav-row--career">
         <button type="button" class="nav-btn ${careerSubTab === 'track' ? 'active' : ''}" data-career-sub="track" title="Рабочие дни, очки и соревнование">Сводка</button>
         <button type="button" class="nav-btn ${careerSubTab === 'trophies' ? 'active' : ''}${trophiesPing}" data-career-sub="trophies" title="Разовые награды за особые дела">Трофеи ${done}/${total}</button>
-        <button type="button" class="nav-btn nav-btn--reset" data-reset-career title="Сбросить карьеру и начать заново">Сброс</button>
       </div>
     `)
   } else if (menuTab === 'story') {
@@ -981,9 +1080,6 @@ export function renderShell(
     btn.addEventListener('click', () => {
       handlers.onStorySubTab((btn as HTMLElement).dataset.storySub as StorySubTab)
     })
-  })
-  nav.querySelector('[data-reset-career]')?.addEventListener('click', () => {
-    if (confirm('Сбросить карьеру? Имя и заведение тоже сбросятся.')) handlers.onReset()
   })
 
   const syncGuide = (): void => {
@@ -1097,7 +1193,7 @@ function renderJobStoryPanel(state: GameState, now: number): string {
   const next = nextRank(state.jobRank)
   const progressRows = promoteProgress(state.jobRank, state.taskDone)
   const payMult = rank.payMult * venue.payMult
-  const minCost = minOpenLoungeCost()
+  const minCost = minOpenLoungeCost(state)
   const careerBlock = `
     <div class="milestone career">
       <div class="milestone-head">
@@ -1140,7 +1236,7 @@ function renderJobStoryPanel(state: GameState, now: number): string {
         <button type="button" class="row-btn accent row-btn--solo" data-open ${ready ? '' : 'disabled'}>
           <span class="row-main">
             <span class="row-title">${ready ? 'Выбрать зал' : 'Копим на угол'}</span>
-            <span class="row-sub">${LOUNGE_TIERS.map((t) => formatMoney(t.cost)).join(' · ')}</span>
+            <span class="row-sub">${LOUNGE_TIERS.map((t) => formatMoney(loungeTierCost(state, t.cost))).join(' · ')}</span>
           </span>
         </button>
       </div>
@@ -1149,13 +1245,12 @@ function renderJobStoryPanel(state: GameState, now: number): string {
 
   const bareHandsNote =
     bareHandsStillPossible(state.shopOwned, state.taskDone.wash)
-      ? `<p class="shop-note shop-note--tip">Трофей «Голыми руками» — в «Инструменты»: 35 моек без ёршика.</p>`
+      ? `<p class="shop-note shop-note--tip">Трофей «Голыми руками»: ${BARE_HANDS_WASH_NEED} моек до покупки шуруповёрта — потом можно купить инструмент.</p>`
       : ''
 
   return `
     <div class="list">
       <p class="section-label">Задачи смены</p>
-      <p class="shop-note">Таймер на задачах. Ускорить — вкладка «Инструменты» (до 4 ур.).</p>
       ${bareHandsNote}
       <div class="job-tasks" data-job-tasks>${tasks}</div>
       <p class="section-label">Карьера</p>
@@ -1167,8 +1262,9 @@ function renderJobStoryPanel(state: GameState, now: number): string {
 
 function renderOwnLoungePanel(state: GameState): string {
   const tiers = LOUNGE_TIERS.map((tier) => {
-    const can = state.cash >= tier.cost
-    const need = Math.ceil(tier.cost - state.cash)
+    const tierCost = loungeTierCost(state, tier.cost)
+    const can = state.cash >= tierCost
+    const need = Math.ceil(tierCost - state.cash)
     const bonus = [
       `доход ×${tier.incomeMult}`,
       `заказ ×${tier.clickMult}`,
@@ -1185,7 +1281,7 @@ function renderOwnLoungePanel(state: GameState): string {
           <span class="row-title">${tier.name} · ${tier.vibe}</span>
           <span class="row-sub">${sub}</span>
         </span>
-        <span class="row-meta">${formatMoney(tier.cost)}</span>
+        <span class="row-meta">${formatMoney(tierCost)}</span>
       </button>
     `
   }).join('')
@@ -1257,17 +1353,6 @@ function renderCareerTrackPanel(state: GameState): string {
   const scoreParts = careerScoreBreakdown(state)
   const hall = loadHallOfFame()
 
-  const milestoneRows = CAREER_MILESTONES.map((def) => {
-    const at = state.career.milestones[def.id]
-    const doneM = at != null
-    return `
-      <div class="career-milestone ${doneM ? 'done' : ''}">
-        <span class="career-milestone-title">${def.title}</span>
-        <span class="career-milestone-day">${doneM ? `день ${at}` : '—'}</span>
-      </div>
-    `
-  }).join('')
-
   const hallRows =
     hall.length === 0
       ? `<p class="row-sub shop-note">Пока пусто — сброс карьеры сохраняет прогон в зал славы.</p>`
@@ -1285,26 +1370,6 @@ function renderCareerTrackPanel(state: GameState): string {
 
   let compareBlock = ''
   if (careerCompareCard) {
-    const rows = milestoneCompareLines(state.career.milestones, careerCompareCard.m)
-    const compareRows = rows
-      .map((row) => {
-        const self = row.selfDay != null ? `день ${row.selfDay}` : '—'
-        const other = row.otherDay != null ? `день ${row.otherDay}` : '—'
-        const win =
-          row.selfDay != null &&
-          row.otherDay != null &&
-          row.selfDay < row.otherDay
-            ? 'career-compare-win'
-            : ''
-        return `
-        <div class="career-compare-row ${win}">
-          <span>${row.title}</span>
-          <span>${self}</span>
-          <span>${other}</span>
-        </div>
-      `
-      })
-      .join('')
     compareBlock = `
       <div class="milestone career career-compare">
         <div class="milestone-head">
@@ -1312,10 +1377,6 @@ function renderCareerTrackPanel(state: GameState): string {
           <button type="button" class="link-btn" data-career-compare-clear>×</button>
         </div>
         <p class="row-sub shop-note">Ты: ${score} очк. · день ${day} · ${careerCompareCard.n}: ${careerCompareCard.s} очк. · день ${careerCompareCard.d}</p>
-        <div class="career-compare-head">
-          <span>Веха</span><span>Ты</span><span>Друг</span>
-        </div>
-        ${compareRows || '<p class="row-sub shop-note">Общих вех пока нет</p>'}
       </div>
     `
   }
@@ -1350,16 +1411,12 @@ function renderCareerTrackPanel(state: GameState): string {
           <li><span>Тариф зала</span><span>+20 / +45 / +80</span></li>
           <li><span>Филиал сети</span><span>+30 за точку</span></li>
           <li><span>Узнаваемость</span><span>до +40</span></li>
-          <li><span>Уровень роликов</span><span>+5 за ур.</span></li>
+          <li><span>Грейд роликов</span><span>+5 за грейд</span></li>
           <li><span>Должность на смене</span><span>+12 / +24</span></li>
         </ul>
         <p class="career-score-now">Сейчас у тебя · ${score}</p>
         <ul class="career-score-breakdown">${scoreBreakdownRows}</ul>
       </div>
-
-      <p class="section-label">Вехи карьеры</p>
-      <p class="row-sub shop-note">На каком дне ты дошёл до ключевых этапов — меньше дней = быстрее прокачка.</p>
-      <div class="career-milestones">${milestoneRows}</div>
 
       <p class="section-label">Соревнование</p>
       <div class="career-actions">
@@ -1389,14 +1446,19 @@ function renderCareerTrackPanel(state: GameState): string {
 
 function renderCareerTrophiesPanel(state: GameState): string {
   const { done, total } = achievementProgress(state)
+  const diffLabel = state.difficulty ? getDifficulty(state).label : ''
   const rows = ACHIEVEMENTS.map((a) => {
-    const unlocked = !!state.achievements[a.id]
+    const unlocked = isAchievementUnlocked(state, a.id)
+    const wrongDiff = achievementDifficultyOnly(a, state)
+    const diffNote = a.difficulty
+      ? ` · только «${DIFFICULTIES[a.difficulty].label}»`
+      : ''
     return `
-      <div class="row-btn achievement ${unlocked ? 'unlocked' : 'locked'}">
+      <div class="row-btn achievement ${unlocked ? 'unlocked' : 'locked'}${wrongDiff ? ' achievement--wrong-diff' : ''}">
         ${icon(unlocked ? 'trophy' : 'lock', unlocked ? 'row-icon--gold' : 'row-icon--muted')}
         <span class="row-main">
           <span class="row-title">${unlocked ? a.title : 'Ещё закрыто'}</span>
-          <span class="row-sub">${a.hint}</span>
+          <span class="row-sub">${a.hint}${unlocked ? '' : diffNote}${wrongDiff ? ' · другой прогон' : ''}</span>
         </span>
         <span class="row-meta">${unlocked ? 'получено' : `+${formatMoney(a.reward)}`}</span>
       </div>
@@ -1407,10 +1469,10 @@ function renderCareerTrophiesPanel(state: GameState): string {
     <div class="list career-panel">
       <div class="achieve-summary achieve-summary--trophies">
         <p class="achieve-summary-title">Трофеи</p>
-        <p class="achieve-summary-count">${done} из ${total} · +15 очков карьеры за каждый</p>
+        <p class="achieve-summary-count">${done} из ${total} · +15 очков карьеры за каждый${diffLabel ? ` · ${diffLabel}` : ''}</p>
         <div class="bar"><i style="width:${total ? (done / total) * 100 : 0}%"></i></div>
       </div>
-      <p class="row-sub shop-note">Разовые награды за особые дела на смене и в зале.</p>
+      <p class="row-sub shop-note">В одном прохождении: «Голыми руками» и «Копил» — до открытия зала; «Трудяга» — не увольняйся после открытия; «Авторский зал» — выбери тариф при открытии.</p>
       ${rows}
     </div>
   `
@@ -1420,7 +1482,7 @@ function renderCareerResetFooter(): string {
   return `
     <div class="career-footer">
       <button type="button" class="text-btn text-btn--danger" data-reset>Сбросить карьеру</button>
-      <p class="row-sub shop-note">Имя и прогресс сбросятся; текущий прогон попадёт в зал славы.</p>
+      <p class="row-sub shop-note">Имя и прогресс сбросятся; трофеи останутся. Прогон попадёт в зал славы.</p>
     </div>
   `
 }
@@ -1443,35 +1505,140 @@ function wireCareerPanel(panel: HTMLElement, handlers: ShellHandlers): void {
     handlers.onClearCareerCompare()
   })
   panel.querySelector('[data-reset]')?.addEventListener('click', () => {
-    if (confirm('Сбросить карьеру? Имя и заведение тоже сбросятся.')) handlers.onReset()
+    handlers.onReset()
   })
+}
+
+function tobaccoRowSub(state: GameState, t: ReturnType<typeof getTobacco>, onShelf = false): string {
+  if (!t) return ''
+  const base = tobaccoBonusLabel(t)
+  if (!isAmbassador(state, t.id)) return base
+  if (onShelf) return `${base} · ${ambassadorShelfBonusLabel()}`
+  return `${base} · амбассадор — выставь на полку`
+}
+
+function renderAmbassadorBlock(state: GameState): string {
+  const p = state.personal
+  const open = isAmbassadorSectionUnlocked(state)
+  const signed = ambassadorCount(state)
+  const bonusLabel = ambassadorShelfBonusLabel()
+  const personalBonusLabel = personalRepBonusLabel()
+
+  if (!open) {
+    const prog = Math.round(ambassadorSectionProgress(state) * 100)
+    const rep = ambassadorReputationScore(p.fame, p.media)
+    return `
+      <p class="section-label">Амбассадор</p>
+      <div class="milestone career">
+        <div class="milestone-head">
+          <span>Контракт с брендом</span>
+          <span>${p.fame}/${AMBASSADOR_UNLOCK_FAME} узн. · ${p.media}/${AMBASSADOR_UNLOCK_MEDIA} мед. · реп. ${rep}/${AMBASSADOR_UNLOCK_REP}</span>
+        </div>
+        <div class="bar"><i style="width:${prog}%"></i></div>
+        <p class="row-sub shop-note">Узн. и мед. вместе, репутация (узн.+мед.×0.55), лауреат «Гайд Мастерс» или 2 филиала — откроют контракты раньше</p>
+      </div>
+    `
+  }
+
+  const rows = TOBACCOS.map((t) => {
+    const owned = !!state.ownedTobacco[t.id]
+    const hasDeal = isAmbassador(state, t.id)
+    const onShelf = state.shelfActive.includes(t.id)
+    const need = ambassadorNeeds(t.id)
+    const cost = ambassadorContractCost(t)
+    const can = canSignAmbassador(state, t.id)
+    const otherBrand = currentAmbassadorId(state)
+    const blockedByOther = otherBrand !== null && otherBrand !== t.id
+
+    if (hasDeal) {
+      return `
+        <button type="button" class="row-btn shop afford ${onShelf ? 'ambassador-live' : ''}" data-ambassador-break="${t.id}">
+          ${tobaccoIcon(t.id)}
+          <span class="row-main">
+            <span class="row-title">${t.brand} · ${t.name}</span>
+            <span class="row-sub">${onShelf ? `${bonusLabel} · ${personalBonusLabel}` : `${personalBonusLabel} · выставь на полку — вкладка «Табак»`}</span>
+          </span>
+          <span class="row-meta row-meta--action">расторгнуть</span>
+        </button>
+      `
+    }
+
+    if (!owned) {
+      return `
+        <div class="row-btn shop locked">
+          ${icon('lock', 'row-icon--muted')}
+          <span class="row-main">
+            <span class="row-title">${t.brand}</span>
+            <span class="row-sub">Закажи «${t.name}» — вкладка «Табак»</span>
+          </span>
+          <span class="row-meta">—</span>
+        </div>
+      `
+    }
+
+    if (blockedByOther) {
+      const other = getTobacco(otherBrand)
+      return `
+        <div class="row-btn shop locked">
+          ${tobaccoIcon(t.id)}
+          <span class="row-main">
+            <span class="row-title">${t.brand} · ${t.name}</span>
+            <span class="row-sub">Сначала расторги «${other?.brand ?? 'контракт'}» — один бренд за раз</span>
+          </span>
+          <span class="row-meta">—</span>
+        </div>
+      `
+    }
+
+    const fameOk = p.fame >= need.fame
+    const mediaOk = p.media >= need.media
+    const rep = ambassadorReputationScore(p.fame, p.media)
+    const repOk = rep >= need.rep
+    const reqLine =
+      (fameOk && mediaOk) || repOk
+        ? `${bonusLabel} · ${personalBonusLabel} · контракт ${formatMoney(cost)}`
+        : `Нужно узн. ${need.fame}+ и мед. ${need.media}+ или реп. ${need.rep}+ · сейчас ${p.fame}/${p.media} · реп. ${rep}`
+
+    return `
+      <button type="button" class="row-btn shop ${can ? 'afford' : ''}" data-ambassador-sign="${t.id}" ${can ? '' : 'disabled'}>
+        ${tobaccoIcon(t.id)}
+        <span class="row-main">
+          <span class="row-title">${t.brand} · ${t.name}</span>
+          <span class="row-sub">${reqLine}</span>
+        </span>
+        <span class="row-meta">${formatMoney(cost)}</span>
+      </button>
+    `
+  }).join('')
+
+  return `
+    <p class="section-label">Амбассадор</p>
+    ${sectionPurpose('Один контракт с брендом → усиление вкуса на полке · вкладка «Табак»')}
+    ${
+      signed > 0
+        ? `<p class="row-sub shop-note">Контракт с одним брендом · ${bonusLabel} на полке · ${personalBonusLabel} к узн. и мед. · расторгнуть — сменить бренд</p>`
+        : ''
+    }
+    ${rows}
+  `
 }
 
 function renderTobaccoPanel(state: GameState): string {
   const cap = shelfCapacity(state)
   const active = shelfActiveCount(state)
   const stock = tobaccoStockCount(state)
-  const bonuses = shelfBonuses(state)
   const mood = shelfMood(state)
-  const moodNote =
-    mood === 'empty'
-      ? 'Полка пуста — гости уходят без заказа.'
-      : mood === 'sparse'
-        ? 'Мало вкусов — гости недовольны, поток падает.'
-        : mood === 'rich'
-          ? 'Много вкусов — гости довольны, чаевые выше.'
-          : 'Нормальный ассортимент — можно расширять полку.'
 
   const onShelf = state.shelfActive
     .map((id) => {
       const t = getTobacco(id)
       if (!t) return ''
       return `
-        <button type="button" class="row-btn shop afford" data-shelf-off="${id}">
+        <button type="button" class="row-btn shop afford ${isAmbassador(state, id) ? 'ambassador-live' : ''}" data-shelf-off="${id}">
           ${tobaccoIcon(id)}
           <span class="row-main">
-            <span class="row-title">${t.name}</span>
-            <span class="row-sub">${tobaccoBonusLabel(t)}</span>
+            <span class="row-title">${t.name}${isAmbassador(state, id) ? ' · амбассадор' : ''}</span>
+            <span class="row-sub">${tobaccoRowSub(state, t, true)}</span>
           </span>
           <span class="row-meta row-meta--action">убрать</span>
         </button>
@@ -1484,11 +1651,11 @@ function renderTobaccoPanel(state: GameState): string {
   )
     .map(
       (t) => `
-      <button type="button" class="row-btn shop ${active < cap ? 'afford' : ''}" data-shelf-on="${t.id}" ${active < cap ? '' : 'disabled'}>
+      <button type="button" class="row-btn shop ${active < cap ? 'afford' : ''} ${isAmbassador(state, t.id) ? 'ambassador-live' : ''}" data-shelf-on="${t.id}" ${active < cap ? '' : 'disabled'}>
         ${tobaccoIcon(t.id)}
         <span class="row-main">
-          <span class="row-title">${t.name}</span>
-          <span class="row-sub">${tobaccoBonusLabel(t)}</span>
+          <span class="row-title">${t.name}${isAmbassador(state, t.id) ? ' · амбассадор' : ''}</span>
+          <span class="row-sub">${tobaccoRowSub(state, t, false)}</span>
         </span>
         <span class="row-meta row-meta--action">на полку</span>
       </button>
@@ -1517,11 +1684,15 @@ function renderTobaccoPanel(state: GameState): string {
       <div class="milestone career shelf-status">
         <div class="milestone-head">
           <span>Табачная полка</span>
-          <span>${active}/${cap} на полке · ${stock} на складе</span>
+          <span>${active}/${cap} на полке · ${stock} на складе${
+            mood === 'empty' || mood === 'sparse'
+              ? ' · мало вкусов'
+              : mood === 'rich'
+                ? ' · богатый выбор'
+                : ''
+          }</span>
         </div>
         <div class="bar"><i style="width:${cap ? (active / cap) * 100 : 0}%"></i></div>
-        <p class="row-sub shop-note">${moodNote}</p>
-        <p class="row-sub shop-note">Бонусы полки: +${bonuses.guest.toFixed(2)} гостей · +${Math.round(bonuses.tip * 100)}% чаевые · +${bonuses.income.toFixed(2)}/с</p>
       </div>
 
       <p class="section-label">На полке сейчас</p>
@@ -1534,7 +1705,11 @@ function renderTobaccoPanel(state: GameState): string {
       }
 
       <p class="section-label">Заказ табака</p>
-      <p class="row-sub shop-note">Выбирай по бюджету. Купил — на склад, потом на полку.</p>
+      ${sectionPurpose(
+        isAmbassadorSectionUnlocked(state)
+          ? 'На полке — гости и чаевые · амбассадор усиливает свой вкус'
+          : 'На полке — больше гостей и чаевых · пустая полка режет поток',
+      )}
       ${catalog || '<p class="empty-note">Весь каталог уже заказан.</p>'}
     </div>
   `
@@ -1542,9 +1717,7 @@ function renderTobaccoPanel(state: GameState): string {
 
 function renderStaffPanel(state: GameState): string {
   const payroll = staffPayrollPerSec(state)
-  const gross = loungeGrossIncomePerSec(state)
   const net = loungeIncomePerSec(state)
-  const bonuses = staffBonuses(state)
   const team = hiredStaffCount(state)
   const teamMax = maxTeamHeadcount()
 
@@ -1555,7 +1728,8 @@ function renderStaffPanel(state: GameState): string {
     if (!first) return ''
 
     if (members.length === 0) {
-      const can = state.cash >= first.hireCost
+      const hireCost = scaledStaffHireCost(state, first.hireCost)
+      const can = state.cash >= hireCost
       return `
         <button type="button" class="staff-role-card staff-role-card--hire ${can ? 'afford' : ''}" data-hire-staff="${role.id}" ${can ? '' : 'disabled'}>
           <span class="staff-role-icon">${staffIcon(role.id)}</span>
@@ -1563,7 +1737,7 @@ function renderStaffPanel(state: GameState): string {
             <span class="staff-role-name">${role.name}</span>
             <span class="staff-role-blurb">${role.blurb}</span>
           </span>
-          <span class="staff-role-meta">${formatMoney(first.hireCost)}</span>
+          <span class="staff-role-meta">${formatMoney(hireCost)}</span>
         </button>
       `
     }
@@ -1579,7 +1753,7 @@ function renderStaffPanel(state: GameState): string {
         if (!current) return ''
         const next = grade < 4 ? getStaffGradeDef(role.id, grade + 1) : null
         const dots = [1, 2, 3, 4]
-          .map((g) => `<span class="staff-dot ${g <= grade ? 'is-on' : ''}"></span>`)
+          .map((g) => `<span class="grade-dot ${g <= grade ? 'is-on' : ''}"></span>`)
           .join('')
         const num =
           members.length > 1
@@ -1588,8 +1762,9 @@ function renderStaffPanel(state: GameState): string {
 
         const upgradeBtn = next
           ? (() => {
-              const canUp = state.cash >= next.hireCost
-              return `<button type="button" class="staff-act staff-act--up ${canUp ? 'afford' : ''}" data-upgrade-staff="${role.id}" data-staff-idx="${index}" ${canUp ? '' : 'disabled'} title="→ ${next.title}"><span class="staff-up-cost">${formatMoney(next.hireCost)}</span><span class="staff-up-icon">↑</span></button>`
+              const upCost = scaledStaffHireCost(state, next.hireCost)
+              const canUp = state.cash >= upCost
+              return `<button type="button" class="staff-act staff-act--up ${canUp ? 'afford' : ''}" data-upgrade-staff="${role.id}" data-staff-idx="${index}" ${canUp ? '' : 'disabled'} title="→ ${next.title}"><span class="staff-up-cost">${formatMoney(upCost)}</span><span class="staff-up-icon">↑</span></button>`
             })()
           : `<span class="staff-act staff-act--max" title="Макс. грейд">★</span>`
 
@@ -1597,7 +1772,7 @@ function renderStaffPanel(state: GameState): string {
           <div class="staff-member">
             ${num}
             <span class="staff-member-title">${current.title}</span>
-            <div class="staff-dots" aria-label="Грейд ${grade} из 4">${dots}</div>
+            <div class="grade-dots" aria-label="Грейд ${grade} из 4">${dots}</div>
             <div class="staff-member-actions">
               ${upgradeBtn}
               <button type="button" class="staff-act staff-act--fire" data-fire-staff="${role.id}" data-staff-idx="${index}" title="Уволить">×</button>
@@ -1610,7 +1785,7 @@ function renderStaffPanel(state: GameState): string {
     const addBlock =
       members.length < max
         ? (() => {
-            const addCost = extraStaffHireCost(role.id, 1)
+            const addCost = scaledStaffHireCost(state, extraStaffHireCost(role.id, 1))
             const canAdd = state.cash >= addCost
             return `
           <button type="button" class="staff-role-add ${canAdd ? 'afford' : ''}" data-add-staff="${role.id}" ${canAdd ? '' : 'disabled'}>
@@ -1641,23 +1816,16 @@ function renderStaffPanel(state: GameState): string {
 
   return `
     <div class="list staff-panel">
+      ${sectionPurpose('Команда усиливает зал · зарплата списывается из выручки')}
       <div class="milestone career shelf-status">
         <div class="milestone-head">
           <span>Команда · ${team}/${teamMax}</span>
-          <span>${staffPayrollLabel(state)}</span>
+          <span>Чистыми ${formatMoney(net)}/с${
+            payroll > 0 ? ` · ФОТ ${Math.round(staffPayrollShare(state) * 100)}%` : ''
+          }</span>
         </div>
         <div class="bar"><i style="width:${teamMax ? (team / teamMax) * 100 : 0}%"></i></div>
-        <p class="shop-note">
-          Зарплата списывается каждую секунду из выручки. Чистыми: ${formatMoney(net)}/с
-          ${payroll > 0 ? ` (валовая ${formatMoney(gross)}/с · ФОТ ${Math.round(staffPayrollShare(state) * 100)}%)` : ''}.
-        </p>
-        ${
-          bonuses.guest > 0 || bonuses.income > 0 || bonuses.click > 0
-            ? `<p class="shop-note">Бонусы: +${bonuses.guest.toFixed(2)} гости · +${bonuses.income.toFixed(2)}/с · +${bonuses.click} чаевые</p>`
-            : ''
-        }
       </div>
-      <p class="shop-note">Каждый человек — свой грейд · ●●●○ · на ↑ — цена следующего уровня · норма ФОТ ~30–35%.</p>
       ${cards}
     </div>
   `
@@ -1754,7 +1922,8 @@ function renderNetworkPanel(state: GameState): string {
       `
     }
     const unlocked = isBranchUnlocked(state, def)
-    const can = unlocked && state.cash >= def.cost
+    const branchCost = scaledBranchCost(state, def.cost)
+    const can = unlocked && state.cash >= branchCost
     const prev = def.needBranch
       ? BRANCHES.find((b) => b.id === def.needBranch)?.name
       : null
@@ -1771,7 +1940,7 @@ function renderNetworkPanel(state: GameState): string {
                 : 'Закрыто'
           }</span>
         </span>
-        <span class="row-meta">${unlocked ? formatMoney(def.cost) : '—'}</span>
+        <span class="row-meta">${unlocked ? formatMoney(branchCost) : '—'}</span>
       </button>
     `
   }).join('')
@@ -1788,14 +1957,10 @@ function renderNetworkPanel(state: GameState): string {
       <div class="milestone career shelf-status">
         <div class="milestone-head">
           <span>${networkLabel(state)}</span>
-          <span>${count}/5 точек</span>
+          <span>${count}/5 · доход ×${incMult.toFixed(2)} · чаевые ×${clkMult.toFixed(2)}</span>
         </div>
         <div class="bar"><i style="width:${(count / 5) * 100}%"></i></div>
-        <p class="row-sub shop-note">
-          Множители сети: доход ×${incMult.toFixed(2)} · чаевые ×${clkMult.toFixed(2)}
-        </p>
         <p class="row-sub shop-note">${synergyNote}</p>
-        <p class="row-sub shop-note">Главный зал не сбрасывается — филиалы усиливают всё сразу.</p>
       </div>
       <p class="section-label">Открыть точку</p>
       ${rows}
@@ -1819,13 +1984,130 @@ function formatCooldownLeft(readyAt: number, now: number): string {
   return ` · через ${sec} с`
 }
 
+function renderTelegramBlock(state: GameState, now: number): string {
+  const grade = state.personal.telegramGrade
+  const first = getTelegramGradeDef(1)
+
+  if (grade <= 0 && first) {
+    const can = state.cash >= first.upgradeCost
+    return `
+      <button type="button" class="row-btn shop ${can ? 'afford' : ''}" data-telegram-create ${can ? '' : 'disabled'}>
+        ${icon('tab_telegram')}
+        <span class="row-main">
+          <span class="row-title">Создать Telegram-канал</span>
+          <span class="row-sub">Посты — всплеск гостей · связка с роликами</span>
+        </span>
+        <span class="row-meta">${formatMoney(first.upgradeCost)}</span>
+      </button>
+    `
+  }
+
+  const current = getTelegramGradeDef(grade)
+  const next = grade < 4 ? getTelegramGradeDef(grade + 1) : null
+  if (!current) return ''
+
+  const tk = state.personal.telegramToolkit
+  const passive = telegramPassiveTraffic(grade, tk)
+  const dots = gradeDotsHtml(grade)
+  const tgBoostLeft = telegramBoostRemainingSec(state, now)
+  const postReady = now >= state.personal.telegramPostReadyAt
+  const crossPromo = now < state.personal.videoPromoReadyUntil
+  const postPreview = telegramPostBoostPreview(grade, tk, crossPromo)
+  const postBoost = postPreview.trafficBoost
+  const canPost = postReady && state.cash >= current.postCost
+
+  const upgradeRow = next
+    ? `
+      <button type="button" class="row-btn shop ${state.cash >= next.upgradeCost ? 'afford' : ''}" data-telegram-upgrade ${state.cash >= next.upgradeCost ? '' : 'disabled'}>
+        ${icon('tab_telegram')}
+        <span class="row-main">
+          <span class="row-title">Поднять канал · грейд ${grade + 1}</span>
+          <span class="row-sub row-sub--grade">${dots}<span>→ «${next.title}» · +${Math.round(next.passiveTraffic * 100)}% гостей</span></span>
+        </span>
+        <span class="row-meta">${formatMoney(next.upgradeCost)}</span>
+      </button>
+    `
+    : `
+      <div class="row-btn shop owned">
+        ${icon('tab_telegram')}
+        <span class="row-main">
+          <span class="row-title">Telegram · «${current.title}» · макс.</span>
+          <span class="row-sub row-sub--grade">${dots}<span>+${Math.round(passive * 100)}% гостей постоянно</span></span>
+        </span>
+        <span class="row-meta">★ макс.</span>
+      </div>
+    `
+
+  const toolkitRows = TELEGRAM_TOOLKIT.map((def) => {
+    const level = tk[def.id]
+    const maxed = level >= def.maxLevel
+    const cost = telegramToolkitUpgradeCost(def, level)
+    const can = !maxed && state.cash >= cost
+    const ui = renderTelegramToolkitRow(def.id, def.name, level, def.maxLevel, def.blurb)
+    if (maxed) {
+      return `
+        <div class="row-btn shop owned">
+          ${icon('tab_telegram')}
+          <span class="row-main">
+            <span class="row-title">${ui.title}</span>
+            <span class="row-sub row-sub--grade">${ui.dots}<span>${ui.sub}</span></span>
+          </span>
+          <span class="row-meta">${ui.meta}</span>
+        </div>
+      `
+    }
+    return `
+      <button type="button" class="row-btn shop ${can ? 'afford' : ''}" data-telegram-toolkit="${def.id}" ${can ? '' : 'disabled'}>
+        ${icon('tab_telegram')}
+        <span class="row-main">
+          <span class="row-title">${ui.title || def.name}</span>
+          <span class="row-sub row-sub--grade">${ui.dots}<span>${ui.sub}</span></span>
+        </span>
+        <span class="row-meta">${formatMoney(cost)}</span>
+      </button>
+    `
+  }).join('')
+
+  return `
+    <div class="milestone career">
+      <div class="milestone-head">
+        <span>Telegram · «${current.title}» · грейд ${grade}</span>
+        <span>+${Math.round(passive * 100)}% гостей</span>
+      </div>
+      ${
+        tgBoostLeft > 0
+          ? `<p class="row-sub promo-active-note">Пост в эфире · +${Math.round(state.personal.telegramBoostAmount * 100)}% · ${tgBoostLeft}с</p>`
+          : ''
+      }
+    </div>
+    ${upgradeRow}
+    <p class="section-label section-label--staff">Инструменты канала</p>
+    ${toolkitRows}
+    <button type="button" class="row-btn shop ${canPost ? 'afford' : ''} ${crossPromo ? 'promo-cross-live' : ''}" data-telegram-post ${canPost ? '' : 'disabled'}>
+      ${icon('tab_telegram')}
+      <span class="row-main">
+        <span class="row-title">${crossPromo ? 'Анонс ролика в Telegram' : 'Опубликовать пост'}</span>
+        <span class="row-sub">${crossPromo ? `Связка · +${Math.round(postBoost * 100)}% гостей · бонус +55%` : `+${Math.round(postBoost * 100)}% гостей на ${Math.round(postPreview.boostMs / 60_000)} мин`}${
+          postReady ? '' : formatCooldownLeft(state.personal.telegramPostReadyAt, now)
+        }</span>
+      </span>
+      <span class="row-meta">${formatMoney(current.postCost)}</span>
+    </button>
+  `
+}
+
 function renderPersonalPanel(state: GameState, now: number): string {
   const p = state.personal
   const title = personalTitle(state)
   const status = personalStatusLine(state, now)
   const eventLeft = eventBoostRemainingSec(state, now)
+  const tgLeft = telegramBoostRemainingSec(state, now)
+  const videoLeft = videoBoostRemainingSec(state, now)
+  const tgStatus = telegramStatusLine(state, now)
+  const venueReach = personalVenueReach(state)
   const blogger = isBlogger(p.channelLevel)
-  const videoLevel = blogger ? minChannelGearLevel(p.channelGear) : 0
+  const synergyHint = mediaSynergyHint(state, now)
+  const videoLevel = blogger ? channelVideoGrade(p.channelGear) : 0
   const tier = videoLevel >= 1 ? channelTierLabel(videoLevel) : ''
   const channelBonus = blogger ? channelTrafficBonus(p.channelGear, true) : 0
   const videoReady = now >= p.videoReadyAt
@@ -1833,10 +2115,51 @@ function renderPersonalPanel(state: GameState, now: number): string {
   const awardReady = now >= p.awardReadyAt
   const award = awardWinBreakdown(state)
   const shootReady = canShootVideo(p.channelGear)
-  const videoPreview = shootReady ? videoRewards(videoLevel) : null
+  const shootCost = shootReady ? videoShootCost(videoLevel) : 0
+  const videoPreview = shootReady
+    ? videoActionRewards(videoLevel, venueReach, p.telegramGrade)
+    : null
   const videoCdSec =
     shootReady ? Math.round(videoCooldownMs(videoLevel, p.channelGear.montage) / 1000) : 0
   const gearHint = blogger ? videoTierRequirementHint(p.channelGear) : ''
+  const reachHint = blogger && shootReady ? mediaActionReachHint(venueReach) : ''
+  const canShoot = videoReady && shootReady && state.cash >= shootCost
+  const eventSub = `+${Math.round(EVENT_TRAFFIC_BOOST * 100)}% гостей на 2 мин · +${EVENT_FAME_GAIN} узн.${
+    eventReady ? '' : formatCooldownLeft(p.eventReadyAt, now)
+  }`
+  const awardSub = `Шанс ${Math.round(award.chance * 100)}% · победа +${AWARD_WIN_FAME} узн. · +${AWARD_WIN_MEDIA} мед. · ${personalRepBonusLabel()} навсегда${
+    awardReady ? '' : formatCooldownLeft(p.awardReadyAt, now)
+  }`
+  const awardWinner = isGuideMastersWinner(state)
+  const awardBlock = awardWinner
+    ? `
+      <p class="section-label">Премия «Гайд Мастерс»</p>
+      <div class="row-btn shop owned">
+        ${icon('trophy', 'row-icon--gold')}
+        <span class="row-main">
+          <span class="row-title">Лауреат премии</span>
+          <span class="row-sub">${personalRepBonusLabel()} к узн. и мед. · победа одна на всю карьеру</span>
+        </span>
+        <span class="row-meta row-meta--status">навсегда</span>
+      </div>
+    `
+    : `
+      <p class="section-label">Премия «Гайд Мастерс»</p>
+      <div class="milestone career" data-award-breakdown>
+        <div class="milestone-head">
+          <span>Шанс победы</span>
+          <span data-award-chance>${Math.round(award.chance * 100)}%</span>
+        </div>
+      </div>
+      <button type="button" class="row-btn shop ${awardReady ? 'afford' : ''}" data-personal-award ${awardReady ? '' : 'disabled'}>
+        ${icon('trophy', 'row-icon--gold')}
+        <span class="row-main">
+          <span class="row-title">Подать заявку</span>
+          <span class="row-sub">${awardSub} · попыток ${p.awardAttempts}</span>
+        </span>
+        <span class="row-meta row-meta--status">бесплатно</span>
+      </button>
+    `
 
   const channelBlock =
     !blogger
@@ -1845,7 +2168,7 @@ function renderPersonalPanel(state: GameState, now: number): string {
         ${icon('tab_personal')}
         <span class="row-main">
           <span class="row-title">Стать блогером</span>
-          <span class="row-sub">Канал «Дымной дневник» — ролики после прокачки оборудования</span>
+          <span class="row-sub">Ролики — всплеск гостей · постоянный охват от оборудования</span>
         </span>
         <span class="row-meta">${formatMoney(CHANNEL_START_COST)}</span>
       </button>
@@ -1853,12 +2176,18 @@ function renderPersonalPanel(state: GameState, now: number): string {
       : `
       <div class="milestone career">
         <div class="milestone-head">
-          <span>Блогер · «Дымной дневник»${videoLevel >= 1 ? ` · ролик ${videoLevel} ур.` : ''}${tier ? ` · ${tier}` : ''}</span>
-          <span>${channelBonus > 0 ? `+${Math.round(channelBonus * 100)}% гостей` : 'без охвата'}</span>
+          <span>Блогер · «Дымной дневник»${videoLevel >= 1 ? ` · грейд ${videoLevel}` : ''}${tier ? ` · ${tier}` : ''}</span>
+          <span>${channelBonus > 0 ? `+${Math.round(channelBonus * 100)}% гостей` : 'без охвата'}${
+            shootReady ? ` · ~${videoCdSec}с` : ''
+          }</span>
         </div>
-        <p class="row-sub shop-note">${gearHint || 'Прокачай оборудование — от него зависит ур. ролика'}${
-          shootReady ? ` · перезарядка ~${videoCdSec} с · роликов ${p.videosPosted}` : ''
-        }</p>
+        ${
+          !shootReady && gearHint
+            ? `<p class="row-sub shop-note">${gearHint}</p>`
+            : reachHint && venueReach < 0.75
+              ? `<p class="row-sub shop-note">${reachHint}</p>`
+              : ''
+        }
       </div>
     `
 
@@ -1867,15 +2196,16 @@ function renderPersonalPanel(state: GameState, now: number): string {
     const maxed = level >= def.maxLevel
     const cost = gearUpgradeCost(def, level)
     const can = blogger && !maxed && state.cash >= cost
+    const ui = renderGearGradeRow(def.id, def.name, level, def.maxLevel, def.blurb)
     if (maxed) {
       return `
         <div class="row-btn shop owned">
           ${icon('hood')}
           <span class="row-main">
-            <span class="row-title">${def.name} · ур.${level}</span>
-            <span class="row-sub">${def.blurb}</span>
+            <span class="row-title">${ui.title}</span>
+            <span class="row-sub row-sub--grade">${ui.dots}<span>${ui.sub}</span></span>
           </span>
-          <span class="row-meta">макс.</span>
+          <span class="row-meta">${ui.meta}</span>
         </div>
       `
     }
@@ -1895,8 +2225,8 @@ function renderPersonalPanel(state: GameState, now: number): string {
       <button type="button" class="row-btn shop ${can ? 'afford' : ''}" data-personal-gear="${def.id}" ${can ? '' : 'disabled'}>
         ${icon('hood')}
         <span class="row-main">
-          <span class="row-title">${def.name}${level ? ` · ур.${level}` : ''}</span>
-          <span class="row-sub">${def.blurb}</span>
+          <span class="row-title">${ui.title}</span>
+          <span class="row-sub row-sub--grade">${ui.dots}<span>${ui.sub}</span></span>
         </span>
         <span class="row-meta">${formatMoney(cost)}</span>
       </button>
@@ -1906,18 +2236,25 @@ function renderPersonalPanel(state: GameState, now: number): string {
   const videoBlock =
     blogger
       ? `
-      <button type="button" class="row-btn shop ${videoReady && shootReady && state.cash >= VIDEO_BASE_COST ? 'afford' : ''}" data-personal-video ${videoReady && shootReady && state.cash >= VIDEO_BASE_COST ? '' : 'disabled'}>
+      <button type="button" class="row-btn shop ${canShoot ? 'afford' : ''}" data-personal-video ${canShoot ? '' : 'disabled'}>
         ${icon('hood')}
         <span class="row-main">
-          <span class="row-title">${shootReady ? `Снять ролик ${videoLevel}-го ур.` : 'Снять ролик'}</span>
+          <span class="row-title">${shootReady ? `Снять ролик · грейд ${videoLevel}` : 'Снять ролик'}</span>
           <span class="row-sub">${
             shootReady && videoPreview
-              ? `+${videoPreview.fame} узн. · +${videoPreview.media} мед. · +${videoPreview.cash} ₽`
-              : gearHint || 'Сначала всё оборудование на 1-м ур.'
+              ? `+${Math.round(videoPreview.trafficBoost * 100)}% гостей · +${videoPreview.cash} ₽${
+                  videoPreview.fame > 0 ? ` · +${videoPreview.fame} узн.` : ''
+                }${videoPreview.media > 0 ? ` · +${videoPreview.media} мед.` : ''}`
+              : gearHint || 'Сначала всё оборудование на 1-м грейде'
           }${videoReady || !shootReady ? '' : formatCooldownLeft(p.videoReadyAt, now)}</span>
         </span>
-        <span class="row-meta">${formatMoney(VIDEO_BASE_COST)}</span>
+        <span class="row-meta">${shootReady ? formatMoney(shootCost) : formatMoney(VIDEO_BASE_COST)}</span>
       </button>
+      ${
+        shootReady && reachHint
+          ? `<p class="row-sub shop-note">${reachHint}</p>`
+          : ''
+      }
     `
       : ''
 
@@ -1931,57 +2268,55 @@ function renderPersonalPanel(state: GameState, now: number): string {
         <div class="personal-bars">
           <div class="personal-bar">
             <span class="personal-bar-label">Узнаваемость</span>
-            <div class="bar"><i style="width:${Math.min(100, p.fame)}%"></i></div>
+            <div class="bar"><i style="width:${Math.min(100, (p.fame / 75) * 100)}%"></i></div>
             <span class="personal-bar-val">${p.fame}</span>
           </div>
           <div class="personal-bar">
             <span class="personal-bar-label">Медийность</span>
-            <div class="bar"><i style="width:${Math.min(100, p.media)}%"></i></div>
+            <div class="bar"><i style="width:${Math.min(100, (p.media / 75) * 100)}%"></i></div>
             <span class="personal-bar-val">${p.media}</span>
           </div>
         </div>
+        <p class="row-sub shop-note">Накопительные шкалы — только растут, от действий не падают</p>
         ${
           eventLeft > 0
-            ? `<p class="row-sub shop-note">Мероприятие: +${Math.round(p.eventBoostAmount * 100)}% гостей · ещё ${eventLeft} с</p>`
-            : ''
+            ? `<p class="row-sub promo-active-note" data-boost-note>Мероприятие: +${Math.round(p.eventBoostAmount * 100)}% гостей · ещё ${eventLeft} с</p>`
+            : videoLeft > 0
+              ? `<p class="row-sub promo-active-note" data-boost-note>Ролик в эфире · +${Math.round(p.videoBoostAmount * 100)}% гостей · ${videoLeft}с</p>`
+              : tgLeft > 0
+                ? `<p class="row-sub promo-active-note" data-boost-note>${tgStatus ?? ''}</p>`
+                : ''
         }
       </div>
 
       <p class="section-label">Блог</p>
-      <p class="row-sub shop-note">Стань блогером, прокачай всё оборудование на одном ур. — откроется ролик этого уровня.</p>
       ${channelBlock}
       <p class="section-label">Оборудование канала</p>
+      ${sectionPurpose('Поднимает грейд ролика → сильнее всплеск гостей')}
       ${gearRows}
       ${videoBlock}
+      ${
+        synergyHint
+          ? `<p class="row-sub ${now < p.videoPromoReadyUntil && p.telegramGrade > 0 ? 'promo-active-note' : 'shop-note'}" data-synergy-note>${synergyHint}</p>`
+          : ''
+      }
+
+      <p class="section-label">Telegram</p>
+      ${renderTelegramBlock(state, now)}
+
+      ${renderAmbassadorBlock(state)}
 
       <p class="section-label">Мероприятие в зале</p>
-      <p class="row-sub shop-note">Разовый всплеск гостей на 2 минуты + узнаваемость навсегда.</p>
       <button type="button" class="row-btn shop ${eventReady && state.cash >= EVENT_COST ? 'afford' : ''}" data-personal-event ${eventReady && state.cash >= EVENT_COST ? '' : 'disabled'}>
         ${icon('lounge')}
         <span class="row-main">
           <span class="row-title">Вечер дегустации у себя</span>
-          <span class="row-sub">Аншлаг на пару минут · +3 узнаваемость${eventReady ? '' : formatCooldownLeft(p.eventReadyAt, now)}</span>
+          <span class="row-sub">${eventSub}</span>
         </span>
         <span class="row-meta">${formatMoney(EVENT_COST)}</span>
       </button>
 
-      <p class="section-label">Премия «Гайд Мастерс»</p>
-      <p class="row-sub shop-note">Участие бесплатное. Шанс победы растёт от узнаваемости, канала и прокачки зала.</p>
-      <div class="milestone career" data-award-breakdown>
-        <div class="milestone-head">
-          <span>Шанс победы</span>
-          <span data-award-chance>${Math.round(award.chance * 100)}%</span>
-        </div>
-        <p class="row-sub shop-note" data-award-factors>Узнаваемость +${Math.round(award.fame)} · медийность +${Math.round(award.media)} · канал +${Math.round(award.channel)} · зал +${Math.round(award.venue)}</p>
-      </div>
-      <button type="button" class="row-btn shop ${awardReady ? 'afford' : ''}" data-personal-award ${awardReady ? '' : 'disabled'}>
-        ${icon('trophy', 'row-icon--gold')}
-        <span class="row-main">
-          <span class="row-title">Подать заявку</span>
-          <span class="row-sub">Попыток ${p.awardAttempts}, побед ${p.awardWins}${awardReady ? '' : formatCooldownLeft(p.awardReadyAt, now)}</span>
-        </span>
-        <span class="row-meta row-meta--status">бесплатно</span>
-      </button>
+      ${awardBlock}
     </div>
   `
 }
@@ -2001,8 +2336,32 @@ function wirePersonalPanel(panel: HTMLElement, handlers: ShellHandlers): void {
   panel.querySelector('[data-personal-event]')?.addEventListener('click', () => {
     handlers.onHoldEvent()
   })
+  panel.querySelector('[data-telegram-create]')?.addEventListener('click', () => {
+    handlers.onCreateTelegram()
+  })
+  panel.querySelector('[data-telegram-upgrade]')?.addEventListener('click', () => {
+    handlers.onUpgradeTelegram()
+  })
+  panel.querySelectorAll('[data-telegram-toolkit]').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      handlers.onUpgradeTelegramToolkit((btn as HTMLElement).dataset.telegramToolkit as TelegramToolkitId)
+    })
+  })
+  panel.querySelector('[data-telegram-post]')?.addEventListener('click', () => {
+    handlers.onPostTelegram()
+  })
   panel.querySelector('[data-personal-award]')?.addEventListener('click', () => {
     handlers.onEnterAward()
+  })
+  panel.querySelectorAll('[data-ambassador-sign]').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      handlers.onSignAmbassador((btn as HTMLElement).dataset.ambassadorSign as TobaccoId)
+    })
+  })
+  panel.querySelectorAll('[data-ambassador-break]').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      handlers.onBreakAmbassador((btn as HTMLElement).dataset.ambassadorBreak as TobaccoId)
+    })
   })
 }
 
@@ -2014,27 +2373,53 @@ export function updatePersonalCooldowns(
   if (state.phase === 'employed') return
   const p = state.personal
   const blogger = isBlogger(p.channelLevel)
-  const videoLevel = blogger ? minChannelGearLevel(p.channelGear) : 0
+  const videoLevel = blogger ? channelVideoGrade(p.channelGear) : 0
   const shootReady = canShootVideo(p.channelGear)
+  const shootCost = shootReady ? videoShootCost(videoLevel) : 0
+  const venueReach = personalVenueReach(state)
   const videoBtn = root.querySelector<HTMLButtonElement>('[data-personal-video]')
   if (videoBtn && blogger) {
     const ready = now >= p.videoReadyAt
-    const can = ready && shootReady && state.cash >= VIDEO_BASE_COST
+    const can = ready && shootReady && state.cash >= shootCost
     videoBtn.disabled = !can
     videoBtn.classList.toggle('afford', can)
     const title = videoBtn.querySelector('.row-title')
     if (title) {
-      title.textContent = shootReady ? `Снять ролик ${videoLevel}-го ур.` : 'Снять ролик'
+      title.textContent = shootReady ? `Снять ролик · грейд ${videoLevel}` : 'Снять ролик'
     }
     const sub = videoBtn.querySelector('.row-sub')
-    const rewards = shootReady ? videoRewards(videoLevel) : null
+    const rewards = shootReady
+      ? videoActionRewards(videoLevel, venueReach, p.telegramGrade)
+      : null
     const gearHint = videoTierRequirementHint(p.channelGear)
     if (sub) {
       sub.textContent = `${
         shootReady && rewards
-          ? `+${rewards.fame} узн. · +${rewards.media} мед. · +${rewards.cash} ₽`
-          : gearHint || 'Сначала всё оборудование на 1-м ур.'
+          ? `+${Math.round(rewards.trafficBoost * 100)}% гостей · +${rewards.cash} ₽${
+              rewards.fame > 0 ? ` · +${rewards.fame} узн.` : ''
+            }${rewards.media > 0 ? ` · +${rewards.media} мед.` : ''}`
+          : gearHint || 'Сначала всё оборудование на 1-м грейде'
       }${ready || !shootReady ? '' : formatCooldownLeft(p.videoReadyAt, now)}`
+    }
+    const meta = videoBtn.querySelector('.row-meta')
+    if (meta && shootReady) meta.textContent = formatMoney(shootCost)
+  }
+  const synergyNote = root.querySelector<HTMLElement>('[data-synergy-note]')
+  if (synergyNote) {
+    const hint = mediaSynergyHint(state, now)
+    if (hint) {
+      synergyNote.textContent = hint
+      synergyNote.hidden = false
+      synergyNote.classList.toggle(
+        'promo-active-note',
+        p.telegramGrade > 0 && now < p.videoPromoReadyUntil,
+      )
+      synergyNote.classList.toggle(
+        'shop-note',
+        !(p.telegramGrade > 0 && now < p.videoPromoReadyUntil),
+      )
+    } else {
+      synergyNote.hidden = true
     }
   }
   root.querySelectorAll<HTMLButtonElement>('[data-personal-gear]').forEach((btn) => {
@@ -2058,7 +2443,7 @@ export function updatePersonalCooldowns(
     eventBtn.classList.toggle('afford', can)
     const sub = eventBtn.querySelector('.row-sub')
     if (sub) {
-      sub.textContent = `Аншлаг на пару минут · +3 узнаваемость${
+      sub.textContent = `+${Math.round(EVENT_TRAFFIC_BOOST * 100)}% гостей на 2 мин · +${EVENT_FAME_GAIN} узн.${
         ready ? '' : formatCooldownLeft(p.eventReadyAt, now)
       }`
     }
@@ -2071,24 +2456,68 @@ export function updatePersonalCooldowns(
     const bd = awardWinBreakdown(state)
     const chanceEl = root.querySelector('[data-award-chance]')
     if (chanceEl) chanceEl.textContent = `${Math.round(bd.chance * 100)}%`
-    const bdNote = root.querySelector('[data-award-factors]')
-    if (bdNote) {
-      bdNote.textContent = `Узнаваемость +${Math.round(bd.fame)} · медийность +${Math.round(bd.media)} · канал +${Math.round(bd.channel)} · зал +${Math.round(bd.venue)}`
-    }
     const sub = awardBtn.querySelector('.row-sub')
     if (sub) {
-      sub.textContent = `Попыток ${p.awardAttempts}, побед ${p.awardWins}${
+      sub.textContent = `Шанс ${Math.round(bd.chance * 100)}% · победа +${AWARD_WIN_FAME} узн. · +${AWARD_WIN_MEDIA} мед. · ${personalRepBonusLabel()} навсегда${
         ready ? '' : formatCooldownLeft(p.awardReadyAt, now)
-      }`
+      } · попыток ${p.awardAttempts}`
     }
   }
-  const eventNote = root.querySelector<HTMLElement>('.personal-stats .shop-note')
+  const boostNote = root.querySelector<HTMLElement>('[data-boost-note]')
   const eventLeft = eventBoostRemainingSec(state, now)
-  if (eventNote && eventLeft > 0) {
-    eventNote.textContent = `Мероприятие: +${Math.round(p.eventBoostAmount * 100)}% гостей · ещё ${eventLeft} с`
-    eventNote.hidden = false
-  } else if (eventNote) {
-    eventNote.hidden = true
+  const videoLeft = videoBoostRemainingSec(state, now)
+  const tgLeft = telegramBoostRemainingSec(state, now)
+  const tgStatus = telegramStatusLine(state, now)
+  if (boostNote && eventLeft > 0) {
+    boostNote.textContent = `Мероприятие: +${Math.round(p.eventBoostAmount * 100)}% гостей · ещё ${eventLeft} с`
+    boostNote.hidden = false
+  } else if (boostNote && videoLeft > 0) {
+    boostNote.textContent = `Ролик в эфире · +${Math.round(p.videoBoostAmount * 100)}% гостей · ${videoLeft}с`
+    boostNote.hidden = false
+  } else if (boostNote && tgLeft > 0 && tgStatus) {
+    boostNote.textContent = tgStatus
+    boostNote.hidden = false
+  } else if (boostNote) {
+    boostNote.hidden = true
+  }
+  const tgPostBtn = root.querySelector<HTMLButtonElement>('[data-telegram-post]')
+  if (tgPostBtn && p.telegramGrade > 0) {
+    const def = getTelegramGradeDef(p.telegramGrade)
+    if (def) {
+      const tk = p.telegramToolkit
+      const crossPromo = now < p.videoPromoReadyUntil
+      const postReady = now >= p.telegramPostReadyAt
+      const canPost = postReady && state.cash >= def.postCost
+      tgPostBtn.disabled = !canPost
+      tgPostBtn.classList.toggle('afford', canPost)
+      tgPostBtn.classList.toggle('promo-cross-live', crossPromo)
+      const preview = telegramPostBoostPreview(p.telegramGrade, tk, crossPromo)
+      const title = tgPostBtn.querySelector('.row-title')
+      if (title) {
+        title.textContent = crossPromo ? 'Анонс ролика в Telegram' : 'Опубликовать пост'
+      }
+      const sub = tgPostBtn.querySelector('.row-sub')
+      if (sub) {
+        sub.textContent = crossPromo
+          ? `Связка · +${Math.round(preview.trafficBoost * 100)}% гостей · бонус +55%${
+              postReady ? '' : formatCooldownLeft(p.telegramPostReadyAt, now)
+            }`
+          : `+${Math.round(preview.trafficBoost * 100)}% гостей на ${Math.round(preview.boostMs / 60_000)} мин${
+              postReady ? '' : formatCooldownLeft(p.telegramPostReadyAt, now)
+            }`
+      }
+      const meta = tgPostBtn.querySelector('.row-meta')
+      if (meta) meta.textContent = formatMoney(def.postCost)
+    }
+  }
+  const tgUpgradeBtn = root.querySelector<HTMLButtonElement>('[data-telegram-upgrade]')
+  if (tgUpgradeBtn && p.telegramGrade > 0 && p.telegramGrade < 4) {
+    const next = getTelegramGradeDef(p.telegramGrade + 1)
+    if (next) {
+      const can = state.cash >= next.upgradeCost
+      tgUpgradeBtn.disabled = !can
+      tgUpgradeBtn.classList.toggle('afford', can)
+    }
   }
 }
 
@@ -2102,14 +2531,15 @@ function renderShopPanel(state: GameState): string {
       .map((item) => {
         const level = shopLevel(state.shopOwned, item.id)
         const grade = getShopGrade(item, level)
+        const ui = renderShopGradeRow(item, level, grade?.title, grade ? shopEffectLabel(grade, taskBaseCd[item.task] ?? 1500) : item.blurb)
         return `
       <div class="row-btn shop owned">
         ${shopIcon(item.id)}
         <span class="row-main">
-          <span class="row-title">${item.name} · ур.${level}</span>
-          <span class="row-sub">${grade?.title ?? item.blurb}</span>
+          <span class="row-title">${ui.title}</span>
+          <span class="row-sub row-sub--grade">${ui.dots}<span>${ui.sub}</span></span>
         </span>
-        <span class="row-meta row-meta--status">${level >= shopMaxLevel(item) ? 'макс.' : `ур.${level}`}</span>
+        <span class="row-meta row-meta--status">${ui.meta || `грейд ${level}`}</span>
       </div>
     `
       })
@@ -2132,14 +2562,20 @@ function renderShopPanel(state: GameState): string {
     const baseMs = taskBaseCd[item.task] ?? 1500
 
     if (!next) {
+      const ui = renderShopGradeRow(
+        item,
+        level,
+        current?.title,
+        current ? shopEffectLabel(current, baseMs) : item.blurb,
+      )
       return `
       <div class="row-btn shop owned">
         ${shopIcon(item.id)}
         <span class="row-main">
-          <span class="row-title">${item.name} · ур.${level}</span>
-          <span class="row-sub">${current ? shopEffectLabel(current, baseMs) : item.blurb}</span>
+          <span class="row-title">${ui.title}</span>
+          <span class="row-sub row-sub--grade">${ui.dots}<span>${ui.sub}</span></span>
         </span>
-        <span class="row-meta row-meta--status">макс.</span>
+        <span class="row-meta row-meta--status">${ui.meta}</span>
       </div>
     `
     }
@@ -2147,7 +2583,8 @@ function renderShopPanel(state: GameState): string {
     const canUp = canUpgradeShopItem(item, level, state.taskDone, state.jobRank)
     const price = shopItemCost(state, next.cost)
     const afford = canUp && state.cash >= price
-    const action = level === 0 ? 'Купить' : `Улучшить → ур.${next.level}`
+    const action = level === 0 ? 'Купить' : `→ ${next.title}`
+    const currentUi = renderShopGradeRow(item, level, current?.title, '')
     let sub = canUp
       ? `${next.title} · ${shopEffectLabel(next, baseMs)}`
       : shopUnlockHint(item, state.taskDone)
@@ -2165,8 +2602,8 @@ function renderShopPanel(state: GameState): string {
       <button type="button" class="row-btn shop locked" data-shop="${item.id}" disabled>
         ${shopIcon(item.id)}
         <span class="row-main">
-          <span class="row-title">${item.name}${level ? ` · ур.${level}` : ''}</span>
-          <span class="row-sub">${sub}</span>
+          <span class="row-title">${item.name}${level ? ` · ${current?.title ?? ''}` : ''}</span>
+          <span class="row-sub row-sub--grade">${level ? currentUi.dots : ''}<span>${sub}</span></span>
         </span>
         <span class="row-meta">${formatMoney(price)}</span>
       </button>
@@ -2177,25 +2614,25 @@ function renderShopPanel(state: GameState): string {
       <button type="button" class="row-btn shop ${afford ? 'afford' : ''}" data-shop="${item.id}" ${afford ? '' : 'disabled'}>
         ${shopIcon(item.id)}
         <span class="row-main">
-          <span class="row-title">${action}: ${item.name}${level ? ` · сейчас ур.${level}` : ''}</span>
-          <span class="row-sub">${sub}</span>
+          <span class="row-title">${action}: ${item.name}</span>
+          <span class="row-sub row-sub--grade">${level ? currentUi.dots : ''}<span>${sub}</span></span>
         </span>
         <span class="row-meta">${formatMoney(price)}</span>
       </button>
     `
   }).join('')
 
-  const phaseNote =
-    state.phase === 'dual'
-      ? 'На подработке инструменты покупаются заново — с прошлой смены не переносятся. Каждый инструмент — до 4 уровней.'
-      : `${getVenue(state.venueId).name}: цены ×${getVenue(state.venueId).shopPriceMult}. Каждый инструмент — до 4 уровней.`
   const bareHandsShopNote = bareHandsStillPossible(state.shopOwned, state.taskDone.wash)
     ? `<p class="shop-note shop-note--tip">Шуруповёрт необязателен: ${BARE_HANDS_WASH_NEED} моек «Помой кальян» без него — трофей «Голыми руками». Щипцы и кроссовки — по желанию.</p>`
     : ''
+  const shopPurpose =
+    state.phase === 'dual'
+      ? sectionPurpose('Ускоряют задачи подработки · каждый инструмент до 4 грейдов')
+      : ''
   return `
     <div class="list">
       <p class="section-label">Инструменты смены · ${maxed}/${SHOP_ITEMS.length} макс.</p>
-      <p class="row-sub shop-note">${phaseNote}</p>
+      ${shopPurpose}
       ${bareHandsShopNote}
       ${shop}
     </div>
@@ -2210,6 +2647,84 @@ function wireShopPanel(panel: HTMLElement, handlers: ShellHandlers): void {
   })
 }
 
+function renderPromotionsBlock(state: GameState, now: number): string {
+  if (!isPromotionsUnlocked(state)) return ''
+
+  const cards = PROMOTIONS.map((def) => {
+    const slotUnlocked = isPromotionSlotUnlocked(state, def.id)
+    const grade = promotionGrade(state, def.id)
+    const current = grade > 0 ? getPromotionGradeDef(def.id, grade) : null
+    const next = grade < 4 ? getPromotionGradeDef(def.id, grade + 1) : null
+    const furn = furnitureLevel(state)
+    const isLive =
+      state.promotions.activeId === def.id && state.promotions.activeUntil > now
+
+    if (!slotUnlocked) {
+      return `
+        <div class="promo-card promo-card--locked">
+          ${promotionIcon(def.id)}
+          <span class="promo-main">
+            <span class="promo-name">${def.name}</span>
+            <span class="promo-blurb">Нужен прогресс мебели ${def.needFurniture}+ ур. (сейчас ${furn})</span>
+          </span>
+        </div>
+      `
+    }
+
+    if (grade === 0 && next) {
+      const canUnlock = state.cash >= next.upgradeCost
+      return `
+        <button type="button" class="promo-card promo-card--unlock ${canUnlock ? 'afford' : ''}" data-upgrade-promo="${def.id}" ${canUnlock ? '' : 'disabled'}>
+          ${promotionIcon(def.id)}
+          <span class="promo-main">
+            <span class="promo-name">${def.name}</span>
+            <span class="promo-blurb">${def.blurb}</span>
+          </span>
+          <span class="promo-meta">${formatMoney(next.upgradeCost)}</span>
+        </button>
+      `
+    }
+
+    if (!current) return ''
+
+    const dots = [1, 2, 3, 4]
+      .map((g) => `<span class="grade-dot ${g <= grade ? 'is-on' : ''}"></span>`)
+      .join('')
+
+    const upgradeBtn = next
+      ? `<button type="button" class="staff-act staff-act--up ${state.cash >= next.upgradeCost ? 'afford' : ''}" data-upgrade-promo="${def.id}" ${state.cash >= next.upgradeCost ? '' : 'disabled'} title="→ ${next.title}"><span class="staff-up-cost">${formatMoney(next.upgradeCost)}</span><span class="staff-up-icon">↑</span></button>`
+      : `<span class="staff-act staff-act--max" title="Макс. грейд">★</span>`
+
+    const readyAt = promotionLaunchReadyAt(state, def.id)
+    const onCooldown = now < readyAt
+    const canLaunch = canLaunchPromotion(state, def.id, now)
+    const launchLabel = onCooldown
+      ? `${Math.ceil((readyAt - now) / 1000)}с`
+      : formatMoney(current.launchCost)
+
+    return `
+      <div class="promo-card promo-card--owned ${isLive ? 'promo-card--live' : ''}">
+        ${promotionIcon(def.id)}
+        <span class="promo-main">
+          <span class="promo-name">${def.name} · ${current.title}</span>
+          <span class="promo-blurb">+${Math.round(current.passiveGuest * 100)}% гостей · запуск +${Math.round(current.guestBoost * 100)}%</span>
+          <div class="grade-dots" aria-label="Грейд ${grade} из 4">${dots}</div>
+        </span>
+        <span class="promo-actions">
+          ${upgradeBtn}
+          <button type="button" class="promo-launch ${canLaunch ? 'afford' : ''}" data-launch-promo="${def.id}" ${canLaunch ? '' : 'disabled'} title="${onCooldown ? 'Перезарядка' : 'Запустить акцию'}">${launchLabel}</button>
+        </span>
+      </div>
+    `
+  }).join('')
+
+  return `
+    <p class="section-label">Акции</p>
+    ${sectionPurpose('Прокачай грейд → запускай — всплеск гостей на время')}
+    <div class="promo-list">${cards}</div>
+  `
+}
+
 function renderLoungePanel(state: GameState, now: number): string {
   const traffic = guestTraffic(state)
   const cap = capacityStatus(state)
@@ -2221,10 +2736,16 @@ function renderLoungePanel(state: GameState, now: number): string {
     state.phase === 'dual'
       ? `
       <p class="section-label">Подработка</p>
-      <p class="row-sub shop-note">Задачи ниже · ускорить — «Инструменты» выше (до 4 ур.).</p>
       <div class="job-tasks" data-job-tasks>${renderJobTasksBlock(state, now)}</div>
     `
       : ''
+
+  const shelfNote =
+    mood === 'sparse' || mood === 'empty'
+      ? ' · мало вкусов — гости недовольны'
+      : mood === 'rich'
+        ? ' · богатый выбор — чаевые выше'
+        : ''
 
   const trafficBlock = `
     <div class="milestone career">
@@ -2233,13 +2754,16 @@ function renderLoungePanel(state: GameState, now: number): string {
         <span>${trafficLabel(traffic)} · ×${traffic.toFixed(2)}</span>
       </div>
       <div class="bar"><i style="width:${Math.min(100, (cap.seated / Math.max(1, cap.capacity)) * 100)}%"></i></div>
-      <p class="row-sub shop-note">Полка ${shelfN}/${shelfCap}${
-        mood === 'sparse' || mood === 'empty'
-          ? ' · мало вкусов — гости недовольны'
-          : mood === 'rich'
-            ? ' · богатый выбор — чаевые выше'
-            : ''
-      }. Управление → вкладка «Табак».</p>
+      ${
+        shelfNote
+          ? `<p class="row-sub shop-note">Полка ${shelfN}/${shelfCap}${shelfNote} · вкладка «Табак»</p>`
+          : ''
+      }
+      ${
+        activePromotionLabel(state, now)
+          ? `<p class="row-sub promo-active-note">${activePromotionLabel(state, now)}</p>`
+          : ''
+      }
     </div>
   `
   const furn = furnitureLevel(state)
@@ -2258,7 +2782,8 @@ function renderLoungePanel(state: GameState, now: number): string {
       `
     }
     const unlocked = furn >= def.needFurniture
-    const can = unlocked && state.cash >= def.cost
+    const expCost = scaledExpansionCost(state, def.cost)
+    const can = unlocked && state.cash >= expCost
     return `
       <button type="button" class="row-btn shop ${can ? 'afford' : ''} ${unlocked ? '' : 'locked'}" data-expansion="${def.id}" ${can ? '' : 'disabled'}>
         ${icon('tier_hall')}
@@ -2267,10 +2792,10 @@ function renderLoungePanel(state: GameState, now: number): string {
           <span class="row-sub">${
             unlocked
               ? `${def.blurb} · +${def.seats} мест`
-              : `Нужна мебель суммарно ур.${def.needFurniture} (сейчас ${furn})`
+              : `Нужен прогресс мебели ${def.needFurniture}+ ур. (сейчас ${furn})`
           }</span>
         </span>
-        <span class="row-meta">${formatMoney(def.cost)}</span>
+        <span class="row-meta">${formatMoney(expCost)}</span>
       </button>
     `
   }).join('')
@@ -2278,14 +2803,16 @@ function renderLoungePanel(state: GameState, now: number): string {
   const rows = UPGRADES.map((def) => {
     const unlocked = isUpgradeUnlocked(state, def)
     const level = state.owned[def.id]
-    const cost = upgradeCost(def, level)
+    const cost = scaledUpgradeCost(state, upgradeCost(def, level))
     const canBuy = unlocked && state.cash >= cost
+    const subText = unlocked ? def.blurb : upgradeUnlockHint(def, state.owned)
+    const ui = renderUpgradeGradeRow(def.id, level, subText)
     return `
       <button type="button" class="row-btn upgrade ${unlocked ? '' : 'locked'} ${canBuy ? 'afford' : ''}" data-buy="${def.id}" ${unlocked && canBuy ? '' : 'disabled'}>
         ${upgradeIcon(def.id)}
         <span class="row-main">
-          <span class="row-title">${def.name}${level ? ` · ур.${level}` : ''}</span>
-          <span class="row-sub">${unlocked ? def.blurb : upgradeUnlockHint(def, state.owned)}</span>
+          <span class="row-title">${def.name}${level ? ` · ${ui.title}` : ''}</span>
+          <span class="row-sub row-sub--grade">${level ? ui.dots : ''}<span>${subText}${level ? ` · ур.${level}` : ''}</span></span>
         </span>
         <span class="row-meta">
           ${unlocked ? formatMoney(cost) : '—'}
@@ -2299,9 +2826,10 @@ function renderLoungePanel(state: GameState, now: number): string {
   const empireHint = empireTeaser(state)
   if (state.phase === 'dual') {
     const ready = canQuitJob(state)
+    const quitNeed = quitIncomeThreshold(state)
     quit = `
       <div class="milestone">
-        <p class="row-sub">Уволиться можно, когда свой зал даёт от ${QUIT_INCOME_THRESHOLD}/сек. Сейчас: ${formatMoney(loungeIncomePerSec(state))}/с</p>
+        <p class="row-sub">Уволиться можно, когда свой зал даёт от ${quitNeed}/сек. Сейчас: ${formatMoney(loungeIncomePerSec(state))}/с</p>
         <button type="button" class="row-btn accent row-btn--solo" data-quit ${ready ? '' : 'disabled'}>
           <span class="row-main">
             <span class="row-title">Уволиться из «${getVenue(state.venueId).name}»</span>
@@ -2316,16 +2844,16 @@ function renderLoungePanel(state: GameState, now: number): string {
     <div class="list">
       ${sideJob}
       ${trafficBlock}
+      ${renderPromotionsBlock(state, now)}
       ${
         empireHint
           ? `<div class="milestone"><p class="row-sub shop-note">${empireHint}</p></div>`
           : ''
       }
       <p class="section-label">Закупка зала</p>
-      <p class="shop-note">Каждый уровень закупки добавляет пассивный доход — копится только пока игра открыта.</p>
+      ${sectionPurpose('Доход/с и места · прогресс открывает акции и расширения')}
       ${rows}
       <p class="section-label">Расширения</p>
-      <p class="shop-note">Нужен суммарный уровень мебели из закупки — больше мест и выручки.</p>
       ${expansionRows}
       ${quit}
     </div>
@@ -2345,6 +2873,16 @@ function wireLoungePanel(panel: HTMLElement, handlers: ShellHandlers): void {
     })
   })
   panel.querySelector('[data-quit]')?.addEventListener('click', () => handlers.onQuit())
+  panel.querySelectorAll('[data-upgrade-promo]').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      handlers.onUpgradePromotion((btn as HTMLElement).dataset.upgradePromo as PromotionId)
+    })
+  })
+  panel.querySelectorAll('[data-launch-promo]').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      handlers.onLaunchPromotion((btn as HTMLElement).dataset.launchPromo as PromotionId)
+    })
+  })
 }
 
 export function maybePresentCelebration(
@@ -2354,6 +2892,10 @@ export function maybePresentCelebration(
   const c = state.flags.celebration
   if (!c) return
   state.flags.celebration = null
+  if (c.kind === 'award') {
+    showGuideMastersDiploma(state.playerName, c.subtitle, onDismiss)
+    return
+  }
   showCelebration(c.title, c.subtitle, onDismiss)
   if (c.kind === 'lounge') {
     document.querySelector('.stage')?.classList.add('stage-flash')
@@ -2376,8 +2918,7 @@ export function juiceTaskReward(
 
 export function juiceLoungeOrder(root: HTMLElement, amount: number): void {
   const stage = root.querySelector('.stage') as HTMLElement | null
-  const from = (root.querySelector('[data-cta]') ??
-    root.querySelector('[data-fab-order]')) as HTMLElement | null
+  const from = root.querySelector('[data-cta]') as HTMLElement | null
   playCoinSound()
   spawnFloatCash(root, amount, from)
   pulseCashHud(root)

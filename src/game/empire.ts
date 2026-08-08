@@ -1,5 +1,6 @@
 import { BRANCHES, getBranch, type BranchDef, type BranchId } from '../data/branches'
 import type { GameState } from './state'
+import { scaledBranchCost } from './difficulty'
 
 /** Условие «основная карьера пройдена» — свой зал и полная независимость от смены */
 export function empireRequirementsMet(state: GameState): boolean {
@@ -107,10 +108,10 @@ export function openBranchCheck(
       message: prev ? `Сначала открой «${prev}»` : 'Пока закрыто',
     }
   }
-  if (state.cash < def.cost) {
+  if (state.cash < scaledBranchCost(state, def.cost)) {
     return {
       ok: false,
-      message: `Не хватает · нужно ещё ${Math.ceil(def.cost - state.cash)}`,
+      message: `Не хватает · нужно ещё ${Math.ceil(scaledBranchCost(state, def.cost) - state.cash)}`,
     }
   }
   return { ok: true }

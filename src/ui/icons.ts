@@ -4,6 +4,7 @@ import type { TobaccoId } from '../data/tobacco'
 import type { UpgradeId } from '../data/upgrades'
 import type { LoungeTierId } from '../data/loungeTiers'
 import type { StaffId } from '../data/staff'
+import type { PromotionId } from '../data/promotions'
 
 const svg = (body: string) =>
   `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">${body}</svg>`
@@ -129,6 +130,22 @@ const ICONS = {
   tobacco_ice: svg(
     '<path d="M12 3v18"/><path d="M5 7l14 10"/><path d="M19 7L5 17"/><path d="M4 12h16"/>',
   ),
+  promo_happy: svg(
+    '<circle cx="12" cy="12" r="8"/><path d="M9 10h.01"/><path d="M15 10h.01"/><path d="M9.5 15a4 4 0 0 0 5 0"/>',
+  ),
+  promo_combo: svg(
+    '<path d="M8 6h8v12H8z"/><path d="M10 6V4h4v2"/><path d="M6 10h12"/><path d="M12 10v4"/>',
+  ),
+  promo_tasting: svg(
+    '<path d="M8 4h8l-1 14H9L8 4z"/><path d="M10 18v2"/><path d="M14 18v2"/><circle cx="12" cy="9" r="2"/>',
+  ),
+  tab_telegram: svg(
+    '<path d="M21 4L3 11l7 3 3 7 8-17z"/><path d="M10 14l11-8"/>',
+  ),
+  settings: svg(
+    '<circle cx="12" cy="12" r="3"/><path d="M12 2v2"/><path d="M12 20v2"/><path d="M4.93 4.93l1.41 1.41"/><path d="M17.66 17.66l1.41 1.41"/><path d="M2 12h2"/><path d="M20 12h2"/><path d="M4.93 19.07l1.41-1.41"/><path d="M17.66 6.34l1.41-1.41"/>',
+  ),
+  close: svg('<path d="M6 6l12 12"/><path d="M18 6L6 18"/>'),
 } as const
 
 export type IconName = keyof typeof ICONS
@@ -212,6 +229,15 @@ export function staffIcon(id: StaffId): string {
     master: 'staff_master',
     bar: 'staff_bar',
     manager: 'staff_manager',
+  }
+  return icon(map[id])
+}
+
+export function promotionIcon(id: PromotionId): string {
+  const map: Record<PromotionId, IconName> = {
+    happy_hour: 'promo_happy',
+    second_hookah: 'promo_combo',
+    tasting: 'promo_tasting',
   }
   return icon(map[id])
 }

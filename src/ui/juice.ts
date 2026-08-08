@@ -1,4 +1,5 @@
 import { formatMoney } from '../game/economy'
+import { isSoundEnabled, prefersReducedMotion } from '../save/settings'
 import { revealWords } from './textReveal'
 
 let audioCtx: AudioContext | null = null
@@ -23,6 +24,7 @@ function tone(
   type: OscillatorType = 'sine',
   gain = 0.06,
 ): void {
+  if (!isSoundEnabled()) return
   const c = ctx()
   if (!c) return
   if (c.state === 'suspended') void c.resume()
@@ -58,7 +60,7 @@ export function playAchievementFanfare(): void {
 }
 
 export function burstAchievementFx(wrap: HTMLElement): void {
-  if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return
+  if (prefersReducedMotion()) return
 
   const card = wrap.querySelector('.achieve-fanfare-card') as HTMLElement | null
   const layer = wrap.querySelector('.achieve-fanfare-fx') as HTMLElement | null
@@ -94,8 +96,103 @@ export function playFanfareSound(): void {
   })
 }
 
+function playDiplomaAcceptFanfare(): void {
+  playAchievementFanfare()
+  window.setTimeout(() => playFanfareSound(), 140)
+  ;[988, 1175, 1319].forEach((f, i) => {
+    window.setTimeout(() => tone(f, 0.14, 'triangle', 0.038), 320 + i * 85)
+  })
+}
+
+function burstDiplomaAcceptFx(wrap: HTMLElement): void {
+  if (prefersReducedMotion()) return
+
+  const layer = wrap.querySelector('.guide-masters-diploma-fx') as HTMLElement | null
+  const diploma = wrap.querySelector('.guide-masters-diploma') as HTMLElement | null
+  if (!layer || !diploma) return
+
+  layer.replaceChildren()
+  const wrapRect = wrap.getBoundingClientRect()
+  const rect = diploma.getBoundingClientRect()
+  const cx = rect.left - wrapRect.left + rect.width * 0.5
+  const cy = rect.top - wrapRect.top + rect.height * 0.42
+  const colors = ['#ffd8b0', '#f09555', '#e07a3a', '#fff3e6', '#e6c49a', '#c45a28']
+
+  for (let i = 0; i < 28; i++) {
+    const p = document.createElement('span')
+    p.className = 'diploma-burst-particle'
+    const angle = (i / 28) * Math.PI * 2 + (Math.random() - 0.5) * 0.45
+    const dist = 56 + Math.random() * 120
+    p.style.left = `${cx}px`
+    p.style.top = `${cy}px`
+    p.style.setProperty('--dx', `${Math.cos(angle) * dist}px`)
+    p.style.setProperty('--dy', `${Math.sin(angle) * dist - 36}px`)
+    p.style.setProperty('--rot', `${Math.random() * 360}deg`)
+    p.style.setProperty('--delay', `${Math.random() * 120}ms`)
+    p.style.background = colors[i % colors.length]!
+    layer.appendChild(p)
+    window.setTimeout(() => p.remove(), 1100)
+  }
+}
+
+function spawnDiplomaEmbers(wrap: HTMLElement): void {
+  if (prefersReducedMotion()) return
+
+  const layer = wrap.querySelector('.guide-masters-diploma-embers') as HTMLElement | null
+  if (!layer) return
+
+  layer.replaceChildren()
+  const w = wrap.clientWidth
+
+  for (let i = 0; i < 22; i++) {
+    const ember = document.createElement('span')
+    ember.className = 'diploma-ember'
+    const x = w * (0.12 + Math.random() * 0.76)
+    ember.style.left = `${x}px`
+    ember.style.bottom = `${8 + Math.random() * 28}px`
+    ember.style.setProperty('--rise', `${120 + Math.random() * 180}px`)
+    ember.style.setProperty('--drift', `${(Math.random() - 0.5) * 80}px`)
+    ember.style.setProperty('--delay', `${Math.random() * 280}ms`)
+    ember.style.setProperty('--dur', `${900 + Math.random() * 700}ms`)
+    layer.appendChild(ember)
+    window.setTimeout(() => ember.remove(), 1800)
+  }
+
+  for (let i = 0; i < 6; i++) {
+    const flame = document.createElement('span')
+    flame.className = 'diploma-flame'
+    flame.style.left = `${w * (0.18 + i * 0.12)}px`
+    flame.style.setProperty('--delay', `${i * 60}ms`)
+    layer.appendChild(flame)
+    window.setTimeout(() => flame.remove(), 1600)
+  }
+}
+
+function spawnDiplomaCheers(wrap: HTMLElement): void {
+  if (prefersReducedMotion()) return
+
+  const layer = wrap.querySelector('.guide-masters-diploma-cheers') as HTMLElement | null
+  if (!layer) return
+
+  layer.replaceChildren()
+  const labels = ['Овации!', '👏', 'Браво!', '🔥', '✨', '👏']
+  const w = wrap.clientWidth
+  const h = wrap.clientHeight
+
+  labels.forEach((label, i) => {
+    const chip = document.createElement('span')
+    chip.className = 'diploma-cheer'
+    chip.textContent = label
+    chip.style.left = `${w * (0.1 + (i / labels.length) * 0.75)}px`
+    chip.style.top = `${h * (0.28 + (i % 3) * 0.08)}px`
+    chip.style.setProperty('--delay', `${i * 90}ms`)
+    layer.appendChild(chip)
+    window.setTimeout(() => chip.remove(), 1700)
+  })
+}
+
 export function spawnTapSparks(stage: HTMLElement, fromEl?: HTMLElement | null): void {
-  if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return
+  if (prefersReducedMotion()) return
   const anchor = fromEl ?? stage
   const rect = anchor.getBoundingClientRect()
   const stageRect = stage.getBoundingClientRect()
@@ -192,4 +289,93 @@ export function showCelebration(
   wrap.querySelector('.celebration-btn')!.addEventListener('click', close)
   wrap.querySelector('.celebration-backdrop')!.addEventListener('click', close)
   ;(wrap.querySelector('.celebration-btn') as HTMLButtonElement).focus()
+}
+
+function formatDiplomaName(playerName: string): string {
+  const trimmed = playerName.trim()
+  return (trimmed || 'Лауреат').toUpperCase()
+}
+
+export function showGuideMastersDiploma(
+  playerName: string,
+  subtitle: string,
+  onDismiss: () => void,
+): void {
+  celebrationHost?.remove()
+  const wrap = document.createElement('div')
+  wrap.className = 'celebration-fanfare guide-masters-diploma-fanfare in'
+  const sealUrl = `${import.meta.env.BASE_URL}assets/guide-masters-seal.png`
+  const displayName = formatDiplomaName(playerName)
+  wrap.innerHTML = `
+    <div class="celebration-backdrop"></div>
+    <div class="guide-masters-diploma-fx" aria-hidden="true"></div>
+    <div class="guide-masters-diploma-fire" aria-hidden="true">
+      <div class="guide-masters-diploma-fire-core"></div>
+    </div>
+    <div class="guide-masters-diploma-embers" aria-hidden="true"></div>
+    <div class="guide-masters-diploma-cheers" aria-hidden="true"></div>
+    <div class="guide-masters-diploma-stage">
+      <p class="guide-masters-diploma-kicker">Диплом обладателя премии</p>
+      <article class="guide-masters-diploma guide-masters-diploma--portrait" role="dialog" aria-modal="true" aria-label="Диплом лауреата премии Гайд Мастерс">
+        <div class="guide-masters-diploma-mat">
+          <div class="guide-masters-diploma-frame">
+            <div class="guide-masters-diploma-face">
+              <div class="guide-masters-diploma-shine" aria-hidden="true"></div>
+              <div class="guide-masters-diploma-glow" aria-hidden="true"></div>
+              <p class="guide-masters-diploma-brand">Guide<br>Master's</p>
+              <img class="guide-masters-diploma-seal" src="${sealUrl}" width="108" height="108" alt="" decoding="async" />
+              <div class="guide-masters-diploma-recipient">
+                <span class="guide-masters-diploma-chevron" aria-hidden="true">&gt;</span>
+                <p class="guide-masters-diploma-name"></p>
+              </div>
+              <p class="guide-masters-diploma-caption">Обладатель премии</p>
+            </div>
+          </div>
+        </div>
+      </article>
+      <p class="guide-masters-diploma-sub"></p>
+      <button type="button" class="celebration-btn guide-masters-diploma-btn">Принять диплом</button>
+    </div>
+  `
+  const nameEl = wrap.querySelector('.guide-masters-diploma-name') as HTMLElement
+  const subEl = wrap.querySelector('.guide-masters-diploma-sub') as HTMLElement
+  const btn = wrap.querySelector('.guide-masters-diploma-btn') as HTMLButtonElement
+  nameEl.textContent = displayName
+  subEl.textContent = subtitle
+  document.body.appendChild(wrap)
+  celebrationHost = wrap
+  document.body.classList.add('celebrate-locked')
+  playFanfareSound()
+
+  let accepting = false
+
+  const close = (): void => {
+    wrap.classList.remove('in')
+    wrap.classList.add('out')
+    window.setTimeout(() => {
+      wrap.remove()
+      if (celebrationHost === wrap) celebrationHost = null
+      document.body.classList.remove('celebrate-locked')
+      onDismiss()
+    }, 320)
+  }
+
+  const accept = (): void => {
+    if (accepting) return
+    accepting = true
+    btn.disabled = true
+    btn.textContent = 'Принято!'
+    wrap.classList.add('guide-masters-diploma-fanfare--accept')
+    playDiplomaAcceptFanfare()
+    burstDiplomaAcceptFx(wrap)
+    spawnDiplomaEmbers(wrap)
+    spawnDiplomaCheers(wrap)
+    window.setTimeout(close, 1650)
+  }
+
+  btn.addEventListener('click', accept)
+  wrap.querySelector('.celebration-backdrop')!.addEventListener('click', () => {
+    if (!accepting) close()
+  })
+  btn.focus()
 }

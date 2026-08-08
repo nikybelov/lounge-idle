@@ -11,8 +11,10 @@ let ctx: CanvasRenderingContext2D | null = null
 let resizeObserver: ResizeObserver | null = null
 let lastSceneKey = ''
 
+import { prefersReducedMotion } from '../save/settings'
+
 function reducedMotion(): boolean {
-  return window.matchMedia('(prefers-reduced-motion: reduce)').matches
+  return prefersReducedMotion()
 }
 
 function particleCount(stage: HTMLElement): number {

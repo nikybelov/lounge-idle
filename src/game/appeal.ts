@@ -1,7 +1,10 @@
 import { EXPANSIONS } from '../data/expansions'
+import { AMBASSADOR_SHELF_MULT } from '../data/ambassador'
 import { getTobacco, type TobaccoId } from '../data/tobacco'
+import { isAmbassador } from './ambassador'
 import { staffGuestBonus } from './staff'
 import { personalTrafficBonus } from './personal'
+import { promotionTrafficBonus } from './promotions'
 import type { GameState } from './state'
 
 /** Сколько позиций можно выставить на табачную полку */
@@ -36,6 +39,11 @@ export function shelfBonuses(state: GameState): {
     guest += t.guestBonus
     tip += t.tipBonus
     income += t.incomeBonus
+    if (isAmbassador(state, id)) {
+      guest += t.guestBonus * (AMBASSADOR_SHELF_MULT - 1)
+      tip += t.tipBonus * (AMBASSADOR_SHELF_MULT - 1)
+      income += t.incomeBonus * (AMBASSADOR_SHELF_MULT - 1)
+    }
   }
   return { guest, tip, income }
 }
@@ -120,7 +128,7 @@ export function seatedGuests(state: GameState): number {
 export function guestTraffic(state: GameState, now = Date.now()): number {
   if (state.phase === 'employed') return 1
   const seated = seatedGuests(state)
-  const mult = 0.35 + seated * 0.09 + staffGuestBonus(state) + personalTrafficBonus(state, now)
+  const mult = 0.35 + seated * 0.09 + staffGuestBonus(state) + personalTrafficBonus(state, now) + promotionTrafficBonus(state, now)
   return Math.max(0.22, Math.min(3.2, mult))
 }
 

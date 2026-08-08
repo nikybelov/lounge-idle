@@ -15,6 +15,8 @@ export type TobaccoId =
 export interface TobaccoDef {
   id: TobaccoId
   name: string
+  /** Вымышленный бренд — для контракта амбассадора */
+  brand: string
   blurb: string
   /** Цена заказа на склад */
   cost: number
@@ -30,6 +32,7 @@ export const TOBACCOS: TobaccoDef[] = [
   {
     id: 'dawn_apple',
     name: 'Рассветное яблоко',
+    brand: 'Рассветные сады',
     blurb: 'Базовый вкус — с него начинают полку',
     cost: 35,
     guestBonus: 0.35,
@@ -39,6 +42,7 @@ export const TOBACCOS: TobaccoDef[] = [
   {
     id: 'mint_fog',
     name: 'Мятный туман',
+    brand: 'Туман & Мята',
     blurb: 'Освежает — гости задерживаются',
     cost: 90,
     guestBonus: 0.45,
@@ -48,6 +52,7 @@ export const TOBACCOS: TobaccoDef[] = [
   {
     id: 'berry_night',
     name: 'Ягодная ночь',
+    brand: 'Ночной ягодник',
     blurb: 'Сладкий акцент на вечер',
     cost: 220,
     guestBonus: 0.55,
@@ -57,6 +62,7 @@ export const TOBACCOS: TobaccoDef[] = [
   {
     id: 'citrus_lane',
     name: 'Цитрусовый ряд',
+    brand: 'Цитрус-картель',
     blurb: 'Кислинка — чаще берут вторую миску',
     cost: 380,
     guestBonus: 0.5,
@@ -66,6 +72,7 @@ export const TOBACCOS: TobaccoDef[] = [
   {
     id: 'grape_dock',
     name: 'Виноградная пристань',
+    brand: 'Пристань вкусов',
     blurb: 'Плотный вкус под диваны',
     cost: 650,
     guestBonus: 0.7,
@@ -75,6 +82,7 @@ export const TOBACCOS: TobaccoDef[] = [
   {
     id: 'peach_ember',
     name: 'Персиковый жар',
+    brand: 'Персиковый дом',
     blurb: 'Тёплый профиль — выше чек',
     cost: 950,
     guestBonus: 0.6,
@@ -84,6 +92,7 @@ export const TOBACCOS: TobaccoDef[] = [
   {
     id: 'pine_breeze',
     name: 'Хвойный бриз',
+    brand: 'Хвойный кодекс',
     blurb: 'Необычный — цепляет любопытных',
     cost: 1400,
     guestBonus: 0.85,
@@ -93,6 +102,7 @@ export const TOBACCOS: TobaccoDef[] = [
   {
     id: 'honey_dune',
     name: 'Медовая дюна',
+    brand: 'Медовые дюны',
     blurb: 'Мягкий премиум для постоянных',
     cost: 2100,
     guestBonus: 0.75,
@@ -102,6 +112,7 @@ export const TOBACCOS: TobaccoDef[] = [
   {
     id: 'melon_shift',
     name: 'Дынная смена',
+    brand: 'Дынная лига',
     blurb: 'Летний хит — тянет толпу',
     cost: 3200,
     guestBonus: 1.1,
@@ -111,6 +122,7 @@ export const TOBACCOS: TobaccoDef[] = [
   {
     id: 'double_ice',
     name: 'Двойной лёд',
+    brand: 'Двойной лёд Co.',
     blurb: 'Подпись заведения — жирные чаевые',
     cost: 4800,
     guestBonus: 0.9,

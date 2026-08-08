@@ -1,7 +1,6 @@
-import { BRANCHES } from './branches'
 import { achievementProgress } from './achievements'
 import { branchCount } from '../game/empire'
-import { isBlogger, minChannelGearLevel } from './personal'
+import { minChannelGearLevel } from './personal'
 import { rankDef, rankIndex } from './ranks'
 import type { GameState } from '../game/state'
 
@@ -18,70 +17,6 @@ export type CareerMilestoneId =
   | 'blogger'
   | 'rank_master'
   | 'rank_senior'
-
-export interface CareerMilestoneDef {
-  id: CareerMilestoneId
-  title: string
-  blurb: string
-  check: (state: GameState) => boolean
-}
-
-export const CAREER_MILESTONES: CareerMilestoneDef[] = [
-  {
-    id: 'open_lounge',
-    title: 'Свой зал',
-    blurb: 'Открыл собственный лаунж',
-    check: (s) => s.phase !== 'employed',
-  },
-  {
-    id: 'dual_worker',
-    title: 'Трудяга',
-    blurb: 'Свой зал + первая смена',
-    check: (s) => s.phase === 'dual',
-  },
-  {
-    id: 'own_boss',
-    title: 'Сам себе хозяин',
-    blurb: 'Уволился — только свой бизнес',
-    check: (s) => s.phase === 'ownOnly',
-  },
-  {
-    id: 'signature_hall',
-    title: 'Авторский зал',
-    blurb: 'Топовый тариф лаунжа',
-    check: (s) => s.loungeTier === 'signature',
-  },
-  {
-    id: 'empire_start',
-    title: 'Сеть',
-    blurb: 'Первый филиал',
-    check: (s) => branchCount(s) >= 1,
-  },
-  {
-    id: 'full_network',
-    title: 'Вся сеть',
-    blurb: 'Все точки открыты',
-    check: (s) => branchCount(s) >= BRANCHES.length,
-  },
-  {
-    id: 'blogger',
-    title: 'Блогер',
-    blurb: 'Запустил «Дымной дневник»',
-    check: (s) => isBlogger(s.personal.channelLevel),
-  },
-  {
-    id: 'rank_master',
-    title: 'Кальянный мастер',
-    blurb: 'Первое повышение на смене',
-    check: (s) => rankIndex(s.jobRank) >= 1,
-  },
-  {
-    id: 'rank_senior',
-    title: 'Старший мастер',
-    blurb: 'Верхняя должность на смене',
-    check: (s) => s.jobRank === 'senior',
-  },
-]
 
 export interface CareerScorePart {
   label: string

@@ -12,7 +12,7 @@ export interface UpgradeDef {
   unlockAtOwned?: Partial<Record<UpgradeId, number>>
 }
 
-export const COST_GROWTH = 1.15
+export const COST_GROWTH = 1.17
 
 export const UPGRADES: UpgradeDef[] = [
   {
@@ -62,3 +62,12 @@ export const UPGRADES: UpgradeDef[] = [
 ]
 
 export const BASE_LOUNGE_CLICK = 2
+
+/** Названия этапов прокачки — каждые 5 уровней новый этап в UI */
+export const UPGRADE_MILESTONE_NAMES: Record<UpgradeId, string[]> = {
+  table: ['Стартовый', 'Уютный', 'Живой зал', 'Популярный', 'Легенда'],
+  sofa: ['Первый', 'Мягкий', 'Премиум', 'Культовый', 'Икона зала'],
+  menu: ['Уголок', 'Витрина', 'Коллекция', 'Бутик', 'Храм вкусов'],
+  hood: ['Черновик', 'Чистый воздух', 'Комфорт', 'Премиум', 'Идеал'],
+  vip: ['Ниша', 'Кабинет', 'Лаунж', 'Резиденция', 'Империя'],
+}

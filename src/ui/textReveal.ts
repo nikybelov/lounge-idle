@@ -1,9 +1,11 @@
 /** Staggered word reveal (no GSAP). Respects reduced motion. */
+import { prefersReducedMotion } from '../save/settings'
+
 export function revealWords(el: HTMLElement, staggerMs = 70): void {
   const text = (el.textContent ?? '').trim()
   if (!text) return
 
-  if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return
+  if (prefersReducedMotion()) return
 
   el.textContent = ''
   el.classList.add('word-reveal')

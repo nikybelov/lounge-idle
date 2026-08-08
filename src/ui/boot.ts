@@ -1,5 +1,6 @@
 import { VENUES, type VenueId } from '../data/venues'
-import { bootStartCoach, bootVenueCoach } from '../game/guide'
+import { DIFFICULTIES } from '../data/difficulty'
+import { bootDifficultyCoach, bootStartCoach, bootVenueCoach } from '../game/guide'
 import {
   animateFireLoad,
   renderLoadingScreen,
@@ -18,7 +19,7 @@ export interface BootResult {
 
 const RECOMMENDED_VENUE: VenueId = 'smoke_river'
 
-type BootGuidePhase = 'venue' | 'start' | 'done'
+type BootGuidePhase = 'difficulty' | 'venue' | 'start' | 'done'
 
 function wireNameContract(
   root: HTMLElement,
@@ -70,7 +71,7 @@ export function runBoot(root: HTMLElement): Promise<BootResult> {
     let step: BootStep = 'loading'
     let playerName = ''
     let selected: VenueId = RECOMMENDED_VENUE
-    let bootGuidePhase: BootGuidePhase = 'venue'
+    let bootGuidePhase: BootGuidePhase = 'difficulty'
     let loadingStarted = false
     let bootFinished = false
 
@@ -101,6 +102,20 @@ export function runBoot(root: HTMLElement): Promise<BootResult> {
 
     const showBootGuides = (): void => {
       if (bootFinished || step !== 'venue' || bootGuidePhase === 'done') return
+
+      if (bootGuidePhase === 'difficulty') {
+        presentStandaloneCoach(
+          root,
+          bootDifficultyCoach(playerName),
+          () => {
+            bootGuidePhase = 'venue'
+            updateVenueUi()
+            showBootGuides()
+          },
+          'boot-difficulty',
+        )
+        return
+      }
 
       if (bootGuidePhase === 'venue') {
         presentStandaloneCoach(
@@ -149,7 +164,7 @@ export function runBoot(root: HTMLElement): Promise<BootResult> {
         wireNameContract(root, (name) => {
           playerName = name
           step = 'venue'
-          bootGuidePhase = 'venue'
+          bootGuidePhase = 'difficulty'
           paint()
         })
         return
@@ -158,17 +173,19 @@ export function runBoot(root: HTMLElement): Promise<BootResult> {
       const list = VENUES.map((v) => {
         const active = selected === v.id
         const rec = v.id === RECOMMENDED_VENUE
+        const diff = DIFFICULTIES[v.difficulty]
         return `
           <button type="button" class="boot-venue ${active ? 'active' : ''}" data-venue="${v.id}">
             <span class="boot-venue-top">
               <span class="boot-venue-name">${v.name}${rec ? ' <em class="boot-rec">старт</em>' : ''}</span>
               <span class="boot-venue-vibe">${v.vibe}</span>
             </span>
+            <span class="boot-venue-diff boot-venue-diff--${v.difficulty}">${diff.label}</span>
             <span class="boot-venue-blurb">${v.blurb}</span>
             <span class="boot-venue-stats">
               <span title="Сколько платят за задачу">оплата ×${v.payMult}</span>
               <span title="Как быстро откатываются задачи">темп ×${v.cooldownMult}</span>
-              <span title="Цены инструментов на смене">шоп ×${v.shopPriceMult}</span>
+              <span title="Цены инструментов на смене (от сложности)">инструменты ×${DIFFICULTIES[v.difficulty].shiftShopCost}</span>
             </span>
           </button>
         `
@@ -177,8 +194,8 @@ export function runBoot(root: HTMLElement): Promise<BootResult> {
       root.innerHTML = `
         <div class="boot boot--venue">
           <div class="boot-card boot-wide">
-            <p class="boot-brand">Куда устроиться?</p>
-            <p class="boot-sub">Привет, ${escapeHtml(playerName)}. Смена — стартовый капитал на <strong>свой лаунж</strong>.</p>
+            <p class="boot-brand">Сложность и заведение</p>
+            <p class="boot-sub">Привет, ${escapeHtml(playerName)}. Заведение = <strong>сложность</strong> прохождения: оплата на смене, цены зала и сети.</p>
             <div class="boot-venues" data-list>${list}</div>
             <button type="button" class="boot-cta" data-start disabled>Начать смену здесь</button>
           </div>

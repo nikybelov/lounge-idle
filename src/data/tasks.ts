@@ -17,23 +17,23 @@ export const JOB_TASKS: JobTask[] = [
     id: 'wash',
     label: 'Помой кальян',
     hint: 'С этого начинается смена',
-    pay: 3,
-    cooldownMs: 1500,
+    pay: 2.5,
+    cooldownMs: 1600,
   },
   {
     id: 'coals',
     label: 'Поменяй угли',
     hint: 'Жар без суеты',
-    pay: 5,
-    cooldownMs: 1900,
+    pay: 4,
+    cooldownMs: 2000,
     unlockAfter: { task: 'wash', count: 8 },
   },
   {
     id: 'order',
     label: 'Отнеси заказ',
     hint: 'Стол ждёт',
-    pay: 7,
-    cooldownMs: 2300,
+    pay: 6,
+    cooldownMs: 2400,
     unlockAfter: { task: 'coals', count: 8 },
   },
 ]
@@ -42,10 +42,10 @@ export const JOB_TASKS: JobTask[] = [
  * Минимальная планка «накопил на угол» (самый дешёвый тариф зала).
  * Реальная цена зависит от выбранного тарифа при открытии.
  */
-export const OPEN_LOUNGE_COST = 9000
+export const OPEN_LOUNGE_COST = 10_500
 
 /** Свой /sec должен быть не ниже этого, чтобы уволиться */
-export const QUIT_INCOME_THRESHOLD = 6
+export const QUIT_INCOME_THRESHOLD = 9
 
 /** Ниже этого cash — мягкий сигнал вернуться на смену */
 export const BROKE_THRESHOLD = 12

@@ -1,10 +1,12 @@
-import { cheapestLoungeTier } from './loungeTiers'
 import { branchCount } from '../game/empire'
 import { hiredStaffCount, staffRolesFilled } from '../game/staff'
 import { STAFF_ROLES } from './staff'
-import { SHOP_ITEMS, shopItemsMaxedCount, shopItemsOwnedCount, shopLevel, BARE_HANDS_WASH_NEED } from './shop'
+import { SHOP_ITEMS, shopItemsMaxedCount, shopItemsOwnedCount, BARE_HANDS_WASH_NEED } from './shop'
+import type { DifficultyId } from './difficulty'
 import type { GameState } from '../game/state'
 import { loungeIncomePerSec } from '../game/economy'
+import { ambassadorCount } from '../game/ambassador'
+import { achievementRewardCash } from '../game/difficulty'
 
 export type AchievementId =
   | 'first_wash'
@@ -34,12 +36,26 @@ export type AchievementId =
   | 'first_hire'
   | 'full_team'
   | 'payroll_master'
+  | 'brand_ambassador'
+  | 'path_easy'
+  | 'path_normal'
+  | 'path_hard'
+  | 'easy_quit'
+  | 'easy_branch'
+  | 'normal_dual'
+  | 'normal_income'
+  | 'hard_quit'
+  | 'hard_patience'
+  | 'hard_bare'
+  | 'iron_empire'
 
 export interface AchievementDef {
   id: AchievementId
   title: string
   hint: string
   reward: number
+  /** Только на выбранной сложности */
+  difficulty?: DifficultyId
   check: (state: GameState) => boolean
 }
 
@@ -108,9 +124,9 @@ export const ACHIEVEMENTS: AchievementDef[] = [
   {
     id: 'bare_hands',
     title: 'Голыми руками',
-    hint: `Сделай «Помой кальян» ${BARE_HANDS_WASH_NEED} раз, ни разу не покупая шуруповёрт`,
+    hint: `Сделай «Помой кальян» ${BARE_HANDS_WASH_NEED} раз до покупки шуруповёрта`,
     reward: 900,
-    check: (s) => s.taskDone.wash >= BARE_HANDS_WASH_NEED && shopLevel(s.shopOwned, 'drill_brush') === 0,
+    check: (s) => s.flags.bareHandsEarned,
   },
   {
     id: 'first_tool',
@@ -129,10 +145,9 @@ export const ACHIEVEMENTS: AchievementDef[] = [
   {
     id: 'loyal_pockets',
     title: 'Копил дольше нужного',
-    hint: `Набери ${cheapestLoungeTier().cost + 3000}+ на смене, ещё не открывая угол`,
+    hint: 'Накопи на смене лишнее до открытия своего зала',
     reward: 1200,
-    check: (s) =>
-      s.phase === 'employed' && s.cash >= cheapestLoungeTier().cost + 3000,
+    check: (s) => s.flags.loyalPockets,
   },
   {
     id: 'open_corner',
@@ -146,7 +161,7 @@ export const ACHIEVEMENTS: AchievementDef[] = [
     title: 'Трудяга',
     hint: 'Открой свой зал и не увольняйся с первой смены',
     reward: 1500,
-    check: (s) => s.phase === 'dual',
+    check: (s) => s.flags.hadDualPhase || s.phase === 'dual',
   },
   {
     id: 'back_shift',
@@ -240,15 +255,134 @@ export const ACHIEVEMENTS: AchievementDef[] = [
     check: (s) =>
       hiredStaffCount(s) >= 3 && loungeIncomePerSec(s) >= 8,
   },
+  {
+    id: 'brand_ambassador',
+    title: 'Амбассадор',
+    hint: 'Стань амбассадором бренда',
+    reward: 2500,
+    check: (s) => ambassadorCount(s) >= 1,
+  },
+  {
+    id: 'path_easy',
+    title: 'Неоновый старт',
+    hint: 'На лёгком: открой свой зал',
+    reward: 2000,
+    difficulty: 'easy',
+    check: (s) => s.phase !== 'employed' && s.difficulty === 'easy',
+  },
+  {
+    id: 'easy_quit',
+    title: 'Золотой уход',
+    hint: 'На лёгком: уволься со смены — только свой лаунж',
+    reward: 2500,
+    difficulty: 'easy',
+    check: (s) => s.difficulty === 'easy' && s.phase === 'ownOnly',
+  },
+  {
+    id: 'easy_branch',
+    title: 'Неоновая сеть',
+    hint: 'На лёгком: открой первый филиал',
+    reward: 3000,
+    difficulty: 'easy',
+    check: (s) => s.difficulty === 'easy' && branchCount(s) >= 1,
+  },
+  {
+    id: 'path_normal',
+    title: 'Дым у реки',
+    hint: 'На среднем: открой свой зал',
+    reward: 2000,
+    difficulty: 'normal',
+    check: (s) => s.phase !== 'employed' && s.difficulty === 'normal',
+  },
+  {
+    id: 'normal_dual',
+    title: 'Две жизни',
+    hint: 'На среднем: открой зал и не увольняйся с первой смены',
+    reward: 2200,
+    difficulty: 'normal',
+    check: (s) =>
+      s.difficulty === 'normal' && (s.flags.hadDualPhase || s.phase === 'dual'),
+  },
+  {
+    id: 'normal_income',
+    title: 'Река денег',
+    hint: 'На среднем: свой доход ≥12/с',
+    reward: 3500,
+    difficulty: 'normal',
+    check: (s) =>
+      s.difficulty === 'normal' &&
+      s.phase !== 'employed' &&
+      loungeIncomePerSec(s) >= 12,
+  },
+  {
+    id: 'path_hard',
+    title: 'Подвал и упрямство',
+    hint: 'На сложном: открой свой зал',
+    reward: 3500,
+    difficulty: 'hard',
+    check: (s) => s.phase !== 'employed' && s.difficulty === 'hard',
+  },
+  {
+    id: 'hard_patience',
+    title: 'Железная копилка',
+    hint: 'На сложном: накопи лишнее на смене до открытия зала',
+    reward: 4000,
+    difficulty: 'hard',
+    check: (s) => s.difficulty === 'hard' && s.flags.loyalPockets,
+  },
+  {
+    id: 'hard_bare',
+    title: 'Подвал без щётки',
+    hint: `На сложном: ${BARE_HANDS_WASH_NEED} моек без шуруповёрта`,
+    reward: 5000,
+    difficulty: 'hard',
+    check: (s) => s.difficulty === 'hard' && s.flags.bareHandsEarned,
+  },
+  {
+    id: 'hard_quit',
+    title: 'Подвал позади',
+    hint: 'На сложном: уволься со смены — только свой лаунж',
+    reward: 4500,
+    difficulty: 'hard',
+    check: (s) => s.difficulty === 'hard' && s.phase === 'ownOnly',
+  },
+  {
+    id: 'iron_empire',
+    title: 'Железная империя',
+    hint: 'На сложном: открой три+ филиала сети',
+    reward: 8000,
+    difficulty: 'hard',
+    check: (s) => s.difficulty === 'hard' && branchCount(s) >= 3,
+  },
 ]
+
+export function isAchievementUnlocked(
+  state: GameState,
+  id: AchievementId,
+): boolean {
+  return state.achievements[id] === true
+}
+
+/** Разблокировать один раз — повторно не вызывать награду и баннер */
+export function markAchievementUnlocked(
+  state: GameState,
+  id: AchievementId,
+): boolean {
+  if (isAchievementUnlocked(state, id)) return false
+  state.achievements[id] = true
+  return true
+}
 
 export function evaluateAchievements(state: GameState): AchievementDef[] {
   const unlocked: AchievementDef[] = []
   for (const def of ACHIEVEMENTS) {
-    if (state.achievements[def.id]) continue
+    if (isAchievementUnlocked(state, def.id)) continue
+    if (def.difficulty && state.difficulty && state.difficulty !== def.difficulty) {
+      continue
+    }
     if (!def.check(state)) continue
-    state.achievements[def.id] = true
-    state.cash += def.reward
+    if (!markAchievementUnlocked(state, def.id)) continue
+    state.cash += achievementRewardCash(state, def.reward)
     unlocked.push(def)
   }
   return unlocked
@@ -256,6 +390,10 @@ export function evaluateAchievements(state: GameState): AchievementDef[] {
 
 export function achievementProgress(state: GameState): { done: number; total: number } {
   const total = ACHIEVEMENTS.length
-  const done = ACHIEVEMENTS.filter((a) => state.achievements[a.id]).length
+  const done = ACHIEVEMENTS.filter((a) => isAchievementUnlocked(state, a.id)).length
   return { done, total }
+}
+
+export function achievementDifficultyOnly(def: AchievementDef, state: GameState): boolean {
+  return !!def.difficulty && state.difficulty !== def.difficulty && !isAchievementUnlocked(state, def.id)
 }

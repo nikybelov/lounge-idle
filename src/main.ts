@@ -35,9 +35,18 @@ import {
   shootPersonalVideo,
   startPersonalChannel,
   upgradeChannelGear,
+  createTelegramChannel,
+  upgradeTelegramChannel,
+  upgradeTelegramToolkit,
+  postTelegram,
 } from './game/personal'
 import { canBrowseEmpire, syncEmpireUnlock } from './game/empire'
+import { breakAmbassadorContract, signAmbassador } from './game/ambassador'
+import { difficultyFromVenue } from './data/difficulty'
 import { evaluateAchievements } from './data/achievements'
+import { showMascotConfirm } from './ui/mascot'
+import { loadLifetimeTrophies, persistLifetimeTrophies } from './save/trophies'
+import { syncProgressFlags } from './game/progressFlags'
 import { rankDef } from './data/ranks'
 import { JOB_TASKS } from './data/tasks'
 import { taskPay } from './data/shop'
@@ -50,7 +59,7 @@ import {
   consumePersonalIntroHint,
   applyBootGuideToState,
 } from './game/guide'
-import { syncCareerMilestones, tickWorkDays } from './game/workDays'
+import { tickWorkDays } from './game/workDays'
 import { archiveCareerRun, encodeCareerShare, decodeCareerShare } from './save/leaderboard'
 import { createInitialState, type GameState } from './game/state'
 import {
@@ -59,8 +68,12 @@ import {
   resetSave,
   saveState,
 } from './save/storage'
+import { applySettings, loadSettings } from './save/settings'
 import { formatMoney } from './game/economy'
 import { runBoot } from './ui/boot'
+import { openSettingsPanel } from './ui/settingsPanel'
+import { launchPromotion, upgradePromotion } from './game/promotions'
+import type { PromotionId } from './data/promotions'
 import {
   mountShell,
   renderShell,
@@ -71,6 +84,8 @@ import {
   updatePersonalCooldowns,
   maybePresentCelebration,
   flushAchievementQueue,
+  syncAchievementFanfareSeen,
+  resetAchievementFanfareSeen,
   juiceTaskReward,
   juiceLoungeOrder,
   juicePurchase,
@@ -101,6 +116,8 @@ import type { VenueId } from './data/venues'
 const rootEl = document.querySelector<HTMLElement>('#app')
 if (!rootEl) throw new Error('#app missing')
 const root = rootEl
+
+loadSettings()
 
 let state: GameState = loadState()
 let menuTab: MenuTab = 'story'
@@ -295,6 +312,69 @@ const handlers = {
     juicePurchase(root)
     afterAction()
   },
+  onUpgradePromotion(id: PromotionId) {
+    const res = upgradePromotion(state, id)
+    if (!res.ok && res.message) showToast(root, res.message)
+    if (!res.ok) return
+    if (res.message) showToast(root, res.message)
+    juicePurchase(root)
+    afterAction()
+  },
+  onLaunchPromotion(id: PromotionId) {
+    const res = launchPromotion(state, id, Date.now())
+    if (!res.ok && res.message) showToast(root, res.message)
+    if (!res.ok) return
+    if (res.message) showToast(root, res.message)
+    juicePurchase(root)
+    afterAction()
+  },
+  onCreateTelegram() {
+    const res = createTelegramChannel(state)
+    if (!res.ok && res.message) showToast(root, res.message)
+    if (!res.ok) return
+    if (res.message) showToast(root, res.message)
+    juicePurchase(root)
+    afterAction()
+  },
+  onUpgradeTelegram() {
+    const res = upgradeTelegramChannel(state)
+    if (!res.ok && res.message) showToast(root, res.message)
+    if (!res.ok) return
+    if (res.message) showToast(root, res.message)
+    juicePurchase(root)
+    afterAction()
+  },
+  onUpgradeTelegramToolkit(id: Parameters<typeof upgradeTelegramToolkit>[1]) {
+    const res = upgradeTelegramToolkit(state, id)
+    if (!res.ok && res.message) showToast(root, res.message)
+    if (!res.ok) return
+    if (res.message) showToast(root, res.message)
+    juicePurchase(root)
+    afterAction()
+  },
+  onPostTelegram() {
+    const res = postTelegram(state, Date.now())
+    if (!res.ok && res.message) showToast(root, res.message)
+    if (!res.ok) return
+    if (res.message) showToast(root, res.message)
+    juicePurchase(root)
+    afterAction()
+  },
+  onSignAmbassador(id: TobaccoId) {
+    const res = signAmbassador(state, id)
+    if (!res.ok && res.message) showToast(root, res.message)
+    if (!res.ok) return
+    if (res.message) showToast(root, res.message)
+    juicePurchase(root)
+    afterAction()
+  },
+  onBreakAmbassador(id: TobaccoId) {
+    const res = breakAmbassadorContract(state, id)
+    if (!res.ok && res.message) showToast(root, res.message)
+    if (!res.ok) return
+    if (res.message) showToast(root, res.message)
+    afterAction()
+  },
   onEnterAward() {
     const res = enterGuideMastersAward(state, Date.now())
     if (!res.ok && res.message) showToast(root, res.message)
@@ -308,7 +388,7 @@ const handlers = {
       if (!canBrowseLoungeOffer(state)) {
         showToast(
           root,
-          `Накопи ${Math.ceil(minOpenLoungeCost() - state.cash)} до вкладки «Свой зал»`,
+          `Накопи ${Math.ceil(minOpenLoungeCost(state) - state.cash)} до вкладки «Свой зал»`,
         )
         return
       }
@@ -361,22 +441,7 @@ const handlers = {
     saveState(state)
   },
   onReset() {
-    dismissGuideCoach(root)
-    const archived = archiveCareerRun(state)
-    resetSave()
-    state = createInitialState()
-    menuTab = 'story'
-    gameStarted = false
-    sessionStorage.setItem('lounge-idle-admin', '0')
-    const url = new URL(location.href)
-    url.searchParams.delete('boot')
-    url.searchParams.delete('preview')
-    url.searchParams.set('admin', '0')
-    history.replaceState(null, '', url.pathname + url.search + url.hash)
-    if (archived) {
-      showToast(root, `Карьера в зале славы · ${archived.score} очков · день ${archived.workDays}`)
-    }
-    void startFromBoot()
+    void confirmAndResetCareer()
   },
   onShareCareer() {
     const code = encodeCareerShare(state)
@@ -404,10 +469,23 @@ const handlers = {
     setCareerCompareCard(null)
     paint()
   },
+  onOpenSettings() {
+    openSettingsPanel(root, () => {
+      applySettings(root)
+      dismissGuideCoach(root)
+      paint()
+    })
+  },
+}
+
+function onAchievementsUnlocked(unlocked: ReturnType<typeof evaluateAchievements>): void {
+  if (!unlocked.length) return
+  saveState(state)
+  announceAchievements(root, state, menuTab, unlocked)
 }
 
 function afterAction(): void {
-  syncCareerMilestones(state)
+  syncProgressFlags(state)
   const offerWasLocked = !state.flags.loungeOfferUnlocked
   syncLoungeOfferUnlock(state)
   const empireWasLocked = !state.flags.empireOfferUnlocked
@@ -452,7 +530,7 @@ function afterAction(): void {
     paint()
     flushAchievementQueue(root, state, menuTab)
   })
-  if (unlocked.length) announceAchievements(root, state, menuTab, unlocked)
+  if (unlocked.length) onAchievementsUnlocked(unlocked)
   else flushAchievementQueue(root, state, menuTab)
   scheduleSave(state)
 }
@@ -484,7 +562,6 @@ function frame(ts: number): void {
     tickIncome(state, dt)
     tickWorkDays(state, dt)
   }
-  syncCareerMilestones(state)
   updateHud(root, state)
   if (state.phase !== 'employed') {
     const shelfHint = maybeShelfFeedback(state)
@@ -500,9 +577,8 @@ function frame(ts: number): void {
   }
   const unlocked = evaluateAchievements(state)
   if (unlocked.length) {
-    announceAchievements(root, state, menuTab, unlocked)
+    onAchievementsUnlocked(unlocked)
     if (menuTab === 'career') paint()
-    scheduleSave(state)
   }
   scheduleSave(state)
   requestAnimationFrame(frame)
@@ -511,8 +587,9 @@ function frame(ts: number): void {
 function beginGame(): void {
   dismissGuideCoach(root)
   gameStarted = true
-  syncCareerMilestones(state)
+  syncAchievementFanfareSeen(state)
   mountShell(root, handlers)
+  applySettings(root)
   initUiPolish(root)
   if (admin) {
     mountAdminPanel(document.body, {
@@ -544,6 +621,7 @@ function beginGame(): void {
       },
       onSetVenue(id: VenueId) {
         state.venueId = id
+        state.difficulty = difficultyFromVenue(id)
         showToast(root, 'Admin: сменено заведение')
         paint()
         scheduleSave(state)
@@ -559,13 +637,45 @@ function beginGame(): void {
   }
 }
 
-async function startFromBoot(): Promise<void> {
+async function confirmAndResetCareer(): Promise<void> {
+  const ok = await showMascotConfirm(root, {
+    title: 'Начать заново?',
+    body: 'Сбросятся имя, заведение и весь прогресс смены и зала. Собранные трофеи останутся в коллекции.',
+    confirmCta: 'Да, сбросить',
+    cancelCta: 'Нет, остаюсь',
+    pose: 'point',
+  })
+  if (!ok) return
+
+  dismissGuideCoach(root)
+  resetAchievementFanfareSeen()
+  persistLifetimeTrophies(state)
+  const keptTrophies = loadLifetimeTrophies()
+  const archived = archiveCareerRun(state)
+  resetSave()
+  menuTab = 'story'
+  gameStarted = false
+  sessionStorage.setItem('lounge-idle-admin', '0')
+  const url = new URL(location.href)
+  url.searchParams.delete('boot')
+  url.searchParams.delete('preview')
+  url.searchParams.set('admin', '0')
+  history.replaceState(null, '', url.pathname + url.search + url.hash)
+  if (archived) {
+    showToast(root, `Карьера в зале славы · ${archived.score} очков · день ${archived.workDays}`)
+  }
+  await startFromBoot(keptTrophies)
+}
+
+async function startFromBoot(preservedTrophies?: GameState['achievements']): Promise<void> {
   const boot = await runBoot(root)
   dismissGuideCoach(root)
   state = createInitialState()
+  state.achievements = { ...(preservedTrophies ?? loadLifetimeTrophies()) }
   state.onboarded = true
   state.playerName = boot.playerName
   state.venueId = boot.venueId
+  state.difficulty = difficultyFromVenue(boot.venueId)
   state.loungeName = `Угол ${boot.playerName}`
   applyBootGuideToState(state, boot.venueGuideDone)
   saveState(state)
@@ -587,10 +697,10 @@ async function bootApp(): Promise<void> {
     params.set('admin', '0')
     const clean = params.toString()
     history.replaceState(null, '', location.pathname + (clean ? `?${clean}` : '') + location.hash)
+    persistLifetimeTrophies(state)
     resetSave()
-    state = createInitialState()
     gameStarted = false
-    await startFromBoot()
+    await startFromBoot(loadLifetimeTrophies())
     requestAnimationFrame(frame)
     return
   }

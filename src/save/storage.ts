@@ -1,8 +1,16 @@
+import type { AchievementId } from '../data/achievements'
+import { normalizeAmbassadorOf } from '../game/ambassador'
 import { createInitialState, type GameState } from '../game/state'
 import { normalizeVenueId } from '../data/venues'
+import { difficultyFromVenue } from '../data/difficulty'
 import type { TobaccoId } from '../data/tobacco'
 import { SHOP_ITEMS, type ShopItemId } from '../data/shop'
 import { STAFF_ROLES, type StaffId } from '../data/staff'
+import {
+  applyLifetimeTrophies,
+  persistLifetimeTrophies,
+  seedLifetimeTrophiesFromSave,
+} from './trophies'
 
 const KEY = 'lounge-idle-save-v1'
 
@@ -10,6 +18,18 @@ type LegacySave = Partial<GameState> & {
   menuSlots?: (TobaccoId | null)[]
   staff?: Partial<Record<StaffId, number>>
   staffCount?: Partial<Record<StaffId, number>>
+}
+
+function migrateAchievements(
+  raw: Partial<Record<AchievementId, boolean | number>> | undefined,
+): GameState['achievements'] {
+  const out: GameState['achievements'] = {}
+  if (!raw) return out
+  for (const id of Object.keys(raw) as AchievementId[]) {
+    const v = raw[id]
+    if (v === true || (typeof v === 'number' && v > 0)) out[id] = true
+  }
+  return out
 }
 
 function migrateShopOwned(
@@ -23,6 +43,42 @@ function migrateShopOwned(
     else if (typeof v === 'number') out[item.id] = v
   }
   return out
+}
+
+function migrateChannelGearLevel(level: number, oldMax: number): number {
+  if (level <= 0) return 0
+  if (oldMax <= 8) return Math.min(8, level)
+  return Math.min(8, Math.ceil((level / oldMax) * 8))
+}
+
+function migrateChannelGear(
+  raw: Partial<{ camera: number; montage: number; branding: number }> | undefined,
+  base: GameState['personal']['channelGear'],
+): GameState['personal']['channelGear'] {
+  const merged = { ...base, ...raw }
+  return {
+    camera: migrateChannelGearLevel(merged.camera, 15),
+    montage: migrateChannelGearLevel(merged.montage, 12),
+    branding: migrateChannelGearLevel(merged.branding, 12),
+  }
+}
+
+function migrateTelegramToolkitLevel(level: number, oldMax: number): number {
+  if (level <= 0) return 0
+  if (oldMax <= 4) return Math.min(4, level)
+  return Math.min(4, Math.ceil((level / oldMax) * 4))
+}
+
+function migrateTelegramToolkit(
+  raw: Partial<{ content: number; visual: number; reach: number }> | undefined,
+  base: GameState['personal']['telegramToolkit'],
+): GameState['personal']['telegramToolkit'] {
+  const merged = { ...base, ...raw }
+  return {
+    content: migrateTelegramToolkitLevel(merged.content, 12),
+    visual: migrateTelegramToolkitLevel(merged.visual, 12),
+    reach: migrateTelegramToolkitLevel(merged.reach, 15),
+  }
 }
 
 function migrateStaffMembers(
@@ -75,16 +131,33 @@ export function loadState(): GameState {
       shopOwned: migrateShopOwned(parsed.shopOwned, base.shopOwned),
       taskReadyAt: { ...base.taskReadyAt, ...parsed.taskReadyAt },
       taskDone: { ...base.taskDone, ...parsed.taskDone },
-      achievements: { ...base.achievements, ...parsed.achievements },
+      achievements: migrateAchievements(parsed.achievements),
       ownedTobacco: { ...base.ownedTobacco, ...parsed.ownedTobacco },
       shelfActive,
       expansions: { ...base.expansions, ...parsed.expansions },
       branches: { ...base.branches, ...parsed.branches },
       staffMembers: migrateStaffMembers(parsed, base.staffMembers),
-      personal: { ...base.personal, ...parsed.personal, channelGear: {
-        ...base.personal.channelGear,
-        ...parsed.personal?.channelGear,
-      } },
+      personal: { ...base.personal, ...parsed.personal,       channelGear: migrateChannelGear(parsed.personal?.channelGear, base.personal.channelGear),
+      telegramGrade: parsed.personal?.telegramGrade ?? 0,
+      telegramPosts: parsed.personal?.telegramPosts ?? 0,
+      telegramPostReadyAt: parsed.personal?.telegramPostReadyAt ?? 0,
+      videoBoostUntil: parsed.personal?.videoBoostUntil ?? 0,
+      videoBoostAmount: parsed.personal?.videoBoostAmount ?? 0,
+      videoPromoReadyUntil: parsed.personal?.videoPromoReadyUntil ?? 0,
+      telegramBoostUntil: parsed.personal?.telegramBoostUntil ?? 0,
+      telegramBoostAmount: parsed.personal?.telegramBoostAmount ?? 0,
+      telegramToolkit: migrateTelegramToolkit(parsed.personal?.telegramToolkit, base.personal.telegramToolkit),
+      ambassadorOf: normalizeAmbassadorOf({
+        ...base.personal.ambassadorOf,
+        ...parsed.personal?.ambassadorOf,
+      }),
+      },
+      promotions: {
+        ...base.promotions,
+        ...parsed.promotions,
+        grades: { ...base.promotions.grades, ...parsed.promotions?.grades },
+        readyAt: { ...base.promotions.readyAt, ...parsed.promotions?.readyAt },
+      },
       career: {
         ...base.career,
         ...parsed.career,
@@ -100,6 +173,13 @@ export function loadState(): GameState {
         shelfEmptyWarned: parsed.flags?.shelfEmptyWarned ?? false,
         empireOfferUnlocked: parsed.flags?.empireOfferUnlocked ?? false,
         payrollWarned: parsed.flags?.payrollWarned ?? false,
+        hadDualPhase:
+          parsed.flags?.hadDualPhase ??
+          (parsed.phase === 'dual' || parsed.phase === 'ownOnly'),
+        loyalPockets:
+          parsed.flags?.loyalPockets ?? parsed.achievements?.loyal_pockets === true,
+        bareHandsEarned:
+          parsed.flags?.bareHandsEarned ?? parsed.achievements?.bare_hands === true,
         guideStep: parsed.flags?.guideStep ?? (hasProgress ? 'done' : 'pick_venue'),
         guideAckedIndex:
           parsed.flags?.guideAckedIndex ??
@@ -129,17 +209,29 @@ export function loadState(): GameState {
         : hasProgress
           ? 'smoke_river'
           : null,
+      difficulty:
+        parsed.difficulty ??
+        (parsed.venueId || hasProgress
+          ? difficultyFromVenue(
+              parsed.venueId ? normalizeVenueId(parsed.venueId) : 'smoke_river',
+            )
+          : null),
       v: 1,
     }
 
+    seedLifetimeTrophiesFromSave(merged.achievements)
+    applyLifetimeTrophies(merged)
     return merged
   } catch {
-    return createInitialState()
+    const base = createInitialState()
+    applyLifetimeTrophies(base)
+    return base
   }
 }
 
 export function saveState(state: GameState): void {
   state.lastActive = Date.now()
+  persistLifetimeTrophies(state)
   localStorage.setItem(KEY, JSON.stringify(state))
 }
 

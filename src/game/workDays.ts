@@ -1,9 +1,7 @@
 import {
-  CAREER_MILESTONES,
   SECONDS_PER_WORK_DAY,
   displayWorkDay,
   workDayProgressRatio,
-  type CareerMilestoneId,
 } from '../data/careerTrack'
 import type { GameState } from './state'
 
@@ -20,20 +18,6 @@ export function tickWorkDays(state: GameState, dtSec: number): boolean {
     advanced = true
   }
   return advanced
-}
-
-/** Записывает день, когда впервые достигнута веха */
-export function syncCareerMilestones(state: GameState): CareerMilestoneId[] {
-  if (!state.onboarded) return []
-  const day = displayWorkDay(state.career.workDays)
-  const fresh: CareerMilestoneId[] = []
-  for (const def of CAREER_MILESTONES) {
-    if (state.career.milestones[def.id]) continue
-    if (!def.check(state)) continue
-    state.career.milestones[def.id] = day
-    fresh.push(def.id)
-  }
-  return fresh
 }
 
 export function workDayHudLine(state: GameState): string {

@@ -1,20 +1,24 @@
 import { isMusicEnabled } from '../save/settings'
 import { getAudioContext, resumeAudioContext } from './juice'
 
+/** D-minor pentatonic — короткие «лаунж»-ноты, без подложки */
+const NOTES = [293.66, 329.63, 392.0, 440.0, 523.25, 587.33, 659.25]
+
 let master: GainNode | null = null
 let running = false
-let nodes: AudioScheduledSourceNode[] = []
+let melodyTimer: ReturnType<typeof setTimeout> | null = null
+let percTimer: ReturnType<typeof setTimeout> | null = null
+let beat = 0
 
-function stopNodes(): void {
-  for (const n of nodes) {
-    try {
-      n.stop()
-    } catch {
-      /* already stopped */
-    }
-    n.disconnect()
+function clearTimers(): void {
+  if (melodyTimer !== null) {
+    window.clearTimeout(melodyTimer)
+    melodyTimer = null
   }
-  nodes = []
+  if (percTimer !== null) {
+    window.clearTimeout(percTimer)
+    percTimer = null
+  }
 }
 
 function fadeMaster(to: number, sec: number): void {
@@ -27,7 +31,90 @@ function fadeMaster(to: number, sec: number): void {
   master.gain.linearRampToValueAtTime(to, t + sec)
 }
 
-/** Процедурный lounge-эмбиент — без файлов и авторских прав */
+function pickNote(): number {
+  const base = NOTES[Math.floor(Math.random() * NOTES.length)]!
+  const octave = Math.random() < 0.22 ? 0.5 : Math.random() < 0.12 ? 2 : 1
+  return base * octave
+}
+
+/** Короткий pluck — как далёкое фортепiano в лаунже */
+function playPluck(freq: number, gain = 0.045): void {
+  const c = getAudioContext()
+  if (!c || !master) return
+  const t = c.currentTime
+
+  const osc = c.createOscillator()
+  const env = c.createGain()
+  const filter = c.createBiquadFilter()
+
+  osc.type = 'triangle'
+  osc.frequency.setValueAtTime(freq * 1.002, t)
+  osc.frequency.exponentialRampToValueAtTime(freq * 0.998, t + 1.6)
+
+  filter.type = 'lowpass'
+  filter.frequency.setValueAtTime(Math.min(2400, freq * 3.2), t)
+  filter.frequency.exponentialRampToValueAtTime(Math.max(420, freq * 1.1), t + 1.8)
+  filter.Q.value = 0.7
+
+  env.gain.setValueAtTime(0.0001, t)
+  env.gain.linearRampToValueAtTime(gain, t + 0.018)
+  env.gain.exponentialRampToValueAtTime(0.0001, t + 2.4)
+
+  osc.connect(filter)
+  filter.connect(env)
+  env.connect(master)
+
+  osc.start(t)
+  osc.stop(t + 2.5)
+}
+
+/** Мягкий «shaker» — короткий шум, не постоянная подложка */
+function playShaker(gain = 0.018): void {
+  const c = getAudioContext()
+  if (!c || !master) return
+  const t = c.currentTime
+  const len = Math.floor(c.sampleRate * 0.055)
+  const buf = c.createBuffer(1, len, c.sampleRate)
+  const data = buf.getChannelData(0)
+  for (let i = 0; i < len; i++) {
+    const env = 1 - i / len
+    data[i] = (Math.random() * 2 - 1) * env * env
+  }
+
+  const src = c.createBufferSource()
+  src.buffer = buf
+  const band = c.createBiquadFilter()
+  band.type = 'bandpass'
+  band.frequency.value = 5200 + Math.random() * 1800
+  band.Q.value = 0.85
+  const env = c.createGain()
+  env.gain.setValueAtTime(gain, t)
+  env.gain.exponentialRampToValueAtTime(0.0001, t + 0.05)
+
+  src.connect(band)
+  band.connect(env)
+  env.connect(master)
+  src.start(t)
+  src.stop(t + 0.06)
+}
+
+function scheduleMelody(): void {
+  if (!running) return
+  playPluck(pickNote(), 0.032 + Math.random() * 0.022)
+  melodyTimer = window.setTimeout(scheduleMelody, 2400 + Math.random() * 4200)
+}
+
+function schedulePerc(): void {
+  if (!running) return
+  beat += 1
+  // Ленивый bossa-ритм: не каждый удар, без гула
+  if (beat % 2 === 1 || Math.random() > 0.35) {
+    playShaker(beat % 4 === 0 ? 0.022 : 0.014)
+  }
+  percTimer = window.setTimeout(schedulePerc, 480 + Math.random() * 120)
+}
+
+/** Процедурный lounge — редкие ноты и перкуссия, без дронов */
 export function syncAmbientMusic(): void {
   if (!isMusicEnabled()) {
     stopAmbientMusic()
@@ -43,75 +130,29 @@ export function startAmbientMusic(): void {
   resumeAudioContext()
   if (running) return
 
-  stopNodes()
+  clearTimers()
+  beat = 0
+
   master = c.createGain()
   master.gain.value = 0
   master.connect(c.destination)
 
-  const filter = c.createBiquadFilter()
-  filter.type = 'lowpass'
-  filter.frequency.value = 720
-  filter.Q.value = 0.6
-  filter.connect(master)
-
-  const lfo = c.createOscillator()
-  const lfoGain = c.createGain()
-  lfo.frequency.value = 0.045
-  lfoGain.gain.value = 180
-  lfo.connect(lfoGain)
-  lfoGain.connect(filter.frequency)
-  lfo.start()
-  nodes.push(lfo)
-
-  const droneMix = c.createGain()
-  droneMix.gain.value = 0.11
-  droneMix.connect(filter)
-
-  for (const freq of [110, 164.81, 220]) {
-    const osc = c.createOscillator()
-    const g = c.createGain()
-    osc.type = 'sine'
-    osc.frequency.value = freq
-    osc.detune.value = (freq - 110) * 0.4
-    g.gain.value = freq === 110 ? 1 : freq === 164.81 ? 0.55 : 0.28
-    osc.connect(g)
-    g.connect(droneMix)
-    osc.start()
-    nodes.push(osc)
-  }
-
-  const bufferSize = 2 * c.sampleRate
-  const noiseBuffer = c.createBuffer(1, bufferSize, c.sampleRate)
-  const data = noiseBuffer.getChannelData(0)
-  let last = 0
-  for (let i = 0; i < bufferSize; i++) {
-    const white = Math.random() * 2 - 1
-    last = (last + 0.02 * white) / 1.02
-    data[i] = last * 3.5
-  }
-  const noise = c.createBufferSource()
-  noise.buffer = noiseBuffer
-  noise.loop = true
-  const noiseGain = c.createGain()
-  noiseGain.gain.value = 0.035
-  noise.connect(noiseGain)
-  noiseGain.connect(filter)
-  noise.start()
-  nodes.push(noise)
-
   running = true
-  fadeMaster(0.085, 2.4)
+  fadeMaster(0.95, 1.8)
+
+  melodyTimer = window.setTimeout(scheduleMelody, 800 + Math.random() * 1200)
+  percTimer = window.setTimeout(schedulePerc, 400)
 }
 
 export function stopAmbientMusic(): void {
   if (!running) return
-  fadeMaster(0, 0.8)
+  running = false
+  clearTimers()
+  fadeMaster(0, 0.6)
   window.setTimeout(() => {
-    stopNodes()
     master?.disconnect()
     master = null
-    running = false
-  }, 900)
+  }, 700)
 }
 
 document.addEventListener('visibilitychange', () => {

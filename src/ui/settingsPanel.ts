@@ -37,7 +37,7 @@ function settingsHtml(settings: GameSettings): string {
           <label class="settings-row settings-row--nested">
             <span class="settings-row__copy">
               <span class="settings-row__label">Музыка</span>
-              <span class="settings-row__hint">Тихий lounge-эмбиент · без треков</span>
+              <span class="settings-row__hint">Редкие ноты и тихий ритм · без дронов</span>
             </span>
             <input type="checkbox" class="settings-toggle" data-setting="music" ${settings.music ? 'checked' : ''} />
           </label>

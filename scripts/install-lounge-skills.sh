@@ -36,7 +36,12 @@ WHITELIST=(
   audit-verify-explain-grade-5
   # Designer workflow & assets
   html-to-interaction-prompts
+  iterate-until-verified
   unsplash-asset-images
+)
+
+EXTERNAL=(
+  fixing-motion-performance
 )
 
 CORE=(
@@ -77,8 +82,35 @@ for name in "${WHITELIST[@]}"; do
   installed=$((installed + 1))
 done
 
+external_installed=0
+external_skipped=0
+for name in "${EXTERNAL[@]}"; do
+  target="${DEST}/${name}"
+  if [ -f "${target}/SKILL.md" ]; then
+    external_skipped=$((external_skipped + 1))
+    continue
+  fi
+  case "${name}" in
+    fixing-motion-performance)
+      tmp="${DEST}/_sources/ui-skills"
+      if [ ! -d "${tmp}/.git" ]; then
+        rm -rf "${tmp}"
+        git clone --depth 1 https://github.com/ibelick/ui-skills.git "${tmp}"
+      else
+        git -C "${tmp}" pull --ff-only
+      fi
+      cp -R "${tmp}/skills/${name}" "${target}"
+      external_installed=$((external_installed + 1))
+      ;;
+    *)
+      echo "WARN: no external installer for: ${name}"
+      ;;
+  esac
+done
+
 echo ""
 echo "Whitelist: ${installed} installed, ${skipped} already present, ${missing} missing."
+echo "External: ${external_installed} installed, ${external_skipped} already present."
 echo ""
 echo "Core game skills:"
 

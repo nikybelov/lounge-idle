@@ -70,14 +70,18 @@
 
 .motion-paused .haze,
 .motion-paused .embers,
-.motion-paused .stage-fx {
+.motion-paused .stage-fx,
+.motion-paused .boot-load-haze,
+.motion-paused .boot-venue-haze {
   animation-play-state: paused !important;
   opacity: 0.35;
 }
 
 @media (prefers-reduced-motion: reduce) {
   .haze,
-  .embers {
+  .embers,
+  .boot-load-haze,
+  .boot-venue-haze {
     animation: none !important;
   }
 
@@ -103,7 +107,9 @@
   .boot-venue-head,
   .boot-venues .boot-venue,
   .boot-venue-start,
-  .mascot-welcome-overlay {
+  .mascot-welcome-overlay,
+  .guide-coach-spot,
+  .goal-strip.guide-pulse {
     animation: none !important;
   }
 }
@@ -493,13 +499,24 @@ body {
 }
 
 .stage[data-scene='lounge'] {
-  min-height: 196px;
-  max-height: 228px;
+  min-height: 172px;
+  max-height: 196px;
 }
 
 .stage[data-scene='lounge'][data-has-cta='1'] {
-  min-height: 212px;
-  max-height: 248px;
+  min-height: 188px;
+  max-height: 212px;
+}
+
+/* Свой зал (live SVG): компактнее — название + трафик, без «пустого» воздуха */
+.stage[data-scene='lounge'][data-lounge-live='1']:not([data-has-cta='1']) {
+  min-height: clamp(128px, 20dvh, 158px);
+  max-height: clamp(142px, 22dvh, 168px);
+}
+
+.stage[data-scene='lounge'][data-lounge-live='1'][data-has-cta='1'] {
+  min-height: clamp(164px, 25dvh, 188px);
+  max-height: clamp(178px, 27dvh, 204px);
 }
 
 .stage[data-scene='lounge']::after {
@@ -670,9 +687,52 @@ body {
   animation: none;
 }
 
+.settings-motion-reduce .boot-load-haze,
+.settings-motion-reduce .boot-venue-haze,
+.settings-motion-reduce .guide-coach-spot,
+.settings-motion-reduce .goal-strip.guide-pulse {
+  animation: none !important;
+}
+
 .stage[data-scene='lounge'] .stage-copy {
   max-width: 56%;
   margin-left: auto;
+}
+
+.stage[data-scene='lounge'][data-lounge-live='1']:not([data-has-cta='1']) .stage-copy {
+  min-height: 0;
+  max-width: 52%;
+  padding: 8px var(--pad-x) 10px;
+}
+
+.stage[data-scene='lounge'][data-lounge-live='1']:not([data-has-cta='1']) .stage-art {
+  top: 6px;
+  width: min(48%, 200px);
+}
+
+.stage[data-scene='lounge'][data-lounge-live='1'] .brand {
+  overflow-wrap: anywhere;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow: hidden;
+}
+
+.stage[data-scene='lounge'][data-lounge-live='1']:not([data-has-cta='1']) .brand {
+  font-size: clamp(1.2rem, 5vw, 1.55rem);
+  line-height: 1.06;
+}
+
+.stage[data-scene='lounge'][data-lounge-live='1']:not([data-has-cta='1']) .tagline {
+  margin-top: 3px;
+  font-size: 0.7rem;
+  line-height: 1.3;
+}
+
+.stage[data-scene='lounge'][data-lounge-live='1']:not([data-has-cta='1']) .stage-live-badge {
+  top: 6px;
+  font-size: 0.58rem;
+  padding: 3px 8px;
 }
 
 .stage[data-scene='lounge'][data-has-cta='1'] .stage-copy {
@@ -2596,6 +2656,18 @@ body.achieve-locked {
   }
   100% {
     box-shadow: 0 0 0 16px rgba(224, 122, 58, 0);
+  }
+}
+
+@media (max-height: 700px) {
+  .stage[data-scene='lounge'][data-lounge-live='1']:not([data-has-cta='1']) {
+    min-height: clamp(118px, 18dvh, 148px);
+    max-height: clamp(132px, 20dvh, 158px);
+  }
+
+  .stage[data-scene='lounge'][data-lounge-live='1'][data-has-cta='1'] {
+    min-height: clamp(152px, 23dvh, 176px);
+    max-height: clamp(166px, 25dvh, 192px);
   }
 }
 
@@ -4663,6 +4735,18 @@ body.achieve-locked {
   pointer-events: none;
 }
 
+.guide-coach-dim {
+  position: fixed;
+  inset: 0;
+  z-index: 10050;
+  background: rgba(8, 6, 4, 0.78);
+  pointer-events: auto;
+}
+
+.guide-coach-dim[hidden] {
+  display: none !important;
+}
+
 .guide-coach[hidden] {
   display: none !important;
 }
@@ -4672,7 +4756,7 @@ body.achieve-locked {
 }
 
 .guide-coach.visible {
-  pointer-events: auto;
+  pointer-events: none;
 }
 
 .guide-coach.enter .guide-coach-card {
@@ -4697,24 +4781,26 @@ body.achieve-locked {
   position: fixed;
   z-index: 10051;
   border-radius: var(--radius-sm);
+  pointer-events: none;
   box-shadow:
-    0 0 0 9999px rgba(8, 6, 4, 0.78),
     0 0 0 2px var(--ember-bright),
     0 0 28px rgba(224, 122, 58, 0.35);
-  transition: all 0.28s cubic-bezier(0.22, 1, 0.36, 1);
-  animation: guide-spot-pulse 2.2s ease-in-out infinite;
+  transition:
+    left 0.28s cubic-bezier(0.22, 1, 0.36, 1),
+    top 0.28s cubic-bezier(0.22, 1, 0.36, 1),
+    width 0.28s cubic-bezier(0.22, 1, 0.36, 1),
+    height 0.28s cubic-bezier(0.22, 1, 0.36, 1);
+  animation: guide-spot-glow 2.2s ease-in-out infinite;
 }
 
-@keyframes guide-spot-pulse {
+@keyframes guide-spot-glow {
   0%, 100% {
     box-shadow:
-      0 0 0 9999px rgba(8, 6, 4, 0.78),
       0 0 0 2px var(--ember-bright),
       0 0 20px rgba(224, 122, 58, 0.25);
   }
   50% {
     box-shadow:
-      0 0 0 9999px rgba(8, 6, 4, 0.78),
       0 0 0 2px var(--ember-bright),
       0 0 36px rgba(224, 122, 58, 0.45);
   }
@@ -4752,6 +4838,7 @@ body.achieve-locked {
 .guide-coach-card {
   position: fixed;
   z-index: 10054;
+  pointer-events: auto;
   padding: 14px 14px 12px;
   border-radius: var(--radius);
   background: linear-gradient(165deg, rgba(42, 32, 24, 0.98), var(--card));

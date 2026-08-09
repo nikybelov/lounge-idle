@@ -23,7 +23,8 @@ Read matching `SKILL.md` from disk **before** implementing. Use **only** skills 
 | Boot, contract, modals | `design-first-ui-prompting`, `animation-on-scroll`, `high-contrast-skeuomorphic-clean`, `progressive-blur` |
 | Stage mood, background | `atmosphere-background`, `dither-background`, `ambient-section-particles`, `reveal-hover-effect` |
 | Celebrations, rank-up copy | `staggered-word-reveal`, `animation-systems` |
-| Tap juice, motion, perf | `animation-systems`, `optimize-web-animations`, `marquee-loop` |
+| Tap juice, motion, perf | `animation-systems`, `optimize-web-animations`, `marquee-loop`, `fixing-motion-performance` |
+| Polish sprints, QA gates | `iterate-until-verified` |
 | Sound | `build-game-audio-feedback` |
 | Design refs → code (Никита) | `html-to-interaction-prompts` |
 | Placeholder art / textures | `unsplash-asset-images` |

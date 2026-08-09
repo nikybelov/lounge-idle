@@ -32,6 +32,7 @@ function ensureHost(): HTMLElement {
   el.className = 'guide-coach'
   el.hidden = true
   el.innerHTML = `
+    <div class="guide-coach-dim" data-dim aria-hidden="true"></div>
     <div class="guide-coach-spot" data-spot aria-hidden="true"></div>
     <div class="guide-coach-arrow" data-arrow aria-hidden="true"></div>
     <div class="guide-coach-card" data-card>
@@ -271,6 +272,23 @@ function positionMascotChoreo(
   paintMascotLayout(wrap, fallback, true)
 }
 
+function updateCoachDim(wrap: HTMLElement, hole: DOMRect | null): void {
+  const dim = wrap.querySelector('[data-dim]') as HTMLElement | null
+  if (!dim) return
+  dim.hidden = false
+  if (!hole) {
+    dim.style.clipPath = ''
+    return
+  }
+  const x1 = Math.max(0, hole.left)
+  const y1 = Math.max(0, hole.top)
+  const x2 = Math.min(window.innerWidth, hole.right)
+  const y2 = Math.min(window.innerHeight, hole.bottom)
+  const vw = window.innerWidth
+  const vh = window.innerHeight
+  dim.style.clipPath = `path(evenodd, 'M0 0 H${vw} V${vh} H0 Z M${x1} ${y1} H${x2} V${y2} H${x1} Z')`
+}
+
 function placeSpotlight(
   wrap: HTMLElement,
   target: HTMLElement | null,
@@ -281,6 +299,7 @@ function placeSpotlight(
   const card = wrap.querySelector('[data-card]') as HTMLElement
 
   if (!target) {
+    updateCoachDim(wrap, null)
     spot.hidden = true
     positionCardNearTarget(card, arrow, null)
     positionMascotChoreo(wrap, stepKey, card.getBoundingClientRect())
@@ -301,11 +320,14 @@ function placeSpotlight(
     ? new DOMRect(r.left, r.top, r.width, r.height + GOAL_PEEK_GAP)
     : r
 
+  const hole = new DOMRect(r.left - padX, r.top - padY, r.width + padX * 2, r.height + padY * 2)
+  updateCoachDim(wrap, hole)
+
   spot.hidden = false
-  spot.style.left = `${r.left - padX}px`
-  spot.style.top = `${r.top - padY}px`
-  spot.style.width = `${r.width + padX * 2}px`
-  spot.style.height = `${r.height + padY * 2}px`
+  spot.style.left = `${hole.left}px`
+  spot.style.top = `${hole.top}px`
+  spot.style.width = `${hole.width}px`
+  spot.style.height = `${hole.height}px`
 
   positionCardNearTarget(card, arrow, goalTarget ? cardAnchor : r)
   positionMascotChoreo(
@@ -424,6 +446,11 @@ export function dismissGuideCoach(root?: HTMLElement): void {
   const mascot = host.querySelector('[data-mascot]') as HTMLElement | null
   if (mascot) mascot.hidden = true
   host.classList.remove('visible', 'enter', 'positioned')
+  const dim = host.querySelector('[data-dim]') as HTMLElement | null
+  if (dim) {
+    dim.hidden = true
+    dim.style.clipPath = ''
+  }
   host.hidden = true
   activeStep = null
   onAckCallback = null

@@ -1,5 +1,6 @@
 import { formatMoney } from '../game/economy'
 import { isSoundEnabled, prefersReducedMotion } from '../save/settings'
+import { syncAmbientMusic } from './ambientMusic'
 import { revealWords } from './textReveal'
 
 let audioCtx: AudioContext | null = null
@@ -25,7 +26,7 @@ export function primeAudio(): void {
   if (!c || audioReady) return
   resumeAudioContext()
   audioReady = true
-  import('./ambientMusic').then(({ syncAmbientMusic }) => syncAmbientMusic())
+  syncAmbientMusic()
 }
 
 function tone(

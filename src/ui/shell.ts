@@ -1124,12 +1124,12 @@ export function renderShell(
       title: 'Дни, очки карьеры, трофеи и сравнение',
     }),
     state.phase === 'employed'
-      ? menuTabButton('own', 'Свой', menuTab === 'own', {
+      ? menuTabButton('own', 'Свой лаунж', menuTab === 'own', {
           extraClass: ownReady ? 'ready' : 'locked',
           locked: !ownReady,
           title: ownReady
-            ? 'Выбор своего зала'
-            : `Накопи ${formatMoney(minOpenLoungeCost(state))}`,
+            ? 'Выбор своего лаунжа'
+            : `Накопи ${formatMoney(minOpenLoungeCost(state))} на свой лаунж`,
         })
       : '',
   ]

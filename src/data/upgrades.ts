@@ -20,7 +20,7 @@ export const UPGRADES: UpgradeDef[] = [
     name: 'Стол у входа',
     blurb: 'Больше посадочных — выше поток гостей',
     baseCost: 15,
-    incomePerLevel: 0.12,
+    incomePerLevel: 0.5,
     clickPerLevel: 0.5,
   },
   {
@@ -28,7 +28,7 @@ export const UPGRADES: UpgradeDef[] = [
     name: 'Диван в зале',
     blurb: 'Садятся дольше — платят чаще',
     baseCost: 100,
-    incomePerLevel: 1,
+    incomePerLevel: 1.15,
     clickPerLevel: 1,
     unlockAtOwned: { table: 3 },
   },
@@ -37,7 +37,7 @@ export const UPGRADES: UpgradeDef[] = [
     name: 'Стеллаж для полки',
     blurb: 'Больше мест на табачной полке',
     baseCost: 500,
-    incomePerLevel: 2.5,
+    incomePerLevel: 2.2,
     clickPerLevel: 8,
     unlockAtOwned: { sofa: 2 },
   },
@@ -46,7 +46,7 @@ export const UPGRADES: UpgradeDef[] = [
     name: 'Вытяжка',
     blurb: 'Комфортнее сидеть — гости не уходят рано',
     baseCost: 3000,
-    incomePerLevel: 8,
+    incomePerLevel: 5.5,
     clickPerLevel: 3,
     unlockAtOwned: { menu: 1 },
   },
@@ -55,11 +55,14 @@ export const UPGRADES: UpgradeDef[] = [
     name: 'VIP-угол',
     blurb: 'Тише, дороже, свой свет',
     baseCost: 12000,
-    incomePerLevel: 40,
+    incomePerLevel: 28,
     clickPerLevel: 10,
     unlockAtOwned: { hood: 1 },
   },
 ]
+
+/** Базовый пассив при непустой полке (столы без табака не кормят) */
+export const BASE_LOUNGE_PASSIVE = 0.45
 
 export const BASE_LOUNGE_CLICK = 2
 

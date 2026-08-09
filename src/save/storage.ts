@@ -1,6 +1,8 @@
-import type { AchievementId } from '../data/achievements'
+import { normalizeAchievementId } from '../data/achievements'
 import { normalizeAmbassadorOf } from '../game/ambassador'
 import { createInitialState, type GameState } from '../game/state'
+import { normalizeJobRank } from '../data/ranks'
+import { getLoungeTier } from '../data/loungeTiers'
 import { normalizeVenueId } from '../data/venues'
 import { difficultyFromVenue } from '../data/difficulty'
 import type { TobaccoId } from '../data/tobacco'
@@ -21,12 +23,14 @@ type LegacySave = Partial<GameState> & {
 }
 
 function migrateAchievements(
-  raw: Partial<Record<AchievementId, boolean | number>> | undefined,
+  raw: Partial<Record<string, boolean | number>> | undefined,
 ): GameState['achievements'] {
   const out: GameState['achievements'] = {}
   if (!raw) return out
-  for (const id of Object.keys(raw) as AchievementId[]) {
-    const v = raw[id]
+  for (const key of Object.keys(raw)) {
+    const id = normalizeAchievementId(key)
+    if (!id) continue
+    const v = raw[key]
     if (v === true || (typeof v === 'number' && v > 0)) out[id] = true
   }
   return out
@@ -180,6 +184,16 @@ export function loadState(): GameState {
           parsed.flags?.loyalPockets ?? parsed.achievements?.loyal_pockets === true,
         bareHandsEarned:
           parsed.flags?.bareHandsEarned ?? parsed.achievements?.bare_hands === true,
+        tasksAfterLounge: parsed.flags?.tasksAfterLounge ?? 0,
+        tobaccoBought: parsed.flags?.tobaccoBought ?? false,
+        everHired:
+          parsed.flags?.everHired ??
+          Object.values(parsed.staffMembers ?? {}).some(
+            (m) => Array.isArray(m) && m.length > 0,
+          ) ??
+          Object.values(parsed.staff ?? {}).some((g) => (g ?? 0) > 0),
+        firstHireRole: parsed.flags?.firstHireRole ?? null,
+        promoLaunched: { ...(parsed.flags?.promoLaunched ?? {}) },
         guideStep: parsed.flags?.guideStep ?? (hasProgress ? 'done' : 'pick_venue'),
         guideAckedIndex:
           parsed.flags?.guideAckedIndex ??
@@ -187,6 +201,7 @@ export function loadState(): GameState {
         coalsDualHintSeen:
           parsed.flags?.coalsDualHintSeen ??
           (hasProgress && (parsed.taskDone?.wash ?? 0) >= 8),
+        tobaccoSetupPending: parsed.flags?.tobaccoSetupPending ?? false,
         personalIntroPending: parsed.flags?.personalIntroPending ?? false,
         milestoneHints: {
           guide_done: parsed.flags?.milestoneHints?.guide_done ?? false,
@@ -231,7 +246,7 @@ export function loadState(): GameState {
       loungeTier: parsed.loungeTier ?? null,
       loungeIncomeMult: parsed.loungeIncomeMult ?? 1,
       loungeClickMult: parsed.loungeClickMult ?? 1,
-      jobRank: parsed.jobRank ?? base.jobRank,
+      jobRank: normalizeJobRank(parsed.jobRank ?? base.jobRank),
       onboarded: parsed.onboarded ?? hasProgress,
       playerName: parsed.playerName || (hasProgress ? 'Игрок' : ''),
       venueId: parsed.venueId
@@ -251,6 +266,10 @@ export function loadState(): GameState {
 
     seedLifetimeTrophiesFromSave(merged.achievements)
     applyLifetimeTrophies(merged)
+    // Название зала = тариф (старые сейвы «Уголок · Nikita» и т.п.)
+    if (merged.loungeTier && merged.phase !== 'employed') {
+      merged.loungeName = getLoungeTier(merged.loungeTier).name
+    }
     return merged
   } catch {
     const base = createInitialState()

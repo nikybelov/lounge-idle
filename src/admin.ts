@@ -82,8 +82,9 @@ export function adminForceLounge(state: GameState, tierId: LoungeTierId): void {
   state.loungeTier = tier.id
   state.loungeIncomeMult = tier.incomeMult
   state.loungeClickMult = tier.clickMult
-  state.loungeName = `[ADMIN] ${tier.name}`
+  state.loungeName = tier.name
   state.flags.personalIntroPending = true
+  state.flags.tobaccoSetupPending = true
   adminUnlockAll(state)
 }
 

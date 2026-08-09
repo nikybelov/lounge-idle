@@ -17,7 +17,6 @@ import {
   getDifficulty,
   resolveDifficulty,
 } from '../game/difficulty'
-import { DIFFICULTIES } from '../data/difficulty'
 import {
   branchCount,
   canBrowseEmpire,
@@ -72,7 +71,12 @@ import {
   taskPay,
   type ShopItemId,
 } from '../data/shop'
-import { nextRank, promoteProgress, rankDef } from '../data/ranks'
+import {
+  nextRank,
+  promoteProgress,
+  promoteProgressRatio,
+  rankDef,
+} from '../data/ranks'
 import { getVenue } from '../data/venues'
 import { LOUNGE_TIERS, tierShopBonusLabel, type LoungeTierId } from '../data/loungeTiers'
 import { BRANCHES, type BranchId } from '../data/branches'
@@ -147,10 +151,15 @@ import {
 import { EXPANSIONS, type ExpansionId } from '../data/expansions'
 import {
   ACHIEVEMENTS,
-  achievementDifficultyOnly,
   achievementProgress,
+  achievementProgressLabel,
+  achievementTierProgress,
+  achievementsByTier,
   isAchievementUnlocked,
+  TROPHY_TIER_LABEL,
+  TROPHY_TIERS,
   type AchievementDef,
+  type TrophyTier,
 } from '../data/achievements'
 import {
   SECONDS_PER_WORK_DAY,
@@ -236,6 +245,21 @@ import {
 
 function cashHudLabel(state: GameState): string {
   return state.scene === 'job' ? 'Касса' : 'Выручка'
+}
+
+function escapeHtml(value: string): string {
+  return value
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+}
+
+const VENUE_SIGN_CLASSES = ['sign--basement', 'sign--smoke_river', 'sign--neon_haze'] as const
+const LOUNGE_SIGN_CLASSES = ['sign--nook', 'sign--hall', 'sign--signature'] as const
+
+function clearSignClasses(brand: HTMLElement): void {
+  brand.classList.remove('sign', ...VENUE_SIGN_CLASSES, ...LOUNGE_SIGN_CLASSES)
 }
 
 /** Одна строка «зачем» под заголовком секции — только если секция неочевидна */
@@ -640,7 +664,6 @@ export function mountShell(root: HTMLElement, handlers: ShellHandlers): void {
       <main class="stage">
         <div class="stage-bg" aria-hidden="true"></div>
         <div class="stage-frame" aria-hidden="true"></div>
-        <span class="stage-live-badge" data-stage-badge hidden>Живой зал</span>
         <div class="haze" aria-hidden="true"></div>
         <div class="embers" aria-hidden="true"></div>
         ${stageSceneArt()}
@@ -697,7 +720,28 @@ export function mountShell(root: HTMLElement, handlers: ShellHandlers): void {
     handlers.onOgonokTip()
   })
 
+  const panelBody = root.querySelector('[data-panel]') as HTMLElement | null
+  panelBody?.addEventListener('scroll', () => syncPanelScrollFades(root), {
+    passive: true,
+  })
+  syncPanelScrollFades(root)
+
   ensureAchieveFanfare()
+}
+
+function syncPanelScrollFades(root: HTMLElement): void {
+  const panel = root.querySelector('[data-panel]') as HTMLElement | null
+  const fadeTop = root.querySelector('.panel-scroll-fade--top')
+  const fadeBottom = root.querySelector('.panel-scroll-fade--bottom')
+  if (!panel || !fadeTop || !fadeBottom) return
+
+  const canScroll = panel.scrollHeight > panel.clientHeight + 2
+  const atTop = panel.scrollTop <= 2
+  const atBottom =
+    panel.scrollTop + panel.clientHeight >= panel.scrollHeight - 2
+
+  fadeTop.classList.toggle('is-visible', canScroll && !atTop)
+  fadeBottom.classList.toggle('is-visible', canScroll && !atBottom)
 }
 
 export function updateHud(
@@ -991,10 +1035,6 @@ export function renderShell(
 
   const shell = root.querySelector('.app-shell') as HTMLElement | null
   shell?.classList.toggle('app-shell--lounge', state.scene === 'lounge' && state.phase !== 'employed')
-  const stageBadge = root.querySelector('[data-stage-badge]') as HTMLElement | null
-  if (stageBadge) {
-    stageBadge.hidden = stage.dataset.loungeLive !== '1'
-  }
 
   stage.dataset.scene = state.scene
   stage.dataset.phase = state.phase
@@ -1016,28 +1056,54 @@ export function renderShell(
   }
 
   if (state.scene === 'job') {
-    brand.textContent = getVenue(state.venueId).name
+    const venueId = state.venueId
+    clearSignClasses(brand)
+    brand.classList.add('sign', `sign--${venueId}`)
+    brand.textContent = getVenue(venueId).name
+
     const rank = rankDef(state.jobRank).title
-    const who = state.playerName ? `${state.playerName} · ` : ''
-    const diffNote = state.difficulty ? ` · ${getDifficulty(state).label}` : ''
-    tagline.textContent =
-      state.phase === 'employed'
-        ? `${who}${rank}${diffNote}`
-        : `${who}${rank}${diffNote} · можно на смену`
+    const chips: string[] = []
+    if (state.playerName) {
+      chips.push(`<span class="stage-chip">${escapeHtml(state.playerName)}</span>`)
+    }
+    chips.push(`<span class="stage-chip stage-chip--rank">${escapeHtml(rank)}</span>`)
+    if (state.difficulty) {
+      chips.push(
+        `<span class="stage-chip stage-chip--diff stage-chip--diff-${state.difficulty}">${escapeHtml(getDifficulty(state).label)}</span>`,
+      )
+    }
+    if (state.phase !== 'employed') {
+      chips.push(`<span class="stage-chip stage-chip--soft">можно на смену</span>`)
+    }
+    tagline.classList.add('tagline--chips')
+    tagline.innerHTML = `<span class="stage-chips">${chips.join('')}</span>`
     cta.hidden = true
     delete stage.dataset.hasCta
   } else {
+    const tier = state.loungeTier ?? 'nook'
+    clearSignClasses(brand)
+    brand.classList.add('sign', `sign--${tier}`)
     brand.textContent = state.loungeName
-    const multNote =
-      state.loungeIncomeMult !== 1 || state.loungeClickMult !== 1
-        ? ` · ×${state.loungeIncomeMult}/×${state.loungeClickMult}`
-        : ''
+
     const traffic = guestTraffic(state)
-    const empireNote =
-      branchCount(state) > 0
-        ? ` · ${networkLabel(state)} ×${empireIncomeMult(state).toFixed(2)}`
-        : ''
-    tagline.textContent = `Гости ${trafficLabel(traffic)} · ×${traffic.toFixed(2)}${multNote}${empireNote}`
+    const chips: string[] = []
+    chips.push(
+      `<span class="stage-chip stage-chip--traffic">Гости ${escapeHtml(trafficLabel(traffic))}</span>`,
+    )
+    chips.push(`<span class="stage-chip">×${traffic.toFixed(2)}</span>`)
+    if (state.loungeIncomeMult !== 1 || state.loungeClickMult !== 1) {
+      chips.push(
+        `<span class="stage-chip stage-chip--soft">×${state.loungeIncomeMult}/×${state.loungeClickMult}</span>`,
+      )
+    }
+    if (branchCount(state) > 0) {
+      chips.push(
+        `<span class="stage-chip stage-chip--soft">${escapeHtml(networkLabel(state))} ×${empireIncomeMult(state).toFixed(2)}</span>`,
+      )
+    }
+    tagline.classList.add('tagline--chips')
+    tagline.innerHTML = `<span class="stage-chips">${chips.join('')}</span>`
+
     const showOrder = showLoungeOrderCta(state, menuTab, storySubTab)
     cta.hidden = !showOrder
     if (showOrder) {
@@ -1220,6 +1286,7 @@ export function renderShell(
   }
 
   syncGuide()
+  requestAnimationFrame(() => syncPanelScrollFades(root))
 }
 
 function renderJobTasksBlock(state: GameState, now: number): string {
@@ -1264,26 +1331,23 @@ function renderJobStoryPanel(state: GameState, now: number): string {
   const venue = getVenue(state.venueId)
   const next = nextRank(state.jobRank)
   const progressRows = promoteProgress(state.jobRank, state.taskDone)
+  const progressPct = Math.round(promoteProgressRatio(state.jobRank, state.taskDone) * 100)
   const payMult = rank.payMult * venue.payMult
   const minCost = minOpenLoungeCost(state)
+  const progressLine = progressRows.length
+    ? progressRows.map((p) => `${p.label} ${p.have}/${p.need}`).join(' · ')
+    : ''
   const careerBlock = `
     <div class="milestone career">
       <div class="milestone-head">
-        <span>Карьера</span>
-        <span>${rank.title}${payMult !== 1 ? ` · ×${payMult.toFixed(2)}` : ''}</span>
+        <span>Карьера · сейчас «${rank.title}»</span>
+        <span>${payMult !== 1 ? `×${payMult.toFixed(2)}` : 'оплата ×1'}</span>
       </div>
       ${
         next
-          ? `<p class="row-sub">До «${next.title}»: ${progressRows
-              .map((p) => `${p.label} ${p.have}/${p.need}`)
-              .join(' · ')}</p>
-             <div class="bar"><i style="width:${
-               progressRows.length
-                 ? (progressRows.reduce((s, p) => s + p.have / p.need, 0) /
-                     progressRows.length) *
-                   100
-                 : 0
-             }%"></i></div>`
+          ? `<p class="row-sub career-rank-next">До «${next.title}»</p>
+             <p class="row-sub career-rank-progress">${progressLine || 'считаем задачи…'}</p>
+             <div class="bar" aria-label="Прогресс до следующего ранга ${progressPct}%"><i style="width:${progressPct}%"></i></div>`
           : `<p class="row-sub">Макс. ранг — копи на свой угол</p>`
       }
     </div>
@@ -1307,7 +1371,7 @@ function renderJobStoryPanel(state: GameState, now: number): string {
         <div class="bar"><i style="width:${progress * 100}%"></i></div>
         <button type="button" class="row-btn accent row-btn--solo" data-open ${ready ? '' : 'disabled'}>
           <span class="row-main">
-            <span class="row-title">${ready ? 'Выбрать зал' : 'Копим на угол'}</span>
+            <span class="row-title">${ready ? 'Выбрать зал' : 'Копим на лаунж'}</span>
             <span class="row-sub">${LOUNGE_TIERS.map((t) => formatMoney(loungeTierCost(state, t.cost))).join(' · ')}</span>
           </span>
         </button>
@@ -1383,7 +1447,7 @@ function renderOwnLoungePanel(state: GameState): string {
           }
           ${
             bareHandsStillPossible(state.shopOwned, state.taskDone.wash)
-              ? ' Трофей «Голыми руками» — только без шуруповёрта: «Уголок» или 35 моек до тарифа с инструментом в комплекте.'
+              ? ' Трофей «Голыми руками» — только без шуруповёрта: «Первая тяга» или 35 моек до тарифа с инструментом в комплекте.'
               : ''
           }
         </p>
@@ -1478,7 +1542,7 @@ function renderCareerTrackPanel(state: GameState): string {
       <div class="career-score-box">
         <p class="row-sub shop-note">Рейтинг прокачки для зала славы и сравнения с друзьями. <strong>Дни на очки не влияют</strong> — только достижения и прогресс.</p>
         <ul class="career-score-rules">
-          <li><span>Трофеи</span><span>+15 за каждый</span></li>
+          <li><span>Трофеи</span><span>+8 / +20 / +50 / +150 по тиру</span></li>
           <li><span>Смена + зал / только свой</span><span>+40 / +70</span></li>
           <li><span>Тариф зала</span><span>+20 / +45 / +80</span></li>
           <li><span>Филиал сети</span><span>+30 за точку</span></li>
@@ -1517,23 +1581,20 @@ function renderCareerTrackPanel(state: GameState): string {
 }
 
 function renderCareerTrophiesPanel(state: GameState): string {
-  const { done, total } = achievementProgress(state)
-  const diffLabel = state.difficulty ? getDifficulty(state).label : ''
-  const rows = ACHIEVEMENTS.map((a) => {
-    const unlocked = isAchievementUnlocked(state, a.id)
-    const wrongDiff = achievementDifficultyOnly(a, state)
-    const diffNote = a.difficulty
-      ? ` · только «${DIFFICULTIES[a.difficulty].label}»`
-      : ''
+  const { done, total, platinum } = achievementProgress(state)
+
+  const sections = TROPHY_TIERS.map((tier) => {
+    const list = achievementsByTier(tier)
+    const { done: td, total: tt } = achievementTierProgress(state, tier)
+    const rows = list.map((a) => renderTrophyRow(state, a, tier)).join('')
     return `
-      <div class="row-btn achievement ${unlocked ? 'unlocked' : 'locked'}${wrongDiff ? ' achievement--wrong-diff' : ''}">
-        ${icon(unlocked ? 'trophy' : 'lock', unlocked ? 'row-icon--gold' : 'row-icon--muted')}
-        <span class="row-main">
-          <span class="row-title">${unlocked ? a.title : 'Ещё закрыто'}</span>
-          <span class="row-sub">${a.hint}${unlocked ? '' : diffNote}${wrongDiff ? ' · другой прогон' : ''}</span>
-        </span>
-        <span class="row-meta">${unlocked ? 'получено' : `+${formatMoney(a.reward)}`}</span>
-      </div>
+      <section class="trophy-tier trophy-tier--${tier}">
+        <header class="trophy-tier__head">
+          <p class="trophy-tier__title">${TROPHY_TIER_LABEL[tier]}</p>
+          <p class="trophy-tier__count">${tier === 'platinum' ? (platinum ? 'получено' : 'ещё нет') : tier === 'secret' ? (td > 0 ? `${td}/${tt}` : '???') : `${td}/${tt}`}</p>
+        </header>
+        <div class="trophy-tier__list">${rows}</div>
+      </section>
     `
   }).join('')
 
@@ -1541,11 +1602,32 @@ function renderCareerTrophiesPanel(state: GameState): string {
     <div class="list career-panel">
       <div class="achieve-summary achieve-summary--trophies">
         <p class="achieve-summary-title">Трофеи</p>
-        <p class="achieve-summary-count">${done} из ${total} · +15 очков карьеры за каждый${diffLabel ? ` · ${diffLabel}` : ''}</p>
+        <p class="achieve-summary-count">${done} из ${total}${platinum ? ' · платина' : ''} · очки зависят от тира</p>
         <div class="bar"><i style="width:${total ? (done / total) * 100 : 0}%"></i></div>
       </div>
-      <p class="row-sub shop-note">В одном прохождении: «Голыми руками» и «Копил дольше, чем нужно» — до открытия зала; «Трудяга» — не увольняйся после открытия; «Авторский зал» — выбери тариф при открытии.</p>
-      ${rows}
+      <p class="row-sub shop-note">Бронза — старт. Серебро — отказ и системы. Золото — дорогие развилки. Секреты молчат, пока не откроешь. Платина — собрать всё.</p>
+      ${sections}
+    </div>
+  `
+}
+
+function renderTrophyRow(state: GameState, a: AchievementDef, tier: TrophyTier): string {
+  const unlocked = isAchievementUnlocked(state, a.id)
+  const secretLocked = tier === 'secret' && !unlocked
+  const title = secretLocked ? '???' : a.title
+  const progress = secretLocked ? null : achievementProgressLabel(a, state)
+  const hint = secretLocked ? '' : a.hint
+  const sub = secretLocked ? '' : progress ? `${hint} · ${progress}` : hint
+  const meta = unlocked ? 'получено' : secretLocked ? '' : `+${formatMoney(a.reward)}`
+  const iconName = unlocked ? 'trophy' : 'lock'
+  return `
+    <div class="row-btn achievement achievement--${tier} ${unlocked ? 'unlocked' : 'locked'}${secretLocked ? ' achievement--secret' : ''}">
+      ${icon(iconName, unlocked ? 'row-icon--gold' : 'row-icon--muted')}
+      <span class="row-main">
+        <span class="row-title">${title}</span>
+        ${sub ? `<span class="row-sub">${sub}</span>` : ''}
+      </span>
+      ${meta ? `<span class="row-meta">${meta}</span>` : '<span class="row-meta"></span>'}
     </div>
   `
 }

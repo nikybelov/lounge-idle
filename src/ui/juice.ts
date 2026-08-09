@@ -190,13 +190,13 @@ export type CelebrationKind = 'lounge' | 'rank' | 'general'
 
 function celebrationKicker(kind: CelebrationKind): string {
   if (kind === 'rank') return 'Повышение на смене'
-  if (kind === 'lounge') return 'Свой зал открыт'
+  if (kind === 'lounge') return 'Свой лаунж открыт'
   return 'Вау-момент'
 }
 
 function celebrationCta(kind: CelebrationKind): string {
   if (kind === 'rank') return 'Продолжить смену'
-  if (kind === 'lounge') return 'В свой зал'
+  if (kind === 'lounge') return 'В свой лаунж'
   return 'Погнали'
 }
 

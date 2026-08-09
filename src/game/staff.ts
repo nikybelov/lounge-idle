@@ -96,7 +96,7 @@ export function hireStaffCheck(
   id: StaffId,
 ): { ok: true } | { ok: false; message: string } {
   if (!canManageStaff(state)) {
-    return { ok: false, message: 'Сначала открой свой зал' }
+    return { ok: false, message: 'Сначала открой свой лаунж' }
   }
   const role = getStaffRole(id)
   if (!role) return { ok: false, message: 'Нет такой роли' }
@@ -121,7 +121,7 @@ export function upgradeStaffMemberCheck(
   index: number,
 ): { ok: true } | { ok: false; message: string } {
   if (!canManageStaff(state)) {
-    return { ok: false, message: 'Сначала открой свой зал' }
+    return { ok: false, message: 'Сначала открой свой лаунж' }
   }
   const members = staffMembers(state, id)
   if (index < 0 || index >= members.length) {
@@ -146,7 +146,7 @@ export function addStaffCheck(
   id: StaffId,
 ): { ok: true } | { ok: false; message: string } {
   if (!canManageStaff(state)) {
-    return { ok: false, message: 'Сначала открой свой зал' }
+    return { ok: false, message: 'Сначала открой свой лаунж' }
   }
   const count = staffHeadcount(state, id)
   if (count <= 0) {
@@ -172,7 +172,7 @@ export function fireStaffMemberCheck(
   index: number,
 ): { ok: true } | { ok: false; message: string } {
   if (!canManageStaff(state)) {
-    return { ok: false, message: 'Сначала открой свой зал' }
+    return { ok: false, message: 'Сначала открой свой лаунж' }
   }
   const members = staffMembers(state, id)
   if (index < 0 || index >= members.length) {

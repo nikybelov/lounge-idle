@@ -125,7 +125,7 @@ export function bootStartCoach(): CoachDef {
     icon: '🚀',
     kicker: 'Огонёк · финиш',
     title: 'Погнали на смену',
-    body: 'Жми «Начать смену» — дальше покажем, как копить и открыть свой зал.',
+    body: 'Жми «Начать смену» — дальше покажем, как копить и открыть свой лаунж.',
     target: '[data-start]',
     cta: 'Понятно, начинаю',
   }
@@ -355,7 +355,7 @@ function idleTabNudge(
       icon: '🚪',
       kicker: 'Огонёк · куда',
       title: 'Зал уже тянет',
-      body: 'Переключись на «Мой зал» — там заказы и прокачка. Или увольняйся, когда созреешь.',
+      body: 'Переключись на «Мой лаунж» — там заказы и прокачка. Или увольняйся, когда созреешь.',
       target: '[data-go="lounge"]',
       cta: 'В зал',
     }
@@ -428,8 +428,8 @@ export function milestoneCoach(
       stepNum: 0,
       icon: '🔀',
       kicker: 'Огонёк · два режима',
-      title: 'Смена и свой зал',
-      body: '«Смена» — подработка и карьера. «Мой зал» — заказы и прокачка. Переключайся здесь, когда нужно.',
+      title: 'Смена и свой лаунж',
+      body: '«Смена» — подработка и карьера. «Мой лаунж» — заказы и прокачка. Переключайся здесь, когда нужно.',
       target: '[data-go="job"], [data-go="lounge"]',
       cta: 'Ясно',
     })
@@ -475,7 +475,7 @@ export function milestoneCoach(
       icon: '🚪',
       kicker: 'Огонёк · карьера',
       title: 'Можно уволиться',
-      body: `Свой зал уже даёт ${quitIncomeThreshold(state)}/с — порог пройден (сейчас ${formatMoney(loungeIncomePerSec(state))}/с). Увольнение откроет вкладку «Сеть».`,
+      body: `Свой лаунж уже даёт ${quitIncomeThreshold(state)}/с — порог пройден (сейчас ${formatMoney(loungeIncomePerSec(state))}/с). Увольнение откроет вкладку «Сеть».`,
       target: '[data-quit]',
       cta: 'Посмотрю',
     })
@@ -491,7 +491,7 @@ export function milestoneCoach(
       icon: '📦',
       kicker: 'Огонёк · полка',
       title: 'Полка пуста',
-      body: 'Без вкусов на полке гости не платят. Закажи табак на склад и выставь во вкладке «Табак».',
+      body: 'Столы без вкуса не кормят — гости не приходят. Закажи табак на склад и выставь на полку во вкладке «Табак».',
       target: '[data-menu-tab="tobacco"]',
       cta: 'К табаку',
     })
@@ -605,7 +605,7 @@ export function contextualOgonokTip(
       icon: '🎯',
       kicker: 'Огонёк · цель',
       title: 'Сейчас главное',
-      body: goalLine(state) || 'Копи на свой зал — задачи смены и пассив.',
+      body: goalLine(state) || 'Копи на свой лаунж — задачи смены и пассив.',
       target: '[data-goal], [data-job-tasks]',
       cta: 'Понятно',
     }
@@ -692,7 +692,7 @@ function mainGuideCoach(state: GameState): CoachDef | null {
         stepNum,
         icon: '💰',
         kicker: `Шаг ${stepNum} · копим`,
-        title: 'Копим на свой зал',
+        title: 'Копим на свой лаунж',
         body: 'Жми задачи смены — касса растёт. Смотри оранжевую полоску «Цель» под шапкой.',
         target: '[data-goal]',
         cta: 'Ясно',
@@ -727,8 +727,8 @@ function mainGuideCoach(state: GameState): CoachDef | null {
         stepNum,
         icon: '🚪',
         kicker: `Шаг ${stepNum} · главная цель`,
-        title: 'Пора открывать свой зал',
-        body: 'Вкладка «Свой зал» или кнопка ниже — выбери тариф и нажми на вау-момент.',
+        title: 'Пора открывать свой лаунж',
+        body: 'Вкладка «Свой лаунж» или кнопка ниже — выбери тариф и нажми на вау-момент.',
         target: '[data-menu-tab="own"], [data-open]',
         cta: 'Открываю!',
       }
@@ -765,7 +765,7 @@ export function guideCoach(
 export function goalLine(state: GameState): string {
   if (isGuideDone(state)) {
     if (state.phase === 'employed') {
-      return `Цель: ${formatMoney(minOpenLoungeCost(state))} на свой зал`
+      return `Цель: ${formatMoney(minOpenLoungeCost(state))} на свой лаунж`
     }
     if (state.phase === 'dual') {
       const inc = loungeIncomePerSec(state)
@@ -784,13 +784,13 @@ export function goalLine(state: GameState): string {
     case 'first_task':
       return 'Цель: копить на свой лаунж'
     case 'reputation':
-      return 'Цель: пассив + задачи → свой зал'
+      return 'Цель: пассив + задачи → свой лаунж'
     case 'halfway':
       return `Цель: ${formatMoney(minOpenLoungeCost(state))} · уже близко`
     case 'lounge_ready':
-      return 'Цель: открыть свой зал — вкладка «Свой зал»'
+      return 'Цель: открыть свой лаунж — вкладка «Свой лаунж»'
     case 'first_order':
-      return `Цель: ${3 - state.flags.loungeOrders} заказов в своём зале`
+      return `Цель: ${3 - state.flags.loungeOrders} заказов в своём лаунже`
     default:
       return ''
   }
@@ -809,7 +809,7 @@ const TAB_HINTS: Record<
   tobacco: {
     icon: '📦',
     title: 'Табачная полка',
-    body: 'Купи вкус на склад → выставь на полку. Богатый выбор = больше чаевых.',
+    body: 'Купи вкус на склад → выставь на полку. Без вкуса на полке гости не приходят и пассив = 0. Богатый выбор = больше чаевых.',
     cta: 'Ясно',
   },
   staff: {
@@ -855,9 +855,31 @@ export function personalTabHintDef(): TabHintDef {
   }
 }
 
+/** Сразу после открытия лаунжа — обязательный намёк на «Табак» */
+export function consumeTobaccoSetupHint(state: GameState): TabHintDef | null {
+  if (!state.flags.tobaccoSetupPending) return null
+  state.flags.tobaccoSetupPending = false
+  if (state.phase === 'employed') return null
+
+  const empty = state.shelfActive.length === 0
+  const n = state.shelfActive.length
+  return {
+    id: 'tobacco',
+    target: '[data-menu-tab="tobacco"]',
+    icon: '📦',
+    title: empty ? 'Сначала табак на полку' : 'Загляни в «Табак»',
+    body: empty
+      ? 'Столы без вкуса не кормят: пассив = 0, заказы не принимаются. Зайди в «Табак», купи вкус и нажми «на полку» — иначе гости не придут.'
+      : `Стартовые вкусы уже на полке (${n}) — можно зарабатывать. В «Табак» закажи ещё и расширь меню, иначе рост упрётся в пустую полку.`,
+    cta: 'К табаку',
+  }
+}
+
 /** Одноразовая подсказка после открытия своего зала */
 export function consumePersonalIntroHint(state: GameState): TabHintDef | null {
   if (!state.flags.personalIntroPending) return null
+  // Сначала табак — личное развитие потом
+  if (state.flags.tobaccoSetupPending) return null
   state.flags.personalIntroPending = false
   if (state.phase === 'employed' || state.flags.tabHints.personal) return null
   return personalTabHintDef()

@@ -85,7 +85,17 @@ export function awardWinBreakdown(state: GameState): AwardWinBreakdown {
   const tierPts = tier.id === 'signature' ? 14 : tier.id === 'hall' ? 7 : 0
   const venue = Math.min(32, furn * 2.2 + expansions * 5 + tierPts)
   const total = fame + media + channel + telegram + venue
-  const chance = Math.min(0.78, Math.max(0.06, 0.06 + total * 0.0075))
+  const chance = Math.min(
+    0.72,
+    Math.max(
+      0.03,
+      0.03 +
+        fame * 0.011 +
+        media * 0.013 +
+        (channel + telegram) * 0.005 +
+        venue * 0.002,
+    ),
+  )
   return { total, fame, media, channel: channel + telegram, venue, chance }
 }
 

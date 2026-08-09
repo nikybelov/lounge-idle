@@ -58,6 +58,7 @@ import {
   storySubHintMessage,
   tabHintMessage,
   consumePersonalIntroHint,
+  consumeTobaccoSetupHint,
   applyBootGuideToState,
   ackGuideCoach,
   contextualOgonokTip,
@@ -398,7 +399,7 @@ const handlers = {
       if (!canBrowseLoungeOffer(state)) {
         showToast(
           root,
-          `Накопи ${Math.ceil(minOpenLoungeCost(state) - state.cash)} до вкладки «Свой зал»`,
+          `Накопи ${Math.ceil(minOpenLoungeCost(state) - state.cash)} до вкладки «Свой лаунж»`,
         )
         return
       }
@@ -526,7 +527,7 @@ function afterAction(): void {
     state.flags.loungeOfferUnlocked &&
     state.phase === 'employed'
   ) {
-    showToast(root, 'Вкладка «Свой зал» открыта — можно выбрать тариф')
+    showToast(root, 'Вкладка «Свой лаунж» открыта — можно выбрать тариф')
   }
   if (
     empireWasLocked &&
@@ -553,6 +554,18 @@ function afterAction(): void {
   if (!canBrowseEmpire(state) && menuTab === 'network') menuTab = 'story'
   paint()
   maybePresentCelebration(state, () => {
+    const tobaccoHint = consumeTobaccoSetupHint(state)
+    if (tobaccoHint) {
+      queueTabHint(tobaccoHint, () => {
+        markTabHintSeen(state, 'tobacco')
+        scheduleSave(state)
+        paint()
+      })
+      scheduleSave(state)
+      paint()
+      flushAchievementQueue(root, state, menuTab)
+      return
+    }
     const personalHint = consumePersonalIntroHint(state)
     if (personalHint) {
       queueTabHint(personalHint, () => {
@@ -574,7 +587,7 @@ function maybeQuitToast(): void {
     if (state.phase !== 'dual' || state.flags.sawQuitReady) return
     if (!canQuitJob(state)) return
     state.flags.sawQuitReady = true
-    showToast(root, 'Свой зал тянет сам — можно уволиться со смены.')
+    showToast(root, 'Свой лаунж тянет сам — можно уволиться со смены.')
     return
   }
   // milestone quit_ready — через guideCoach
@@ -716,7 +729,7 @@ async function startFromBoot(preservedTrophies?: GameState['achievements']): Pro
   state.playerName = boot.playerName
   state.venueId = boot.venueId
   state.difficulty = difficultyFromVenue(boot.venueId)
-  state.loungeName = `Угол ${boot.playerName}`
+  state.loungeName = 'Мой лаунж'
   applyBootGuideToState(state, boot.venueGuideDone)
   saveState(state)
   beginGame()

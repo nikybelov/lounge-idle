@@ -5,6 +5,8 @@ import type { UpgradeId } from '../data/upgrades'
 import type { LoungeTierId } from '../data/loungeTiers'
 import type { StaffId } from '../data/staff'
 import type { PromotionId } from '../data/promotions'
+import { allLoungeTierStageSvgs, venueJobStageSvg } from './venueStageArt'
+import type { VenueId } from '../data/venues'
 
 const svg = (body: string) =>
   `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">${body}</svg>`
@@ -244,47 +246,11 @@ export function promotionIcon(id: PromotionId): string {
 
 /** Декоративная сцена для hero */
 export function stageSceneArt(): string {
+  const venues: VenueId[] = ['neon_haze', 'smoke_river', 'basement']
   return `
     <div class="stage-art" aria-hidden="true">
-      <svg class="stage-svg stage-svg--job" viewBox="0 0 220 110" fill="none">
-        <defs>
-          <radialGradient id="jobGlow" cx="50%" cy="50%" r="50%">
-            <stop offset="0%" stop-color="rgba(224,122,58,0.45)"/>
-            <stop offset="100%" stop-color="rgba(224,122,58,0)"/>
-          </radialGradient>
-        </defs>
-        <ellipse cx="110" cy="98" rx="82" ry="9" fill="rgba(0,0,0,0.45)"/>
-        <rect x="18" y="62" width="34" height="24" rx="2" fill="rgba(42,32,26,0.9)" stroke="rgba(255,255,255,0.06)"/>
-        <rect x="58" y="55" width="104" height="32" rx="3" fill="rgba(52,38,30,0.95)" stroke="rgba(224,122,58,0.2)"/>
-        <rect x="98" y="40" width="18" height="20" rx="2" fill="rgba(75,52,40,0.95)"/>
-        <path d="M107 40 Q107 22 116 16 Q125 10 136 18" stroke="rgba(210,200,190,0.4)" stroke-width="3" stroke-linecap="round"/>
-        <circle cx="136" cy="18" r="5" fill="url(#jobGlow)"/>
-        <circle cx="136" cy="18" r="10" fill="rgba(224,122,58,0.1)"/>
-        <rect x="168" y="58" width="28" height="28" rx="2" fill="rgba(38,28,22,0.92)"/>
-        <circle cx="182" cy="52" r="11" fill="rgba(224,122,58,0.1)" stroke="rgba(224,122,58,0.35)"/>
-        <rect x="174" y="48" width="3" height="10" rx="1" fill="rgba(224,122,58,0.55)"/>
-      </svg>
-      <svg class="stage-svg stage-svg--lounge" viewBox="0 0 220 110" fill="none">
-        <defs>
-          <radialGradient id="loungeGlow" cx="50%" cy="50%" r="50%">
-            <stop offset="0%" stop-color="rgba(240,160,90,0.55)"/>
-            <stop offset="100%" stop-color="rgba(224,122,58,0.1)"/>
-          </radialGradient>
-        </defs>
-        <ellipse cx="110" cy="100" rx="90" ry="9" fill="rgba(0,0,0,0.5)"/>
-        <path d="M20 72 L20 42 L48 30 L172 30 L200 42 L200 72 Z" fill="rgba(40,28,22,0.94)" stroke="rgba(212,165,116,0.18)"/>
-        <rect x="36" y="54" width="40" height="20" rx="2" fill="rgba(58,42,32,0.95)"/>
-        <rect x="82" y="50" width="42" height="24" rx="3" fill="rgba(68,48,36,0.95)"/>
-        <rect x="130" y="56" width="38" height="18" rx="2" fill="rgba(78,54,40,0.92)"/>
-        <path d="M104 30 Q104 12 110 6 Q116 0 124 8" stroke="rgba(210,200,190,0.45)" stroke-width="2.5" stroke-linecap="round"/>
-        <circle cx="124" cy="8" r="6" fill="url(#loungeGlow)"/>
-        <circle cx="124" cy="8" r="12" fill="rgba(224,122,58,0.1)"/>
-        <rect x="162" y="22" width="5" height="14" rx="1" fill="rgba(224,122,58,0.65)"/>
-        <circle cx="164" cy="20" r="4" fill="rgba(224,122,58,0.35)"/>
-        <rect x="48" y="36" width="8" height="3" rx="1" fill="rgba(224,122,58,0.4)"/>
-        <rect x="60" y="36" width="8" height="3" rx="1" fill="rgba(90,160,180,0.35)"/>
-        <rect x="72" y="36" width="8" height="3" rx="1" fill="rgba(224,122,58,0.25)"/>
-      </svg>
+      ${venues.map((id) => venueJobStageSvg(id)).join('')}
+      ${allLoungeTierStageSvgs()}
     </div>
   `
 }

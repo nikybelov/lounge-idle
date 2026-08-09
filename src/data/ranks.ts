@@ -31,16 +31,27 @@ export const JOB_RANKS: JobRankDef[] = [
   },
 ]
 
+export function isJobRank(value: unknown): value is JobRank {
+  return value === 'assistant' || value === 'master' || value === 'senior'
+}
+
+/** Старые/битые сейвы → стартовый ранг */
+export function normalizeJobRank(value: unknown): JobRank {
+  return isJobRank(value) ? value : 'assistant'
+}
+
 export function rankIndex(rank: JobRank): number {
-  return JOB_RANKS.findIndex((r) => r.id === rank)
+  const i = JOB_RANKS.findIndex((r) => r.id === normalizeJobRank(rank))
+  return i >= 0 ? i : 0
 }
 
 export function rankDef(rank: JobRank): JobRankDef {
-  return JOB_RANKS.find((r) => r.id === rank) ?? JOB_RANKS[0]
+  return JOB_RANKS.find((r) => r.id === normalizeJobRank(rank)) ?? JOB_RANKS[0]
 }
 
 export function nextRank(rank: JobRank): JobRankDef | null {
   const i = rankIndex(rank)
+  if (i < 0 || i >= JOB_RANKS.length - 1) return null
   return JOB_RANKS[i + 1] ?? null
 }
 
@@ -48,7 +59,7 @@ export function canPromote(rank: JobRank, taskDone: Record<TaskId, number>): boo
   const next = nextRank(rank)
   if (!next?.requires) return false
   return Object.entries(next.requires).every(
-    ([id, need]) => taskDone[id as TaskId] >= (need ?? 0),
+    ([id, need]) => (taskDone[id as TaskId] ?? 0) >= (need ?? 0),
   )
 }
 
@@ -58,16 +69,28 @@ export function promoteProgress(
 ): { label: string; have: number; need: number }[] {
   const next = nextRank(rank)
   if (!next?.requires) return []
-  return Object.entries(next.requires).map(([id, need]) => {
-    const labels: Record<TaskId, string> = {
-      wash: 'мойки',
-      coals: 'угли',
-      order: 'заказы',
-    }
+  const labels: Record<TaskId, string> = {
+    wash: 'мойки',
+    coals: 'угли',
+    order: 'заказы',
+  }
+  return (Object.keys(next.requires) as TaskId[]).map((id) => {
+    const need = next.requires![id] ?? 0
+    const have = Math.min(Math.max(0, taskDone[id] ?? 0), need)
     return {
-      label: labels[id as TaskId],
-      have: Math.min(taskDone[id as TaskId], need ?? 0),
-      need: need ?? 0,
+      label: labels[id],
+      have,
+      need,
     }
   })
+}
+
+export function promoteProgressRatio(
+  rank: JobRank,
+  taskDone: Record<TaskId, number>,
+): number {
+  const rows = promoteProgress(rank, taskDone)
+  if (!rows.length) return 0
+  const sum = rows.reduce((s, p) => s + (p.need > 0 ? p.have / p.need : 0), 0)
+  return Math.min(1, sum / rows.length)
 }

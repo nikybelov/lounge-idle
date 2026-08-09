@@ -44,8 +44,8 @@ export const JOB_TASKS: JobTask[] = [
  */
 export const OPEN_LOUNGE_COST = 10_500
 
-/** Свой /sec должен быть не ниже этого, чтобы уволиться */
-export const QUIT_INCOME_THRESHOLD = 9
+/** Чистый пассив (/с) своего лаунжа, с которого можно уволиться со смены */
+export const QUIT_INCOME_THRESHOLD = 10
 
 /** Ниже этого cash — мягкий сигнал вернуться на смену */
 export const BROKE_THRESHOLD = 12

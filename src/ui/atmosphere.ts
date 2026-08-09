@@ -4,11 +4,13 @@ let stageCanvas: HTMLCanvasElement | null = null
 let stageHost: HTMLElement | null = null
 let rafId = 0
 let running = false
+let inView = true
 let particles: Smoke[] = []
 let w = 0
 let h = 0
 let ctx: CanvasRenderingContext2D | null = null
 let resizeObserver: ResizeObserver | null = null
+let intersectionObserver: IntersectionObserver | null = null
 let lastSceneKey = ''
 
 import { prefersReducedMotion } from '../save/settings'
@@ -76,11 +78,36 @@ function drawDither(): void {
   }
 }
 
-function tick(): void {
-  if (!running || !ctx || !stageHost) return
-  rafId = requestAnimationFrame(tick)
+function setAnimationActive(active: boolean): void {
+  if (!stageHost) return
+  stageHost.dataset.animationActive = active ? '1' : '0'
+}
 
-  if (document.hidden || reducedMotion()) return
+function shouldAnimate(): boolean {
+  return running && inView && !document.hidden && !reducedMotion()
+}
+
+function stopLoop(): void {
+  cancelAnimationFrame(rafId)
+  rafId = 0
+  setAnimationActive(false)
+}
+
+function ensureLoop(): void {
+  if (!shouldAnimate()) {
+    stopLoop()
+    return
+  }
+  setAnimationActive(true)
+  if (!rafId) rafId = requestAnimationFrame(tick)
+}
+
+function tick(): void {
+  rafId = 0
+  if (!shouldAnimate() || !ctx || !stageHost) {
+    stopLoop()
+    return
+  }
 
   ctx.clearRect(0, 0, w, h)
   drawDither()
@@ -98,6 +125,8 @@ function tick(): void {
     ctx.fillStyle = `rgba(210,198,188,${p.a})`
     ctx.fill()
   }
+
+  rafId = requestAnimationFrame(tick)
 }
 
 function ensureCanvas(stage: HTMLElement): HTMLCanvasElement {
@@ -120,13 +149,20 @@ export function syncStageAtmosphere(stage: HTMLElement): void {
 }
 
 export function initStageAtmosphere(stage: HTMLElement): void {
-  if (reducedMotion()) return
+  if (reducedMotion()) {
+    stage.dataset.animationActive = '0'
+    return
+  }
 
-  if (stageHost === stage && stageCanvas?.isConnected) return
+  if (stageHost === stage && stageCanvas?.isConnected) {
+    ensureLoop()
+    return
+  }
 
   running = false
-  cancelAnimationFrame(rafId)
+  stopLoop()
   resizeObserver?.disconnect()
+  intersectionObserver?.disconnect()
 
   stageHost = stage
   stageCanvas = ensureCanvas(stage)
@@ -139,17 +175,30 @@ export function initStageAtmosphere(stage: HTMLElement): void {
     seedParticles(stage)
   })
   resizeObserver.observe(stage)
+
+  intersectionObserver = new IntersectionObserver(
+    (entries) => {
+      const entry = entries[0]
+      inView = !!entry?.isIntersecting && (entry.intersectionRatio ?? 0) > 0.05
+      ensureLoop()
+    },
+    { threshold: [0, 0.05, 0.2] },
+  )
+  intersectionObserver.observe(stage)
+
   resizeCanvas(stage)
   seedParticles(stage)
 
   running = true
-  tick()
+  inView = true
+  ensureLoop()
 }
 
 export function initMotionGuard(root: HTMLElement): void {
   const apply = (): void => {
     const paused = document.hidden || reducedMotion()
     root.classList.toggle('motion-paused', paused)
+    ensureLoop()
   }
   document.addEventListener('visibilitychange', apply)
   apply()

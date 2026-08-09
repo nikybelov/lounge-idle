@@ -1,11 +1,17 @@
 import {
   BASE_LOUNGE_CLICK,
+  BASE_LOUNGE_PASSIVE,
   COST_GROWTH,
   UPGRADES,
   type UpgradeDef,
   type UpgradeId,
 } from '../data/upgrades'
-import { guestTraffic, expansionIncomeBonus, shelfBonuses } from './appeal'
+import {
+  guestTraffic,
+  expansionIncomeBonus,
+  shelfBonuses,
+  shelfHasService,
+} from './appeal'
 import { empireClickMult, empireIncomeMult } from './empire'
 import { staffBonuses, staffBasePayrollPerSec, hiredStaffCount, managerPayrollDiscount, maxTeamHeadcount } from './staff'
 import type { GameState } from './state'
@@ -38,7 +44,10 @@ export function isUpgradeUnlocked(state: GameState, def: UpgradeDef): boolean {
 }
 
 export function loungeGrossIncomePerSec(state: GameState): number {
-  let sum = expansionIncomeBonus(state)
+  // Без полки — нечего продавать: ни база, ни мебель не дают выручку
+  if (!shelfHasService(state)) return 0
+
+  let sum = BASE_LOUNGE_PASSIVE + expansionIncomeBonus(state)
   for (const def of UPGRADES) {
     sum += def.incomePerLevel * state.owned[def.id]
   }

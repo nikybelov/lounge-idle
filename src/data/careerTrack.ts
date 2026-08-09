@@ -1,4 +1,4 @@
-import { achievementProgress } from './achievements'
+import { achievementProgress, trophyCareerPoints } from './achievements'
 import { branchCount } from '../game/empire'
 import { minChannelGearLevel } from './personal'
 import { rankDef, rankIndex } from './ranks'
@@ -26,13 +26,14 @@ export interface CareerScorePart {
 /** Раскладка очков карьеры для подсказки в UI */
 export function careerScoreBreakdown(state: GameState): CareerScorePart[] {
   const parts: CareerScorePart[] = []
+  const trophyPts = trophyCareerPoints(state)
   const { done } = achievementProgress(state)
-  if (done > 0) parts.push({ label: `Трофеи · ${done} шт.`, points: done * 15 })
-  if (state.phase === 'dual') parts.push({ label: 'Смена + свой зал', points: 40 })
+  if (trophyPts > 0) parts.push({ label: `Трофеи · ${done} шт.`, points: trophyPts })
+  if (state.phase === 'dual') parts.push({ label: 'Смена + свой лаунж', points: 40 })
   if (state.phase === 'ownOnly') parts.push({ label: 'Только свой бизнес', points: 70 })
-  if (state.loungeTier === 'nook') parts.push({ label: 'Тариф «Угол»', points: 20 })
-  if (state.loungeTier === 'hall') parts.push({ label: 'Тариф «Зал»', points: 45 })
-  if (state.loungeTier === 'signature') parts.push({ label: 'Авторский зал', points: 80 })
+  if (state.loungeTier === 'nook') parts.push({ label: '«Первая тяга»', points: 20 })
+  if (state.loungeTier === 'hall') parts.push({ label: '«Сладкий пар»', points: 45 })
+  if (state.loungeTier === 'signature') parts.push({ label: '«Дымный мир»', points: 80 })
   const branches = branchCount(state)
   if (branches > 0) parts.push({ label: `Филиалы · ${branches}`, points: branches * 30 })
   const famePts = Math.min(40, Math.round(state.personal.fame * 0.5))
@@ -46,8 +47,7 @@ export function careerScoreBreakdown(state: GameState): CareerScorePart[] {
 
 /** Сводный «вес» карьеры для таблицы лидеров */
 export function careerScore(state: GameState): number {
-  const { done } = achievementProgress(state)
-  let score = done * 15
+  let score = trophyCareerPoints(state)
   if (state.phase === 'dual') score += 40
   if (state.phase === 'ownOnly') score += 70
   if (state.loungeTier === 'nook') score += 20

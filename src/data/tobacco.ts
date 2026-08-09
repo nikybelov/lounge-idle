@@ -37,7 +37,7 @@ export const TOBACCOS: TobaccoDef[] = [
     cost: 35,
     guestBonus: 0.35,
     tipBonus: 0.02,
-    incomeBonus: 0.02,
+    incomeBonus: 0.15,
   },
   {
     id: 'mint_fog',
@@ -47,7 +47,7 @@ export const TOBACCOS: TobaccoDef[] = [
     cost: 90,
     guestBonus: 0.45,
     tipBonus: 0.03,
-    incomeBonus: 0.04,
+    incomeBonus: 0.25,
   },
   {
     id: 'berry_night',
@@ -57,7 +57,7 @@ export const TOBACCOS: TobaccoDef[] = [
     cost: 220,
     guestBonus: 0.55,
     tipBonus: 0.04,
-    incomeBonus: 0.06,
+    incomeBonus: 0.4,
   },
   {
     id: 'citrus_lane',
@@ -67,7 +67,7 @@ export const TOBACCOS: TobaccoDef[] = [
     cost: 380,
     guestBonus: 0.5,
     tipBonus: 0.08,
-    incomeBonus: 0.05,
+    incomeBonus: 0.35,
   },
   {
     id: 'grape_dock',
@@ -77,7 +77,7 @@ export const TOBACCOS: TobaccoDef[] = [
     cost: 650,
     guestBonus: 0.7,
     tipBonus: 0.05,
-    incomeBonus: 0.1,
+    incomeBonus: 0.55,
   },
   {
     id: 'peach_ember',
@@ -87,7 +87,7 @@ export const TOBACCOS: TobaccoDef[] = [
     cost: 950,
     guestBonus: 0.6,
     tipBonus: 0.12,
-    incomeBonus: 0.08,
+    incomeBonus: 0.5,
   },
   {
     id: 'pine_breeze',
@@ -97,7 +97,7 @@ export const TOBACCOS: TobaccoDef[] = [
     cost: 1400,
     guestBonus: 0.85,
     tipBonus: 0.06,
-    incomeBonus: 0.12,
+    incomeBonus: 0.7,
   },
   {
     id: 'honey_dune',
@@ -107,7 +107,7 @@ export const TOBACCOS: TobaccoDef[] = [
     cost: 2100,
     guestBonus: 0.75,
     tipBonus: 0.1,
-    incomeBonus: 0.15,
+    incomeBonus: 0.9,
   },
   {
     id: 'melon_shift',
@@ -117,7 +117,7 @@ export const TOBACCOS: TobaccoDef[] = [
     cost: 3200,
     guestBonus: 1.1,
     tipBonus: 0.07,
-    incomeBonus: 0.18,
+    incomeBonus: 1.1,
   },
   {
     id: 'double_ice',
@@ -127,7 +127,7 @@ export const TOBACCOS: TobaccoDef[] = [
     cost: 4800,
     guestBonus: 0.9,
     tipBonus: 0.18,
-    incomeBonus: 0.22,
+    incomeBonus: 1.4,
   },
 ]
 

@@ -135,12 +135,24 @@ export interface GameState {
     loyalPockets: boolean
     /** 35+ моек без шуруповёрта — можно купить инструмент позже */
     bareHandsEarned: boolean
+    /** Задач смены, сделанных уже после открытия лаунжа */
+    tasksAfterLounge: number
+    /** Купил табак сам (не стартовый комплект) */
+    tobaccoBought: boolean
+    /** Хотя бы раз нанимал кого-то */
+    everHired: boolean
+    /** Роль первого найма */
+    firstHireRole: StaffId | null
+    /** Какие типы акций запускали */
+    promoLaunched: Partial<Record<PromotionId, boolean>>
     guideStep: GuideStep
     /** Индекс последнего шага, который игрок закрыл в coach */
     guideAckedIndex: number
     /** Coach «две задачи на смене» после открытия «Поменяй угли» */
     coalsDualHintSeen: boolean
-    /** Показать intro-подсказку вкладки «Личное» после открытия зала */
+    /** Сразу после открытия лаунжа — подсказка про вкладку «Табак» / полку */
+    tobaccoSetupPending: boolean
+    /** Показать intro-подсказку вкладки «Личное развитие» после открытия зала */
     personalIntroPending: boolean
     /** Одноразовые подсказки Огонька после основного гайда */
     milestoneHints: {
@@ -187,7 +199,7 @@ export function createInitialState(now = Date.now()): GameState {
     loungeTier: null,
     loungeIncomeMult: 1,
     loungeClickMult: 1,
-    loungeName: 'Мой угол',
+    loungeName: 'Мой лаунж',
     owned: {
       table: 0,
       sofa: 0,
@@ -267,9 +279,15 @@ export function createInitialState(now = Date.now()): GameState {
       hadDualPhase: false,
       loyalPockets: false,
       bareHandsEarned: false,
+      tasksAfterLounge: 0,
+      tobaccoBought: false,
+      everHired: false,
+      firstHireRole: null,
+      promoLaunched: {},
       guideStep: 'pick_venue',
       guideAckedIndex: -1,
       coalsDualHintSeen: false,
+      tobaccoSetupPending: false,
       personalIntroPending: false,
       milestoneHints: {
         guide_done: false,

@@ -160,6 +160,7 @@ export function launchPromotion(
   state.promotions.activeBoost = g.guestBoost
   state.promotions.activeUntil = now + g.durationMs
   state.promotions.readyAt[id] = now + g.cooldownMs
+  state.flags.promoLaunched = { ...state.flags.promoLaunched, [id]: true }
   const min = Math.round(g.durationMs / 60_000)
   return {
     ok: true,

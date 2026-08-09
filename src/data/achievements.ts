@@ -1,61 +1,53 @@
 import { branchCount } from '../game/empire'
-import { hiredStaffCount, staffRolesFilled } from '../game/staff'
-import { STAFF_ROLES } from './staff'
+import { hiredStaffCount } from '../game/staff'
 import { SHOP_ITEMS, shopItemsMaxedCount, shopItemsOwnedCount, BARE_HANDS_WASH_NEED } from './shop'
-import type { DifficultyId } from './difficulty'
 import type { GameState } from '../game/state'
-import { loungeIncomePerSec } from '../game/economy'
+import { loungeIncomePerSec, staffPayrollShare } from '../game/economy'
 import { ambassadorCount } from '../game/ambassador'
-import { achievementRewardCash } from '../game/difficulty'
+import { achievementRewardCash, quitIncomeThreshold } from '../game/difficulty'
+import { shelfCapacity, shelfActiveCount } from '../game/appeal'
+import { isGuideMastersWinner } from './personal'
+import { PROMOTIONS } from './promotions'
+
+export type TrophyTier = 'bronze' | 'silver' | 'gold' | 'secret' | 'platinum'
 
 export type AchievementId =
   | 'first_wash'
-  | 'coals_hands'
-  | 'full_shift'
-  | 'made_master'
-  | 'made_senior'
-  | 'wash_marathon'
-  | 'coal_stack'
-  | 'order_runner'
-  | 'bare_hands'
   | 'first_tool'
-  | 'full_kit'
-  | 'open_corner'
-  | 'shift_loyal'
-  | 'back_shift'
-  | 'loyal_pockets'
-  | 'own_boss'
+  | 'open_lounge'
   | 'first_guest'
-  | 'steady_income'
-  | 'signature_hall'
-  | 'empire_ready'
-  | 'second_door'
-  | 'three_spots'
-  | 'full_network'
-  | 'empire_boss'
-  | 'first_hire'
-  | 'full_team'
-  | 'payroll_master'
+  | 'coals_trusted'
+  | 'back_shift'
+  | 'shelf_curated'
+  | 'wild_hire'
+  | 'tobacco_buyer'
+  | 'bare_hands'
+  | 'loyal_pockets'
+  | 'shift_loyal'
+  | 'shelf_full'
+  | 'promo_trio'
+  | 'full_kit'
+  | 'media_voice'
   | 'brand_ambassador'
-  | 'path_easy'
-  | 'path_normal'
-  | 'path_hard'
-  | 'easy_quit'
-  | 'easy_branch'
-  | 'normal_dual'
-  | 'normal_income'
-  | 'hard_quit'
-  | 'hard_patience'
-  | 'hard_bare'
-  | 'iron_empire'
+  | 'signature_hall'
+  | 'own_boss'
+  | 'payroll_master'
+  | 'first_wing'
+  | 'full_network'
+  | 'secret_laureate'
+  | 'secret_solo'
+  | 'platinum_set'
 
 export interface AchievementDef {
   id: AchievementId
   title: string
   hint: string
+  /** Загадка, пока секрет закрыт */
+  secretHint?: string
   reward: number
-  /** Только на выбранной сложности */
-  difficulty?: DifficultyId
+  tier: TrophyTier
+  /** Очки карьеры за трофей */
+  careerPoints: number
   check: (state: GameState) => boolean
 }
 
@@ -63,298 +55,290 @@ function shopCount(state: GameState): number {
   return shopItemsOwnedCount(state.shopOwned)
 }
 
-/** Награды: ранние ~15% от ближайшей покупки, поздние ~8–10% от стоимости вехи */
+function promoLaunchCount(state: GameState): number {
+  const launched = state.flags.promoLaunched ?? {}
+  return PROMOTIONS.filter((p) => launched[p.id]).length
+}
+
+function allPromosLaunched(state: GameState): boolean {
+  const launched = state.flags.promoLaunched ?? {}
+  return PROMOTIONS.every((p) => launched[p.id])
+}
+
+/** Порядок важен: платина последней */
 export const ACHIEVEMENTS: AchievementDef[] = [
+  // —— Бронза ——
   {
     id: 'first_wash',
     title: 'Первая мойка',
     hint: 'Помой кальян хотя бы раз',
     reward: 40,
+    tier: 'bronze',
+    careerPoints: 8,
     check: (s) => s.taskDone.wash >= 1,
-  },
-  {
-    id: 'coals_hands',
-    title: 'Доверили угли',
-    hint: 'Сделай «Поменяй угли» 15 раз',
-    reward: 100,
-    check: (s) => s.taskDone.wash >= 15,
-  },
-  {
-    id: 'full_shift',
-    title: 'Полная смена',
-    hint: 'Сделай «Поменяй угли» 15 раз',
-    reward: 180,
-    check: (s) => s.taskDone.coals >= 15,
-  },
-  {
-    id: 'made_master',
-    title: 'Кальянный мастер',
-    hint: 'Получи повышение до кальянного мастера',
-    reward: 650,
-    check: (s) => s.jobRank === 'master' || s.jobRank === 'senior' || s.phase !== 'employed',
-  },
-  {
-    id: 'made_senior',
-    title: 'Старший мастер',
-    hint: 'Стань старшим кальянным мастером',
-    reward: 1800,
-    check: (s) => s.jobRank === 'senior' || s.phase !== 'employed',
-  },
-  {
-    id: 'wash_marathon',
-    title: 'Марафон мойки',
-    hint: 'Помой кальян 70 раз',
-    reward: 550,
-    check: (s) => s.taskDone.wash >= 70,
-  },
-  {
-    id: 'coal_stack',
-    title: 'Угольный стаж',
-    hint: 'Поменяй угли 50 раз',
-    reward: 450,
-    check: (s) => s.taskDone.coals >= 50,
-  },
-  {
-    id: 'order_runner',
-    title: 'Бегунок зала',
-    hint: 'Отнеси заказ 40 раз',
-    reward: 480,
-    check: (s) => s.taskDone.order >= 40,
-  },
-  {
-    id: 'bare_hands',
-    title: 'Голыми руками',
-    hint: `Сделай «Помой кальян» ${BARE_HANDS_WASH_NEED} раз до покупки шуруповёрта`,
-    reward: 900,
-    check: (s) => s.flags.bareHandsEarned,
   },
   {
     id: 'first_tool',
     title: 'Свой инструмент',
     hint: 'Купи что-нибудь в магазине смены',
     reward: 200,
+    tier: 'bronze',
+    careerPoints: 8,
     check: (s) => shopCount(s) >= 1,
+  },
+  {
+    id: 'open_lounge',
+    title: 'Свой лаунж',
+    hint: 'Открой собственный лаунж',
+    reward: 1800,
+    tier: 'bronze',
+    careerPoints: 8,
+    check: (s) => s.phase !== 'employed',
+  },
+  {
+    id: 'first_guest',
+    title: 'Первый гость',
+    hint: 'Прими заказ в своём лаунже',
+    reward: 250,
+    tier: 'bronze',
+    careerPoints: 8,
+    check: (s) => s.flags.loungeOrders >= 1,
+  },
+  {
+    id: 'coals_trusted',
+    title: 'Доверили угли',
+    hint: 'Поменяй угли 10 раз',
+    reward: 120,
+    tier: 'bronze',
+    careerPoints: 8,
+    check: (s) => s.taskDone.coals >= 10,
+  },
+  {
+    id: 'back_shift',
+    title: 'Старое место помнит',
+    hint: 'После открытия лаунжа снова выйди на смену и сделай ещё 3 задачи',
+    reward: 450,
+    tier: 'bronze',
+    careerPoints: 8,
+    check: (s) => s.flags.returnedToJob && (s.flags.tasksAfterLounge ?? 0) >= 3,
+  },
+  {
+    id: 'shelf_curated',
+    title: 'Витрина',
+    hint: 'Выставь на полку хотя бы 3 вкуса',
+    reward: 350,
+    tier: 'bronze',
+    careerPoints: 8,
+    check: (s) => shelfActiveCount(s) >= 3,
+  },
+  {
+    id: 'wild_hire',
+    title: 'Не с хостес',
+    hint: 'Первым найми не хостес — официанта, кальянщика, бармена или управляющего',
+    reward: 400,
+    tier: 'bronze',
+    careerPoints: 8,
+    check: (s) => {
+      const role = s.flags.firstHireRole
+      return !!role && role !== 'host'
+    },
+  },
+  {
+    id: 'tobacco_buyer',
+    title: 'Свой заказ на склад',
+    hint: 'Купи вкус табака сам (не только стартовый комплект)',
+    reward: 280,
+    tier: 'bronze',
+    careerPoints: 8,
+    check: (s) => s.flags.tobaccoBought === true,
+  },
+
+  // —— Серебро ——
+  {
+    id: 'bare_hands',
+    title: 'Голыми руками',
+    hint: `Сделай «Помой кальян» ${BARE_HANDS_WASH_NEED} раз до покупки шуруповёрта`,
+    reward: 900,
+    tier: 'silver',
+    careerPoints: 20,
+    check: (s) => s.flags.bareHandsEarned,
+  },
+  {
+    id: 'loyal_pockets',
+    title: 'Копил дольше',
+    hint: 'Накопи на смене лишнее до открытия своего лаунжа',
+    reward: 1200,
+    tier: 'silver',
+    careerPoints: 20,
+    check: (s) => s.flags.loyalPockets,
+  },
+  {
+    id: 'shift_loyal',
+    title: 'Трудяга',
+    hint: 'Открой лаунж и не увольняйся с первой смены — поработай в dual',
+    reward: 1500,
+    tier: 'silver',
+    careerPoints: 20,
+    check: (s) => s.flags.hadDualPhase || s.phase === 'dual',
+  },
+  {
+    id: 'shelf_full',
+    title: 'Полка под завязку',
+    hint: 'Заполни полку целиком (нужна вместимость от 4 слотов)',
+    reward: 2200,
+    tier: 'silver',
+    careerPoints: 20,
+    check: (s) => {
+      const cap = shelfCapacity(s)
+      return cap >= 4 && shelfActiveCount(s) >= cap
+    },
+  },
+  {
+    id: 'promo_trio',
+    title: 'Афиша на всё',
+    hint: 'Запусти все три типа акций хотя бы по разу',
+    reward: 2800,
+    tier: 'silver',
+    careerPoints: 20,
+    check: (s) => allPromosLaunched(s),
   },
   {
     id: 'full_kit',
     title: 'Полный комплект',
     hint: 'Прокачай все инструменты смены до максимума',
-    reward: 1100,
+    reward: 3200,
+    tier: 'silver',
+    careerPoints: 20,
     check: (s) => shopItemsMaxedCount(s.shopOwned) >= SHOP_ITEMS.length,
   },
   {
-    id: 'loyal_pockets',
-    title: 'Копил дольше, чем нужно',
-    hint: 'Накопи на смене лишнее до открытия своего зала',
-    reward: 1200,
-    check: (s) => s.flags.loyalPockets,
-  },
-  {
-    id: 'open_corner',
-    title: 'Свой угол',
-    hint: 'Открой собственный лаунж (достаточно накопить)',
+    id: 'media_voice',
+    title: 'Голос в ленте',
+    hint: 'Сделай пост в Telegram или сними видео для канала',
     reward: 1800,
-    check: (s) => s.phase !== 'employed',
-  },
-  {
-    id: 'shift_loyal',
-    title: 'Трудяга',
-    hint: 'Открой свой зал и не увольняйся с первой смены',
-    reward: 1500,
-    check: (s) => s.flags.hadDualPhase || s.phase === 'dual',
-  },
-  {
-    id: 'back_shift',
-    title: 'Старое место помнит',
-    hint: 'После открытия угла снова выйди на смену',
-    reward: 400,
-    check: (s) => s.flags.returnedToJob,
-  },
-  {
-    id: 'first_guest',
-    title: 'Первый гость',
-    hint: 'Прими заказ в своём зале',
-    reward: 250,
-    check: (s) => s.flags.loungeOrders >= 1,
-  },
-  {
-    id: 'steady_income',
-    title: 'Зал дышит сам',
-    hint: 'Доведи свой доход до 8/сек',
-    reward: 3000,
-    check: (s) => loungeIncomePerSec(s) >= 8,
-  },
-  {
-    id: 'own_boss',
-    title: 'Сам себе хозяин',
-    hint: 'Уволься со смены — только свой зал (необязательный путь)',
-    reward: 6000,
-    check: (s) => s.phase === 'ownOnly',
-  },
-  {
-    id: 'signature_hall',
-    title: 'Авторский зал',
-    hint: 'Открой лаунж тарифа «Авторский зал»',
-    reward: 4000,
-    check: (s) => s.phase !== 'employed' && s.loungeTier === 'signature',
-  },
-  {
-    id: 'empire_ready',
-    title: 'Пора в сеть',
-    hint: 'Уволись со смены — откроется вкладка «Сеть»',
-    reward: 10_000,
-    check: (s) => s.flags.empireOfferUnlocked,
-  },
-  {
-    id: 'second_door',
-    title: 'Второй вход',
-    hint: 'Открой первый филиал сети',
-    reward: 10_000,
-    check: (s) => branchCount(s) >= 1,
-  },
-  {
-    id: 'three_spots',
-    title: 'Три точки на карте',
-    hint: 'Открой три заведения в сети',
-    reward: 45_000,
-    check: (s) => branchCount(s) >= 3,
-  },
-  {
-    id: 'full_network',
-    title: 'Империя дыма',
-    hint: 'Открой все пять точек сети',
-    reward: 200_000,
-    check: (s) => branchCount(s) >= 5,
-  },
-  {
-    id: 'empire_boss',
-    title: 'Босс сети',
-    hint: 'Три+ филиала и доход 40/сек',
-    reward: 40_000,
-    check: (s) => branchCount(s) >= 3 && loungeIncomePerSec(s) >= 40,
-  },
-  {
-    id: 'first_hire',
-    title: 'Не один',
-    hint: 'Найми первого сотрудника в своём зале',
-    reward: 800,
-    check: (s) => hiredStaffCount(s) >= 1,
-  },
-  {
-    id: 'full_team',
-    title: 'Полная смена',
-    hint: 'Наняты все роли команды (хотя бы по одному)',
-    reward: 5500,
-    check: (s) => staffRolesFilled(s) >= STAFF_ROLES.length,
-  },
-  {
-    id: 'payroll_master',
-    title: 'ФОТ под контролем',
-    hint: 'Команда из 3+ человек и чистый доход ≥8/с',
-    reward: 7000,
-    check: (s) =>
-      hiredStaffCount(s) >= 3 && loungeIncomePerSec(s) >= 8,
+    tier: 'silver',
+    careerPoints: 20,
+    check: (s) => s.personal.telegramPosts >= 1 || s.personal.videosPosted >= 1,
   },
   {
     id: 'brand_ambassador',
     title: 'Амбассадор',
     hint: 'Стань амбассадором бренда',
     reward: 2500,
+    tier: 'silver',
+    careerPoints: 20,
     check: (s) => ambassadorCount(s) >= 1,
   },
+
+  // —— Золото ——
   {
-    id: 'path_easy',
-    title: 'Неоновый старт',
-    hint: 'На лёгком: открой свой зал',
-    reward: 2000,
-    difficulty: 'easy',
-    check: (s) => s.phase !== 'employed' && s.difficulty === 'easy',
-  },
-  {
-    id: 'easy_quit',
-    title: 'Золотой уход',
-    hint: 'На лёгком: уволься со смены — только свой лаунж',
-    reward: 2500,
-    difficulty: 'easy',
-    check: (s) => s.difficulty === 'easy' && s.phase === 'ownOnly',
-  },
-  {
-    id: 'easy_branch',
-    title: 'Неоновая сеть',
-    hint: 'На лёгком: открой первый филиал',
-    reward: 3000,
-    difficulty: 'easy',
-    check: (s) => s.difficulty === 'easy' && branchCount(s) >= 1,
-  },
-  {
-    id: 'path_normal',
-    title: 'Дым у реки',
-    hint: 'На среднем: открой свой зал',
-    reward: 2000,
-    difficulty: 'normal',
-    check: (s) => s.phase !== 'employed' && s.difficulty === 'normal',
-  },
-  {
-    id: 'normal_dual',
-    title: 'Две жизни',
-    hint: 'На среднем: открой зал и не увольняйся с первой смены',
-    reward: 2200,
-    difficulty: 'normal',
-    check: (s) =>
-      s.difficulty === 'normal' && (s.flags.hadDualPhase || s.phase === 'dual'),
-  },
-  {
-    id: 'normal_income',
-    title: 'Река денег',
-    hint: 'На среднем: свой доход ≥12/с',
-    reward: 3500,
-    difficulty: 'normal',
-    check: (s) =>
-      s.difficulty === 'normal' &&
-      s.phase !== 'employed' &&
-      loungeIncomePerSec(s) >= 12,
-  },
-  {
-    id: 'path_hard',
-    title: 'Подвал и упрямство',
-    hint: 'На сложном: открой свой зал',
-    reward: 3500,
-    difficulty: 'hard',
-    check: (s) => s.phase !== 'employed' && s.difficulty === 'hard',
-  },
-  {
-    id: 'hard_patience',
-    title: 'Железная копилка',
-    hint: 'На сложном: накопи лишнее на смене до открытия зала',
-    reward: 4000,
-    difficulty: 'hard',
-    check: (s) => s.difficulty === 'hard' && s.flags.loyalPockets,
-  },
-  {
-    id: 'hard_bare',
-    title: 'Подвал без шуруповёрта',
-    hint: `На сложном: ${BARE_HANDS_WASH_NEED} моек без шуруповёрта`,
-    reward: 5000,
-    difficulty: 'hard',
-    check: (s) => s.difficulty === 'hard' && s.flags.bareHandsEarned,
-  },
-  {
-    id: 'hard_quit',
-    title: 'Подвал позади',
-    hint: 'На сложном: уволься со смены — только свой лаунж',
-    reward: 4500,
-    difficulty: 'hard',
-    check: (s) => s.difficulty === 'hard' && s.phase === 'ownOnly',
-  },
-  {
-    id: 'iron_empire',
-    title: 'Железная империя',
-    hint: 'На сложном: открой три+ филиала сети',
+    id: 'signature_hall',
+    title: 'Дымный мир',
+    hint: 'Открой лаунж «Дымный мир»',
     reward: 8000,
-    difficulty: 'hard',
-    check: (s) => s.difficulty === 'hard' && branchCount(s) >= 3,
+    tier: 'gold',
+    careerPoints: 50,
+    check: (s) => s.phase !== 'employed' && s.loungeTier === 'signature',
+  },
+  {
+    id: 'own_boss',
+    title: 'Сам себе хозяин',
+    hint: 'Уволься со смены — только свой лаунж',
+    reward: 12_000,
+    tier: 'gold',
+    careerPoints: 50,
+    check: (s) => s.phase === 'ownOnly',
+  },
+  {
+    id: 'payroll_master',
+    title: 'ФОТ под контролем',
+    hint: 'Команда из 4+ человек, чистые ≥ порога увольнения, ФОТ не выше 40%',
+    reward: 15_000,
+    tier: 'gold',
+    careerPoints: 50,
+    check: (s) =>
+      hiredStaffCount(s) >= 4 &&
+      loungeIncomePerSec(s) >= quitIncomeThreshold(s) &&
+      staffPayrollShare(s) <= 0.4,
+  },
+  {
+    id: 'first_wing',
+    title: 'Пристройка',
+    hint: 'Купи первое расширение лаунжа',
+    reward: 10_000,
+    tier: 'gold',
+    careerPoints: 50,
+    check: (s) => Object.values(s.expansions).some(Boolean),
+  },
+  {
+    id: 'full_network',
+    title: 'Империя дыма',
+    hint: 'Открой все пять точек сети',
+    reward: 80_000,
+    tier: 'gold',
+    careerPoints: 50,
+    check: (s) => branchCount(s) >= 5,
+  },
+
+  // —— Секреты ——
+  {
+    id: 'secret_laureate',
+    title: 'Лауреат Гайд Мастерс',
+    hint: 'Выиграй премию «Гайд Мастерс»',
+    secretHint: 'Золотая рамка ждёт в «Личном»…',
+    reward: 12_000,
+    tier: 'secret',
+    careerPoints: 50,
+    check: (s) => isGuideMastersWinner(s),
+  },
+  {
+    id: 'secret_solo',
+    title: 'Один в дыму',
+    hint: 'Доведи чистые до порога увольнения, никого ни разу не нанимая',
+    secretHint: 'Никого в команде — а порог увольнения уже твой',
+    reward: 10_000,
+    tier: 'secret',
+    careerPoints: 50,
+    check: (s) =>
+      !s.flags.everHired &&
+      s.phase !== 'employed' &&
+      loungeIncomePerSec(s) >= quitIncomeThreshold(s),
+  },
+
+  // —— Платина (всегда последней) ——
+  {
+    id: 'platinum_set',
+    title: 'Платиновый набор',
+    hint: 'Собери все трофеи и секреты',
+    reward: 200_000,
+    tier: 'platinum',
+    careerPoints: 150,
+    check: (s) =>
+      ACHIEVEMENTS.filter((a) => a.tier !== 'platinum').every((a) =>
+        isAchievementUnlocked(s, a.id),
+      ),
   },
 ]
+
+export const TROPHY_TIERS: TrophyTier[] = [
+  'bronze',
+  'silver',
+  'gold',
+  'secret',
+  'platinum',
+]
+
+export const TROPHY_TIER_LABEL: Record<TrophyTier, string> = {
+  bronze: 'Бронза',
+  silver: 'Серебро',
+  gold: 'Золото',
+  secret: 'Секреты',
+  platinum: 'Платина',
+}
+
+export function achievementsByTier(tier: TrophyTier): AchievementDef[] {
+  return ACHIEVEMENTS.filter((a) => a.tier === tier)
+}
 
 export function isAchievementUnlocked(
   state: GameState,
@@ -363,7 +347,6 @@ export function isAchievementUnlocked(
   return state.achievements[id] === true
 }
 
-/** Разблокировать один раз — повторно не вызывать награду и баннер */
 export function markAchievementUnlocked(
   state: GameState,
   id: AchievementId,
@@ -373,13 +356,15 @@ export function markAchievementUnlocked(
   return true
 }
 
-export function evaluateAchievements(state: GameState): AchievementDef[] {
+export function evaluateAchievements(
+  state: GameState,
+  limit = 1,
+): AchievementDef[] {
   const unlocked: AchievementDef[] = []
+  const cap = Math.max(1, limit)
   for (const def of ACHIEVEMENTS) {
+    if (unlocked.length >= cap) break
     if (isAchievementUnlocked(state, def.id)) continue
-    if (def.difficulty && state.difficulty && state.difficulty !== def.difficulty) {
-      continue
-    }
     if (!def.check(state)) continue
     if (!markAchievementUnlocked(state, def.id)) continue
     state.cash += achievementRewardCash(state, def.reward)
@@ -388,12 +373,77 @@ export function evaluateAchievements(state: GameState): AchievementDef[] {
   return unlocked
 }
 
-export function achievementProgress(state: GameState): { done: number; total: number } {
-  const total = ACHIEVEMENTS.length
-  const done = ACHIEVEMENTS.filter((a) => isAchievementUnlocked(state, a.id)).length
-  return { done, total }
+/** Прогресс без платины (она отдельно) */
+export function achievementProgress(state: GameState): {
+  done: number
+  total: number
+  platinum: boolean
+} {
+  const track = ACHIEVEMENTS.filter((a) => a.tier !== 'platinum')
+  const total = track.length
+  const done = track.filter((a) => isAchievementUnlocked(state, a.id)).length
+  return {
+    done,
+    total,
+    platinum: isAchievementUnlocked(state, 'platinum_set'),
+  }
 }
 
-export function achievementDifficultyOnly(def: AchievementDef, state: GameState): boolean {
-  return !!def.difficulty && state.difficulty !== def.difficulty && !isAchievementUnlocked(state, def.id)
+export function achievementTierProgress(
+  state: GameState,
+  tier: TrophyTier,
+): { done: number; total: number } {
+  const list = achievementsByTier(tier)
+  return {
+    total: list.length,
+    done: list.filter((a) => isAchievementUnlocked(state, a.id)).length,
+  }
+}
+
+export function trophyCareerPoints(state: GameState): number {
+  let sum = 0
+  for (const def of ACHIEVEMENTS) {
+    if (isAchievementUnlocked(state, def.id)) sum += def.careerPoints
+  }
+  return sum
+}
+
+export function achievementProgressLabel(def: AchievementDef, state: GameState): string | null {
+  if (isAchievementUnlocked(state, def.id)) return null
+  if (def.id === 'promo_trio') {
+    return `акции ${promoLaunchCount(state)}/${PROMOTIONS.length}`
+  }
+  if (def.id === 'shelf_full') {
+    const cap = shelfCapacity(state)
+    const n = shelfActiveCount(state)
+    if (cap < 4) return `полка ${n}/${cap} · нужно ≥4 слотов`
+    return `полка ${n}/${cap}`
+  }
+  if (def.id === 'shelf_curated') {
+    return `на полке ${shelfActiveCount(state)}/3`
+  }
+  if (def.id === 'back_shift') {
+    const n = state.flags.tasksAfterLounge ?? 0
+    if (!state.flags.returnedToJob) return 'выйди на смену'
+    return `задач после открытия ${Math.min(n, 3)}/3`
+  }
+  return null
+}
+
+/** @deprecated path-трофеев больше нет */
+export function achievementDifficultyOnly(
+  _def: AchievementDef,
+  _state: GameState,
+): boolean {
+  return false
+}
+
+/** Старые id → новые при миграции сейва */
+export const LEGACY_ACHIEVEMENT_MAP: Record<string, AchievementId> = {
+  open_corner: 'open_lounge',
+}
+
+export function normalizeAchievementId(raw: string): AchievementId | null {
+  const mapped = LEGACY_ACHIEVEMENT_MAP[raw] ?? raw
+  return ACHIEVEMENTS.some((a) => a.id === mapped) ? (mapped as AchievementId) : null
 }

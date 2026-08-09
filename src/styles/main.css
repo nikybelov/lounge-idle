@@ -31,6 +31,7 @@
   --font-display: 'Fraunces', Georgia, serif;
   --font-body: 'DM Sans', system-ui, sans-serif;
   --font-sign: 'Marck Script', 'Segoe Script', cursive;
+  --font-plate: 'Prata', Georgia, serif;
   --safe-b: env(safe-area-inset-bottom, 0px);
   --safe-t: env(safe-area-inset-top, 0px);
   --pad-x: 14px;
@@ -364,6 +365,8 @@ body {
 
 .settings-sheet__title {
   margin: 0;
+  flex: 1;
+  min-width: 0;
   font-family: var(--font-display);
   font-size: 1.35rem;
   font-weight: 600;
@@ -478,9 +481,107 @@ body {
   border-top: 1px solid var(--line);
 }
 
+.settings-version-btn {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  width: 100%;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.settings-version-btn:focus-visible {
+  outline: 2px solid rgba(224, 122, 58, 0.55);
+  outline-offset: 4px;
+  border-radius: var(--radius-xs);
+}
+
 .settings-version {
   font-size: 0.75rem;
   color: var(--muted);
+}
+
+.settings-version-cta {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--ember-bright);
+}
+
+.settings-sheet__back {
+  display: grid;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  padding: 0;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--text);
+  font-size: 1.05rem;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.settings-sheet__body--changelog {
+  gap: 12px;
+  max-height: min(58vh, 360px);
+  overflow: auto;
+  padding-right: 2px;
+}
+
+.changelog-entry {
+  padding: 12px 12px 10px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--line);
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.changelog-entry__head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 4px;
+}
+
+.changelog-entry__version {
+  margin: 0;
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: var(--gold);
+  letter-spacing: 0.04em;
+}
+
+.changelog-entry__date {
+  margin: 0;
+  font-size: 0.72rem;
+  color: var(--muted);
+}
+
+.changelog-entry__title {
+  margin: 0 0 8px;
+  font-family: var(--font-display);
+  font-size: 1.05rem;
+  font-weight: 600;
+  line-height: 1.25;
+}
+
+.changelog-entry__list {
+  margin: 0;
+  padding-left: 1.1rem;
+  color: var(--muted);
+  font-size: 0.8rem;
+  line-height: 1.45;
+}
+
+.changelog-entry__list li + li {
+  margin-top: 4px;
 }
 
 .stage {
@@ -498,37 +599,40 @@ body {
   max-height: 184px;
 }
 
+.stage[data-scene='job'] {
+  min-height: 156px;
+  max-height: 168px;
+}
+
 .stage[data-scene='lounge'] {
   min-height: 172px;
-  max-height: 196px;
+  max-height: 192px;
 }
 
 .stage[data-scene='lounge'][data-has-cta='1'] {
-  min-height: 188px;
-  max-height: 212px;
+  min-height: 196px;
+  max-height: 216px;
 }
 
-/* Свой зал (live SVG): компактнее — название + трафик, без «пустого» воздуха */
+/* Live: фон на всю сцену + вывеска поверх (как на смене) */
 .stage[data-scene='lounge'][data-lounge-live='1']:not([data-has-cta='1']) {
-  min-height: clamp(128px, 20dvh, 158px);
-  max-height: clamp(142px, 22dvh, 168px);
+  min-height: 172px;
+  max-height: 192px;
 }
 
 .stage[data-scene='lounge'][data-lounge-live='1'][data-has-cta='1'] {
-  min-height: clamp(164px, 25dvh, 188px);
-  max-height: clamp(178px, 27dvh, 204px);
+  min-height: 196px;
+  max-height: 216px;
 }
 
 .stage[data-scene='lounge']::after {
   background:
-    linear-gradient(90deg, rgba(14, 11, 8, 0.78) 0%, rgba(14, 11, 8, 0.28) 46%, transparent 58%),
-    linear-gradient(0deg, rgba(12, 9, 7, 0.9) 0%, transparent 52%);
+    linear-gradient(180deg, rgba(12, 9, 7, 0.12) 0%, transparent 40%, rgba(12, 9, 7, 0.62) 100%);
 }
 
 .stage[data-scene='lounge'][data-lounge-live='1']::after {
   background:
-    linear-gradient(90deg, rgba(14, 11, 8, 0.62) 0%, rgba(14, 11, 8, 0.12) 44%, transparent 56%),
-    linear-gradient(0deg, rgba(12, 9, 7, 0.82) 0%, transparent 48%);
+    linear-gradient(180deg, rgba(12, 9, 7, 0.08) 0%, transparent 38%, rgba(12, 9, 7, 0.58) 100%);
 }
 
 .stage[data-has-cta='1'] .tagline {
@@ -584,38 +688,38 @@ body {
   mix-blend-mode: soft-light;
 }
 
-.stage[data-story-sub='shop'] .stage-bg,
-.stage[data-tab='own'] .stage-bg {
+.stage:not([data-scene='job']):not([data-scene='lounge'])[data-story-sub='shop'] .stage-bg,
+.stage:not([data-scene='job']):not([data-scene='lounge'])[data-tab='own'] .stage-bg {
   background:
     radial-gradient(70% 80% at 80% 20%, rgba(224, 180, 100, 0.12), transparent 50%),
     linear-gradient(165deg, #2a2018 0%, var(--bg0) 75%);
 }
 
-.stage[data-tab='tobacco'] .stage-bg {
+.stage:not([data-scene='job']):not([data-scene='lounge'])[data-tab='tobacco'] .stage-bg {
   background:
     radial-gradient(60% 70% at 70% 30%, rgba(120, 80, 50, 0.25), transparent 55%),
     linear-gradient(165deg, #241a14 0%, var(--bg0) 72%);
 }
 
-.stage[data-tab='staff'] .stage-bg {
+.stage:not([data-scene='job']):not([data-scene='lounge'])[data-tab='staff'] .stage-bg {
   background:
     radial-gradient(60% 70% at 30% 30%, rgba(90, 120, 160, 0.15), transparent 55%),
     linear-gradient(165deg, #221a16 0%, var(--bg0) 72%);
 }
 
-.stage[data-tab='personal'] .stage-bg {
+.stage:not([data-scene='job']):not([data-scene='lounge'])[data-tab='personal'] .stage-bg {
   background:
     radial-gradient(65% 75% at 60% 25%, rgba(180, 120, 200, 0.14), transparent 55%),
     linear-gradient(165deg, #241820 0%, var(--bg0) 72%);
 }
 
-.stage[data-tab='network'] .stage-bg {
+.stage:not([data-scene='job']):not([data-scene='lounge'])[data-tab='network'] .stage-bg {
   background:
     radial-gradient(80% 90% at 50% 0%, rgba(224, 122, 58, 0.2), transparent 55%),
     linear-gradient(165deg, #2e2218 0%, var(--bg0) 70%);
 }
 
-.stage[data-tab='career'] .stage-bg {
+.stage:not([data-scene='job']):not([data-scene='lounge'])[data-tab='career'] .stage-bg {
   background:
     radial-gradient(70% 80% at 50% 20%, rgba(224, 180, 100, 0.18), transparent 50%),
     linear-gradient(165deg, #282018 0%, var(--bg0) 72%);
@@ -640,10 +744,24 @@ body {
   --scene-glow: rgba(90, 160, 180, 0.2);
 }
 
-.stage[data-tier='signature'] .stage-bg {
+.stage[data-scene='lounge'][data-tier='nook'] .stage-bg {
   background:
-    radial-gradient(70% 80% at 80% 15%, rgba(224, 122, 58, 0.28), transparent 50%),
-    linear-gradient(165deg, #322418 0%, var(--bg0) 72%);
+    radial-gradient(50% 55% at 72% 68%, rgba(224, 122, 58, 0.28), transparent 60%),
+    linear-gradient(165deg, #14100e 0%, #080605 100%);
+}
+
+.stage[data-scene='lounge'][data-tier='hall'] .stage-bg {
+  background:
+    radial-gradient(60% 70% at 30% 30%, rgba(255, 180, 150, 0.16), transparent 55%),
+    radial-gradient(55% 60% at 80% 70%, rgba(230, 150, 100, 0.2), transparent 55%),
+    linear-gradient(165deg, #241612 0%, #100c0a 100%);
+}
+
+.stage[data-scene='lounge'][data-tier='signature'] .stage-bg {
+  background:
+    radial-gradient(70% 80% at 50% 20%, rgba(150, 170, 190, 0.14), transparent 55%),
+    radial-gradient(50% 55% at 78% 78%, rgba(224, 122, 58, 0.2), transparent 58%),
+    linear-gradient(165deg, #12141a 0%, #07080c 100%);
 }
 
 .stage-art {
@@ -657,18 +775,44 @@ body {
   z-index: 1;
 }
 
-.stage[data-scene='lounge'] .stage-art {
-  left: var(--pad-x);
+/* Job: арт на всю сцену, символ заведения */
+.stage[data-scene='job'] .stage-art {
+  inset: 0;
   right: auto;
-  top: 8px;
-  width: min(56%, 280px);
+  top: auto;
+  width: 100%;
+  height: 100%;
   opacity: 1;
+  filter: none;
+}
+
+.stage[data-scene='job'] .stage-art svg {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+
+.stage[data-scene='lounge'] .stage-art {
+  inset: 0;
+  left: auto;
+  right: auto;
+  top: auto;
+  width: 100%;
+  height: 100%;
+  opacity: 1;
+  filter: none;
+}
+
+.stage[data-scene='lounge'] .stage-art svg {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
 }
 
 .stage[data-scene='lounge'][data-lounge-live='1'] .stage-art {
-  filter:
-    drop-shadow(0 10px 28px rgba(224, 122, 58, 0.22))
-    drop-shadow(0 14px 24px rgba(0, 0, 0, 0.42));
+  filter: drop-shadow(0 10px 28px rgba(224, 122, 58, 0.12));
   animation: lounge-stage-breathe 4.5s ease-in-out infinite;
 }
 
@@ -695,48 +839,99 @@ body {
 }
 
 .stage[data-scene='lounge'] .stage-copy {
-  max-width: 56%;
-  margin-left: auto;
-}
-
-.stage[data-scene='lounge'][data-lounge-live='1']:not([data-has-cta='1']) .stage-copy {
-  min-height: 0;
-  max-width: 52%;
-  padding: 8px var(--pad-x) 10px;
-}
-
-.stage[data-scene='lounge'][data-lounge-live='1']:not([data-has-cta='1']) .stage-art {
-  top: 6px;
-  width: min(48%, 200px);
-}
-
-.stage[data-scene='lounge'][data-lounge-live='1'] .brand {
-  overflow-wrap: anywhere;
-  display: -webkit-box;
-  -webkit-box-orient: vertical;
-  -webkit-line-clamp: 2;
-  overflow: hidden;
-}
-
-.stage[data-scene='lounge'][data-lounge-live='1']:not([data-has-cta='1']) .brand {
-  font-size: clamp(1.2rem, 5vw, 1.55rem);
-  line-height: 1.06;
-}
-
-.stage[data-scene='lounge'][data-lounge-live='1']:not([data-has-cta='1']) .tagline {
-  margin-top: 3px;
-  font-size: 0.7rem;
-  line-height: 1.3;
-}
-
-.stage[data-scene='lounge'][data-lounge-live='1']:not([data-has-cta='1']) .stage-live-badge {
-  top: 6px;
-  font-size: 0.58rem;
-  padding: 3px 8px;
+  max-width: 100%;
+  margin-left: 0;
+  width: 100%;
+  min-height: 172px;
+  padding: 12px var(--pad-x) 14px;
+  justify-content: flex-end;
+  gap: 8px;
+  container-type: inline-size;
 }
 
 .stage[data-scene='lounge'][data-has-cta='1'] .stage-copy {
   max-width: 100%;
+  min-height: 0;
+  padding: 12px var(--pad-x) 12px;
+}
+
+.stage[data-scene='lounge'] .brand.sign {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  max-width: none;
+  min-height: 2.55rem;
+  margin: 0;
+  padding: 0.45rem 0.85rem;
+  border-radius: 4px;
+  font-size: clamp(1.15rem, 8.5cqi, 1.55rem);
+  line-height: 1.05;
+  letter-spacing: -0.03em;
+  text-align: center;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  box-sizing: border-box;
+}
+
+/* Первая тяга — уголёк, камерно */
+.stage[data-scene='lounge'] .brand.sign--nook {
+  background: linear-gradient(180deg, rgba(48, 38, 32, 0.62) 0%, rgba(24, 18, 14, 0.7) 100%);
+  border: 1px solid rgba(170, 140, 110, 0.28);
+  color: #efe4d4;
+  letter-spacing: -0.02em;
+  text-shadow:
+    0 1px 2px rgba(20, 10, 5, 0.9),
+    0 0 18px rgba(224, 122, 58, 0.16);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 220, 180, 0.08),
+    inset 0 -10px 18px rgba(224, 122, 58, 0.06),
+    0 6px 16px rgba(0, 0, 0, 0.3);
+}
+
+/* Сладкий пар — мёд / рукопись */
+.stage[data-scene='lounge'] .brand.sign--hall {
+  font-family: var(--font-sign);
+  font-weight: 400;
+  font-size: clamp(1.3rem, 9.8cqi, 1.72rem);
+  letter-spacing: 0.01em;
+  background: linear-gradient(180deg, rgba(72, 42, 38, 0.52) 0%, rgba(36, 22, 20, 0.62) 100%);
+  border: 1px solid rgba(240, 170, 140, 0.4);
+  color: #ffe8d8;
+  text-shadow:
+    0 1px 2px rgba(30, 10, 8, 0.75),
+    0 0 14px rgba(255, 170, 140, 0.35),
+    0 0 22px rgba(230, 140, 100, 0.2);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 220, 200, 0.16),
+    0 0 20px rgba(240, 150, 120, 0.12),
+    0 6px 18px rgba(0, 0, 0, 0.28);
+}
+
+/* Дымный мир — дымка / горизонт · Prata */
+.stage[data-scene='lounge'] .brand.sign--signature {
+  font-family: var(--font-plate);
+  font-weight: 400;
+  letter-spacing: 0.01em;
+  background: linear-gradient(180deg, rgba(40, 44, 54, 0.55) 0%, rgba(14, 14, 20, 0.7) 100%);
+  border: 1px solid rgba(200, 190, 170, 0.42);
+  color: #f4eee4;
+  text-shadow:
+    0 1px 2px rgba(8, 8, 14, 0.85),
+    0 0 16px rgba(190, 210, 230, 0.22),
+    0 0 20px rgba(224, 122, 58, 0.18);
+  box-shadow:
+    inset 0 1px 0 rgba(220, 230, 240, 0.1),
+    0 0 24px rgba(140, 160, 180, 0.1),
+    0 0 18px rgba(224, 122, 58, 0.1),
+    0 6px 18px rgba(0, 0, 0, 0.32);
+}
+
+.stage-chip--traffic {
+  color: rgba(246, 239, 230, 0.9);
 }
 
 .stage-svg {
@@ -745,20 +940,25 @@ body {
   height: auto;
 }
 
-.stage[data-scene='job'] .stage-svg--job {
+.stage[data-scene='job'][data-venue='neon_haze'] .stage-svg--venue-neon_haze,
+.stage[data-scene='job'][data-venue='smoke_river'] .stage-svg--venue-smoke_river,
+.stage[data-scene='job'][data-venue='basement'] .stage-svg--venue-basement {
   display: block;
 }
 
-.stage[data-scene='lounge'] .stage-svg--lounge {
-  display: block;
-}
-
-.stage-art[data-live='1'] .stage-svg--lounge:not(.stage-svg--live) {
+.stage[data-scene='lounge'] .stage-svg--lounge-tier {
   display: none;
 }
 
-.stage-art[data-live='1'] .stage-svg--live {
+.stage[data-scene='lounge'][data-tier='nook'] .stage-svg--lounge-nook,
+.stage[data-scene='lounge'][data-tier='hall'] .stage-svg--lounge-hall,
+.stage[data-scene='lounge'][data-tier='signature'] .stage-svg--lounge-signature,
+.stage[data-scene='lounge']:not([data-tier]) .stage-svg--lounge-nook {
   display: block;
+}
+
+.stage-art[data-live='1'] .stage-svg--live {
+  display: none;
 }
 
 .stage.stage-hit {
@@ -836,14 +1036,202 @@ body {
   max-width: 64%;
 }
 
-.stage[data-story-sub='shop'] .stage-copy,
-.stage[data-tab='own'] .stage-copy,
-.stage[data-tab='tobacco'] .stage-copy,
-.stage[data-tab='staff'] .stage-copy,
-.stage[data-tab='personal'] .stage-copy,
-.stage[data-tab='network'] .stage-copy,
-.stage[data-tab='career'] .stage-copy,
+.stage[data-scene='job']::after {
+  background:
+    linear-gradient(180deg, rgba(12, 9, 7, 0.12) 0%, transparent 42%, rgba(12, 9, 7, 0.55) 100%);
+}
+
 .stage[data-scene='job'] .stage-copy {
+  min-height: 156px;
+  max-width: 100%;
+  width: 100%;
+  padding: 12px var(--pad-x) 14px;
+  justify-content: flex-end;
+  gap: 8px;
+  container-type: inline-size;
+}
+
+.stage[data-scene='job'] .brand.sign {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  max-width: none;
+  min-height: 2.55rem;
+  margin: 0;
+  padding: 0.45rem 0.85rem;
+  border-radius: 4px;
+  font-size: clamp(1.15rem, 8.5cqi, 1.55rem);
+  line-height: 1.05;
+  letter-spacing: -0.03em;
+  text-align: center;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  text-shadow: 0 1px 2px rgba(20, 10, 5, 0.85);
+  box-sizing: border-box;
+}
+
+.stage[data-scene='job'] .brand.sign--smoke_river {
+  background: linear-gradient(180deg, rgba(78, 54, 38, 0.55) 0%, rgba(42, 28, 20, 0.62) 100%);
+  border: 1px solid rgba(212, 165, 116, 0.42);
+  color: #f6ead8;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 220, 180, 0.14),
+    0 6px 18px rgba(0, 0, 0, 0.28);
+  text-shadow:
+    0 1px 2px rgba(20, 10, 5, 0.85),
+    0 0 14px rgba(224, 122, 58, 0.22);
+}
+
+.stage[data-scene='job'] .brand.sign--neon_haze {
+  font-family: var(--font-sign);
+  font-weight: 400;
+  font-size: clamp(1.25rem, 9.5cqi, 1.7rem);
+  letter-spacing: 0.01em;
+  background: rgba(8, 16, 22, 0.42);
+  border: 1px solid rgba(120, 190, 210, 0.38);
+  color: #d4f6fc;
+  box-shadow:
+    0 0 18px rgba(90, 180, 200, 0.14),
+    inset 0 0 14px rgba(90, 160, 180, 0.08);
+  text-shadow:
+    0 1px 2px rgba(0, 0, 0, 0.7),
+    0 0 6px rgba(140, 220, 240, 0.95),
+    0 0 16px rgba(90, 180, 200, 0.6);
+  animation: stage-neon-flicker 5.5s ease-in-out infinite;
+}
+
+.stage[data-scene='job'] .brand.sign--basement {
+  min-height: 2.4rem;
+  font-family: var(--font-body);
+  font-weight: 600;
+  font-size: clamp(0.92rem, 6.8cqi, 1.12rem);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  background: linear-gradient(180deg, rgba(46, 41, 37, 0.55) 0%, rgba(24, 20, 17, 0.62) 100%);
+  border: 1px solid rgba(170, 155, 135, 0.36);
+  color: #ebe4da;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.07),
+    0 6px 14px rgba(0, 0, 0, 0.28);
+}
+
+.tagline--chips {
+  margin: 0;
+  max-width: none;
+}
+
+.stage-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+}
+
+.stage-chip {
+  display: inline-flex;
+  align-items: center;
+  padding: 3px 8px;
+  border-radius: 999px;
+  font-size: 0.68rem;
+  font-weight: 600;
+  line-height: 1.2;
+  color: rgba(246, 239, 230, 0.82);
+  background: rgba(10, 8, 6, 0.45);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+}
+
+.stage-chip--rank {
+  color: var(--gold);
+  border-color: rgba(224, 122, 58, 0.28);
+  background: rgba(224, 122, 58, 0.14);
+}
+
+.stage-chip--diff-easy {
+  border-color: rgba(120, 170, 140, 0.35);
+  color: #b7d4c0;
+}
+
+.stage-chip--diff-normal {
+  border-color: rgba(200, 170, 110, 0.35);
+  color: #e0c892;
+}
+
+.stage-chip--diff-hard {
+  border-color: rgba(196, 107, 90, 0.4);
+  color: #e0a898;
+}
+
+.stage-chip--soft {
+  color: var(--muted);
+  font-weight: 500;
+}
+
+.stage-ember {
+  transform-origin: center;
+  transform-box: fill-box;
+  animation: stage-ember-pulse 2.6s ease-in-out infinite alternate;
+}
+
+.stage-haze {
+  animation: stage-haze-drift 8s ease-in-out infinite alternate;
+}
+
+.stage-ripple {
+  animation: stage-ripple 4.5s ease-in-out infinite;
+}
+
+@keyframes stage-neon-flicker {
+  0%, 92%, 100% { opacity: 1; filter: brightness(1); }
+  94% { opacity: 0.82; filter: brightness(0.85); }
+  96% { opacity: 1; filter: brightness(1.05); }
+}
+
+@keyframes stage-ember-pulse {
+  0% { opacity: 0.75; }
+  100% { opacity: 1; }
+}
+
+@keyframes stage-haze-drift {
+  0% { opacity: 0.25; transform: translateX(-4px); }
+  100% { opacity: 0.5; transform: translateX(6px); }
+}
+
+@keyframes stage-ripple {
+  0%, 100% { opacity: 0.25; }
+  50% { opacity: 0.5; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .stage[data-scene='job'] .brand.sign--neon_haze,
+  .stage-ember,
+  .stage-haze,
+  .stage-ripple {
+    animation: none !important;
+  }
+}
+
+.settings-motion-reduce .stage[data-scene='job'] .brand.sign--neon_haze,
+.settings-motion-reduce .stage-ember,
+.settings-motion-reduce .stage-haze,
+.settings-motion-reduce .stage-ripple {
+  animation: none !important;
+}
+
+.stage:not([data-scene='job']):not([data-scene='lounge'])[data-story-sub='shop'] .stage-copy,
+.stage:not([data-scene='job']):not([data-scene='lounge'])[data-tab='own'] .stage-copy,
+.stage:not([data-scene='job']):not([data-scene='lounge'])[data-tab='tobacco'] .stage-copy,
+.stage:not([data-scene='job']):not([data-scene='lounge'])[data-tab='staff'] .stage-copy,
+.stage:not([data-scene='job']):not([data-scene='lounge'])[data-tab='personal'] .stage-copy,
+.stage:not([data-scene='job']):not([data-scene='lounge'])[data-tab='network'] .stage-copy,
+.stage:not([data-scene='job']):not([data-scene='lounge'])[data-tab='career'] .stage-copy {
   min-height: 120px;
   padding: 12px var(--pad-x) 14px;
 }
@@ -861,32 +1249,10 @@ body {
   max-width: 78%;
 }
 
-.stage-live-badge {
-  position: absolute;
-  top: 10px;
-  right: calc(var(--pad-x) + 4px);
-  z-index: 5;
-  padding: 4px 9px;
-  border-radius: 99px;
-  font-size: 0.62rem;
-  font-weight: 700;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  color: var(--gold);
-  background: rgba(224, 122, 58, 0.14);
-  border: 1px solid rgba(224, 122, 58, 0.28);
-  box-shadow: 0 0 16px rgba(224, 122, 58, 0.12);
-  pointer-events: none;
-}
-
-.stage-live-badge[hidden] {
-  display: none !important;
-}
-
-.stage[data-scene='lounge'] .stage-live-badge {
-  right: auto;
-  left: calc(var(--pad-x) + min(56%, 280px) - 4px);
-  transform: translateX(-100%);
+.stage[data-scene='lounge'][data-has-cta='1'] .brand.sign,
+.stage[data-scene='lounge'][data-has-cta='1'] .tagline--chips {
+  max-width: none;
+  width: 100%;
 }
 
 .haze {
@@ -1217,24 +1583,39 @@ body {
   position: absolute;
   left: 0;
   right: 0;
-  height: 22px;
+  height: 28px;
   pointer-events: none;
   z-index: 2;
+  opacity: 0;
+  transition: opacity 0.18s ease;
+}
+
+.panel-scroll-fade.is-visible {
+  opacity: 1;
 }
 
 .panel-scroll-fade--top {
   top: 0;
-  background: linear-gradient(180deg, var(--panel) 0%, transparent 100%);
-  opacity: 0.85;
+  background: linear-gradient(180deg, var(--panel) 15%, transparent 100%);
+  backdrop-filter: blur(5px);
+  -webkit-backdrop-filter: blur(5px);
+  mask-image: linear-gradient(180deg, #000 0%, transparent 100%);
+  -webkit-mask-image: linear-gradient(180deg, #000 0%, transparent 100%);
 }
 
 .panel-scroll-fade--bottom {
   bottom: 0;
-  background: linear-gradient(0deg, var(--panel) 10%, transparent 100%);
+  background: linear-gradient(0deg, var(--panel) 15%, transparent 100%);
   backdrop-filter: blur(5px);
   -webkit-backdrop-filter: blur(5px);
   mask-image: linear-gradient(0deg, #000 0%, transparent 100%);
   -webkit-mask-image: linear-gradient(0deg, #000 0%, transparent 100%);
+}
+
+.stage[data-animation-active='0'] .haze,
+.stage[data-animation-active='0'] .embers,
+.stage[data-animation-active='0'] .stage-fx {
+  animation-play-state: paused !important;
 }
 
 .menu-nav {
@@ -1378,11 +1759,12 @@ body {
 }
 
 .row-btn.achievement.locked {
-  opacity: 0.7;
+  opacity: 0.78;
 }
 
-.row-btn.achievement.achievement--wrong-diff {
-  opacity: 0.45;
+.row-btn.achievement.achievement--secret.locked {
+  opacity: 0.55;
+  border-style: dashed;
 }
 
 .row-btn.achievement .row-meta {
@@ -1392,6 +1774,85 @@ body {
 
 .row-btn.achievement.unlocked .row-meta {
   color: var(--ok);
+}
+
+.trophy-tier {
+  margin-top: 12px;
+}
+
+.trophy-tier__head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+  margin: 0 0 6px;
+  padding: 0 2px;
+}
+
+.trophy-tier__title {
+  margin: 0;
+  font-size: 0.62rem;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.trophy-tier__count {
+  margin: 0;
+  font-size: 0.7rem;
+  color: var(--muted);
+}
+
+.trophy-tier__list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.trophy-tier--bronze .trophy-tier__title {
+  color: #c4a574;
+}
+
+.trophy-tier--silver .trophy-tier__title {
+  color: #b8c0c8;
+}
+
+.trophy-tier--gold .trophy-tier__title {
+  color: #e0b464;
+}
+
+.trophy-tier--secret .trophy-tier__title {
+  color: #9aa8b5;
+}
+
+.trophy-tier--platinum .trophy-tier__title {
+  color: #dce6ef;
+}
+
+.row-btn.achievement--bronze.unlocked {
+  border-color: rgba(196, 165, 116, 0.4);
+}
+
+.row-btn.achievement--silver.unlocked {
+  border-color: rgba(180, 190, 200, 0.4);
+}
+
+.row-btn.achievement--gold.unlocked {
+  border-color: rgba(224, 180, 100, 0.5);
+}
+
+.row-btn.achievement--secret.unlocked {
+  border-color: rgba(160, 190, 210, 0.45);
+}
+
+.row-btn.achievement--platinum.unlocked {
+  border-color: rgba(220, 230, 240, 0.55);
+  background: linear-gradient(
+    105deg,
+    rgba(220, 230, 240, 0.12),
+    var(--card) 55%
+  );
 }
 
 /* —— Achievement fanfare —— */
@@ -1777,6 +2238,19 @@ body.achieve-locked {
 
 .milestone.career {
   margin-bottom: 2px;
+}
+
+.career-rank-next {
+  margin: 0;
+  color: var(--text);
+  font-weight: 600;
+  font-size: 0.78rem;
+}
+
+.career-rank-progress {
+  margin: 0;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.01em;
 }
 
 .section-label::after {
@@ -2661,13 +3135,13 @@ body.achieve-locked {
 
 @media (max-height: 700px) {
   .stage[data-scene='lounge'][data-lounge-live='1']:not([data-has-cta='1']) {
-    min-height: clamp(118px, 18dvh, 148px);
-    max-height: clamp(132px, 20dvh, 158px);
+    min-height: 148px;
+    max-height: 164px;
   }
 
   .stage[data-scene='lounge'][data-lounge-live='1'][data-has-cta='1'] {
-    min-height: clamp(152px, 23dvh, 176px);
-    max-height: clamp(166px, 25dvh, 192px);
+    min-height: 176px;
+    max-height: 192px;
   }
 }
 

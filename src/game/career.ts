@@ -19,6 +19,7 @@ import {
   getLoungeTier,
   type LoungeTierId,
 } from '../data/loungeTiers'
+import { starterShelfTobaccos } from '../data/loungeStart'
 import { getTobacco, type TobaccoId } from '../data/tobacco'
 import { getExpansion, type ExpansionId } from '../data/expansions'
 import { getBranch, type BranchId } from '../data/branches'
@@ -59,6 +60,7 @@ import {
   loungeTierCost,
   minOpenLoungeCost,
   quitIncomeThreshold,
+  resolveDifficulty,
   scaledBranchCost,
   scaledExpansionCost,
   scaledShiftShopCost,
@@ -101,7 +103,7 @@ export function canOpenLounge(state: GameState): boolean {
 
 export function beginLoungePick(state: GameState): ActionResult {
   if (state.phase !== 'employed') {
-    return { ok: false, message: 'Угол уже твой' }
+    return { ok: false, message: 'Лаунж уже твой' }
   }
   syncLoungeOfferUnlock(state)
   if (!canBrowseLoungeOffer(state)) {
@@ -120,7 +122,7 @@ export function cancelLoungePick(state: GameState): void {
 
 export function openLounge(state: GameState, tierId: LoungeTierId): ActionResult {
   if (state.phase !== 'employed') {
-    return { ok: false, message: 'Угол уже твой' }
+    return { ok: false, message: 'Лаунж уже твой' }
   }
   const tier = getLoungeTier(tierId)
   const cost = loungeTierCost(state, tier.cost)
@@ -136,11 +138,16 @@ export function openLounge(state: GameState, tierId: LoungeTierId): ActionResult
   state.scene = 'lounge'
   state.flags.pickingLounge = false
   state.flags.loungeOfferUnlocked = false
+  state.flags.tobaccoSetupPending = true
   state.flags.personalIntroPending = true
+  state.flags.shelfEmptyWarned = false
+  state.flags.shelfSparseWarned = false
+  state.flags.milestoneHints.shelf_empty = false
+  state.flags.tabHints.tobacco = false
   state.loungeTier = tier.id
   state.loungeIncomeMult = tier.incomeMult
   state.loungeClickMult = tier.clickMult
-  state.loungeName = `${tier.name} · ${state.playerName || 'Мой'}`
+  state.loungeName = tier.name
 
   state.owned = {
     table: 0,
@@ -158,15 +165,30 @@ export function openLounge(state: GameState, tierId: LoungeTierId): ActionResult
     state.shopOwned[shopId] = 1
   }
 
-  // Стартовый вкус — чтобы зал не стартовал «пустым»
+  const starters = starterShelfTobaccos(resolveDifficulty(state), tier.id)
   state.ownedTobacco = {}
   state.shelfActive = []
+  for (const id of starters) {
+    state.ownedTobacco[id] = true
+    state.shelfActive.push(id)
+  }
   state.staffMembers = {}
+
+  const starterNames = starters
+    .map((id) => getTobacco(id)?.name)
+    .filter(Boolean)
+    .join(', ')
+  const shelfLine =
+    starters.length === 0
+      ? 'Без табака на полке гости не приходят. Зайди в «Табак»: купи вкус и нажми «на полку».'
+      : starters.length === 1
+        ? `На полке уже «${starterNames}» — можно зарабатывать. В «Табак» добавь ещё вкусов.`
+        : `На полке уже ${starters.length}: ${starterNames}. В «Табак» можно расширить меню.`
 
   state.flags.celebration = {
     kind: 'lounge',
     title: `«${tier.name}» открыт!`,
-    subtitle: `${state.playerName || 'Ты'} — теперь свой хозяин. Подрабатывай, качай зал и развивай личный бренд во вкладке «Личное».`,
+    subtitle: `${state.playerName || 'Ты'} — хозяин. ${shelfLine}`,
   }
 
   return {
@@ -286,6 +308,10 @@ export function doJobTask(state: GameState, taskId: TaskId, now: number): Action
 
   syncProgressFlags(state)
 
+  if (state.phase !== 'employed') {
+    state.flags.tasksAfterLounge = (state.flags.tasksAfterLounge ?? 0) + 1
+  }
+
   const parts: string[] = []
   const unlocked = newlyUnlockedTasks(state, before)
   if (unlocked.length) parts.push(`Открыто: ${unlocked.join(', ')}`)
@@ -324,6 +350,12 @@ export function loungeOrder(state: GameState): ActionResult {
   if (state.scene !== 'lounge' || state.phase === 'employed') {
     return { ok: false, message: 'Ты не в своём зале' }
   }
+  if (state.shelfActive.length === 0) {
+    return {
+      ok: false,
+      message: 'Полка пуста — выставь табак во вкладке «Табак», иначе нечего курить',
+    }
+  }
   state.cash += loungeClickPower(state)
   state.flags.loungeOrders += 1
   return { ok: true }
@@ -331,7 +363,7 @@ export function loungeOrder(state: GameState): ActionResult {
 
 export function buyUpgrade(state: GameState, id: UpgradeId): ActionResult {
   if (state.phase === 'employed') {
-    return { ok: false, message: 'Сначала свой угол' }
+    return { ok: false, message: 'Сначала свой лаунж' }
   }
   const def = UPGRADES.find((u) => u.id === id)
   if (!def) return { ok: false, message: 'Нет такого' }
@@ -383,7 +415,7 @@ export function orderTobacco(state: GameState, id: TobaccoId): ActionResult {
 
 export function buyTobacco(state: GameState, id: TobaccoId): ActionResult {
   if (state.phase === 'employed') {
-    return { ok: false, message: 'Сначала свой зал' }
+    return { ok: false, message: 'Сначала свой лаунж' }
   }
   const def = getTobacco(id)
   if (!def) return { ok: false, message: 'Нет такого вкуса' }
@@ -395,6 +427,7 @@ export function buyTobacco(state: GameState, id: TobaccoId): ActionResult {
   }
   state.cash -= def.cost
   state.ownedTobacco[id] = true
+  state.flags.tobaccoBought = true
   return {
     ok: true,
     message: `Заказано: ${def.name}. Поставь на полку во вкладке «Табак».`,
@@ -403,7 +436,7 @@ export function buyTobacco(state: GameState, id: TobaccoId): ActionResult {
 
 export function putOnShelf(state: GameState, id: TobaccoId): ActionResult {
   if (state.phase === 'employed') {
-    return { ok: false, message: 'Сначала свой зал' }
+    return { ok: false, message: 'Сначала свой лаунж' }
   }
   if (!state.ownedTobacco[id]) {
     return { ok: false, message: 'Сначала закажи на склад' }
@@ -424,7 +457,7 @@ export function putOnShelf(state: GameState, id: TobaccoId): ActionResult {
 
 export function removeFromShelf(state: GameState, id: TobaccoId): ActionResult {
   if (state.phase === 'employed') {
-    return { ok: false, message: 'Сначала свой зал' }
+    return { ok: false, message: 'Сначала свой лаунж' }
   }
   const idx = state.shelfActive.indexOf(id)
   if (idx < 0) {
@@ -442,7 +475,7 @@ export function maybeShelfFeedback(state: GameState): string | null {
     if (state.flags.shelfEmptyWarned) return null
     state.flags.shelfEmptyWarned = true
     state.flags.shelfSparseWarned = true
-    return 'Табачная полка пуста — гости разворачиваются и не платят.'
+    return 'Табачная полка пуста — столы стоят, но курить нечего. Гости не приходят и не платят.'
   }
   state.flags.shelfEmptyWarned = false
 
@@ -465,7 +498,7 @@ export function maybeShelfFeedback(state: GameState): string | null {
 
 export function buyExpansion(state: GameState, id: ExpansionId): ActionResult {
   if (state.phase === 'employed') {
-    return { ok: false, message: 'Сначала свой зал' }
+    return { ok: false, message: 'Сначала свой лаунж' }
   }
   const def = getExpansion(id)
   if (!def) return { ok: false, message: 'Нет такого' }
@@ -512,6 +545,10 @@ export function hireStaff(state: GameState, id: StaffId): ActionResult {
   state.cash -= cost
   state.staffMembers[id] = [1]
   state.flags.payrollWarned = false
+  if (!state.flags.everHired) {
+    state.flags.everHired = true
+    state.flags.firstHireRole = id
+  }
   return {
     ok: true,
     message: `Нанят: ${role.name} · ${grade.title}. Зарплата ${grade.salaryPerSec.toFixed(grade.salaryPerSec < 1 ? 2 : 1)}/с`,

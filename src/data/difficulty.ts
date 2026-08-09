@@ -38,7 +38,7 @@ export const DIFFICULTIES: Record<DifficultyId, DifficultyDef> = {
     expansionCost: 0.92,
     staffCost: 0.9,
     shiftShopCost: 0.88,
-    quitIncome: 0.85,
+    quitIncome: 0.9,
     achievementReward: 1.05,
     loyalPocketsExtra: 2500,
   },

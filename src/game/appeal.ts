@@ -48,12 +48,17 @@ export function shelfBonuses(state: GameState): {
   return { guest, tip, income }
 }
 
+/** Есть ли на полке хоть один вкус — без этого гости не приходят */
+export function shelfHasService(state: GameState): boolean {
+  return state.shelfActive.length > 0
+}
+
 /** Множитель спроса от разнообразия полки */
 export function shelfVarietyMult(state: GameState): number {
   const n = state.shelfActive.length
-  if (n === 0) return 0.3
-  if (n === 1) return 0.5
-  if (n === 2) return 0.65
+  if (n === 0) return 0
+  if (n === 1) return 0.55
+  if (n === 2) return 0.72
   if (n >= 6) return 1.2
   if (n >= 4) return 1.08
   return 1
@@ -101,6 +106,9 @@ export function seatCapacity(state: GameState): number {
 }
 
 export function guestDemand(state: GameState): number {
+  // Пустая полка = нечего курить → спроса нет (столы сами по себе не кормят)
+  if (!shelfHasService(state)) return 0
+
   const gear = state.owned.hood * 1.2 + state.owned.vip * 0.8
   const { guest } = shelfBonuses(state)
   const variety = shelfVarietyMult(state)
@@ -118,7 +126,7 @@ export function guestDemand(state: GameState): number {
     demand += Math.min(0.4, (stock - state.shelfActive.length) * 0.03)
   }
 
-  return Math.max(0.5, demand)
+  return Math.max(0, demand)
 }
 
 export function seatedGuests(state: GameState): number {
@@ -127,12 +135,19 @@ export function seatedGuests(state: GameState): number {
 
 export function guestTraffic(state: GameState, now = Date.now()): number {
   if (state.phase === 'employed') return 1
+  if (!shelfHasService(state)) return 0
   const seated = seatedGuests(state)
-  const mult = 0.35 + seated * 0.09 + staffGuestBonus(state) + personalTrafficBonus(state, now) + promotionTrafficBonus(state, now)
-  return Math.max(0.22, Math.min(3.2, mult))
+  const mult =
+    0.38 +
+    seated * 0.1 +
+    staffGuestBonus(state) +
+    personalTrafficBonus(state, now) +
+    promotionTrafficBonus(state, now)
+  return Math.max(0.28, Math.min(3.2, mult))
 }
 
 export function trafficLabel(mult: number): string {
+  if (mult <= 0) return 'нет гостей'
   if (mult < 0.5) return 'почти пусто'
   if (mult < 0.85) return 'редко'
   if (mult < 1.15) return 'средне'

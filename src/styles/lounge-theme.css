@@ -90,8 +90,34 @@
 
 .stage[data-scene='lounge'][data-tier='nook'] .stage-bg {
   background:
-    radial-gradient(75% 85% at 80% 18%, rgba(224, 122, 58, 0.2), transparent 50%),
-    linear-gradient(165deg, #261c15 0%, var(--bg0) 74%);
+    radial-gradient(50% 55% at 72% 68%, rgba(224, 122, 58, 0.28), transparent 60%),
+    linear-gradient(165deg, #14100e 0%, #080605 100%);
+}
+
+.stage[data-scene='lounge'][data-tier='hall'] .stage-bg {
+  background:
+    radial-gradient(60% 70% at 30% 30%, rgba(255, 180, 150, 0.16), transparent 55%),
+    radial-gradient(55% 60% at 80% 70%, rgba(230, 150, 100, 0.2), transparent 55%),
+    linear-gradient(165deg, #241612 0%, #100c0a 100%);
+}
+
+.stage[data-scene='lounge'][data-tier='signature'] .stage-bg {
+  background:
+    radial-gradient(70% 80% at 50% 20%, rgba(150, 170, 190, 0.14), transparent 55%),
+    radial-gradient(50% 55% at 78% 78%, rgba(224, 122, 58, 0.2), transparent 58%),
+    linear-gradient(165deg, #12141a 0%, #07080c 100%);
+}
+
+.stage[data-scene='lounge'][data-tier='hall'] .stage-frame {
+  background:
+    linear-gradient(transparent, transparent) padding-box,
+    linear-gradient(135deg, rgba(255, 210, 190, 0.14), rgba(240, 150, 120, 0.28), rgba(230, 180, 120, 0.1)) border-box;
+}
+
+.stage[data-scene='lounge'][data-tier='signature'] .stage-frame {
+  background:
+    linear-gradient(transparent, transparent) padding-box,
+    linear-gradient(135deg, rgba(190, 210, 230, 0.14), rgba(230, 196, 154, 0.28), rgba(140, 160, 180, 0.1)) border-box;
 }
 
 /* —— Boot —— */
@@ -378,11 +404,4 @@
 
 .app-shell--lounge .tagline {
   color: rgba(210, 198, 178, 0.88);
-}
-
-.stage-live-badge {
-  font-family: var(--font-display);
-  font-style: italic;
-  letter-spacing: 0.04em;
-  text-transform: none;
 }

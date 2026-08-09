@@ -251,7 +251,7 @@ export function channelTrafficBonus(
 
 export function fameTitle(fame: number): string {
   if (fame < 8) return 'новичок'
-  if (fame < 22) return 'свой в зале'
+  if (fame < 22) return 'свой в лаунже'
   if (fame < 45) return 'лицо района'
   if (fame < 75) return 'локальный блогер'
   return 'легенда дыма'

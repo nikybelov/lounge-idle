@@ -112,7 +112,7 @@ export const SHOP_ITEMS: ShopItem[] = [
   },
   {
     id: 'sneakers',
-    name: 'Кроссовки для зала',
+    name: 'Кроссовки для лаунжа',
     blurb: 'Ускоряет «Отнеси заказ»',
     task: 'order',
     requiresTask: 'order',
@@ -121,7 +121,7 @@ export const SHOP_ITEMS: ShopItem[] = [
       {
         level: 1,
         title: 'Кроссовки',
-        blurb: 'Бегаешь по залу быстрее',
+        blurb: 'Бегаешь по лаунжу быстрее',
         cost: 320,
         cooldownMult: 0.74,
         payBonus: 0,

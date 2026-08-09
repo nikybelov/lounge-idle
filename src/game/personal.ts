@@ -178,7 +178,7 @@ export function personalStatusLine(state: GameState, now = Date.now()): string {
 
 function gate(state: GameState): ActionResult | null {
   if (!isPersonalUnlocked(state)) {
-    return { ok: false, message: 'Личный бренд — после открытия своего зала' }
+    return { ok: false, message: 'Личный бренд — после открытия своего лаунжа' }
   }
   return null
 }

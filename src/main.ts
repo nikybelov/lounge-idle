@@ -48,7 +48,7 @@ import { evaluateAchievements } from './data/achievements'
 import { showMascotConfirm } from './ui/mascot'
 import { loadLifetimeTrophies, persistLifetimeTrophies } from './save/trophies'
 import { syncProgressFlags } from './game/progressFlags'
-import { rankDef } from './data/ranks'
+import { clampJobRankToProgress, rankDef } from './data/ranks'
 import { JOB_TASKS } from './data/tasks'
 import { taskPay } from './data/shop'
 import { getVenue } from './data/venues'
@@ -638,6 +638,7 @@ function frame(ts: number): void {
 function beginGame(): void {
   dismissGuideCoach(root)
   gameStarted = true
+  state.jobRank = clampJobRankToProgress(state.jobRank, state.taskDone)
   syncAchievementFanfareSeen(state)
   mountShell(root, handlers)
   applySettings(root)
@@ -661,7 +662,7 @@ function beginGame(): void {
       onOpenLounge(tier: LoungeTierId) {
         adminForceLounge(state, tier)
         menuTab = 'story'
-        showToast(root, `Admin: зал «${tier}»`)
+        showToast(root, `Admin: лаунж «${tier}»`)
         paint()
         scheduleSave(state)
       },
@@ -693,7 +694,7 @@ function beginGame(): void {
 async function confirmAndResetCareer(): Promise<void> {
   const ok = await showMascotConfirm(root, {
     title: 'Начать заново?',
-    body: 'Сбросятся имя, заведение и весь прогресс смены и зала. Собранные трофеи останутся в коллекции.',
+    body: 'Сбросятся имя, заведение и весь прогресс смены и лаунжа. Собранные трофеи останутся в коллекции.',
     confirmCta: 'Да, сбросить',
     cancelCta: 'Нет, остаюсь',
     pose: 'point',

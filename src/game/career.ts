@@ -237,7 +237,7 @@ export function setScene(state: GameState, scene: Scene): ActionResult {
     return { ok: true }
   }
   if (state.phase === 'employed') {
-    return { ok: false, message: 'Сначала открой свой угол' }
+    return { ok: false, message: 'Сначала открой свой лаунж' }
   }
   state.scene = 'lounge'
   return { ok: true }
@@ -348,7 +348,7 @@ export function buyShopItem(state: GameState, id: ShopItemId): ActionResult {
 
 export function loungeOrder(state: GameState): ActionResult {
   if (state.scene !== 'lounge' || state.phase === 'employed') {
-    return { ok: false, message: 'Ты не в своём зале' }
+    return { ok: false, message: 'Ты не в своём лаунже' }
   }
   if (state.shelfActive.length === 0) {
     return {

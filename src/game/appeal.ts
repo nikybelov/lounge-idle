@@ -186,7 +186,7 @@ export function trafficBreakdown(state: GameState): string {
           ? 'богатая полка'
           : 'норм'
   const base = `посадка ${seated}/${capacity} · спрос ${demand} · полка ${active}/${cap} (${moodText})`
-  return full ? `${base} · зал полный` : base
+  return full ? `${base} · лаунж полный` : base
 }
 
 export function expansionIncomeBonus(state: GameState): number {

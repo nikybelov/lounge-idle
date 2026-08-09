@@ -71,7 +71,7 @@ export function networkSynergyBonus(state: GameState): number {
 
 export function networkLabel(state: GameState): string {
   const n = branchCount(state)
-  if (n === 0) return 'Только главный зал'
+  if (n === 0) return 'Только главный лаунж'
   if (n === 1) return '1 филиал'
   if (n < 5) return `Сеть · ${n} точки`
   return 'Полная сеть · 5 точек'

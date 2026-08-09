@@ -202,7 +202,7 @@ function celebrationCta(kind: CelebrationKind): string {
 
 function celebrationAriaLabel(kind: CelebrationKind): string {
   if (kind === 'rank') return 'Повышение на смене'
-  if (kind === 'lounge') return 'Открытие своего зала'
+  if (kind === 'lounge') return 'Открытие своего лаунжа'
   return 'Праздник'
 }
 

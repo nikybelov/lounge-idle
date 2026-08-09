@@ -207,7 +207,7 @@ export function runBoot(root: HTMLElement): Promise<BootResult> {
           </div>
           <div class="boot-card boot-wide gradient-surface boot-venue-card">
             <p class="boot-brand boot-venue-head">Выбор первого заведения</p>
-            <p class="boot-sub boot-venue-intro">Привет, ${escapeHtml(playerName)}. Заведение = <strong>сложность</strong> прохождения: оплата на смене, цены зала и сети.</p>
+            <p class="boot-sub boot-venue-intro">Привет, ${escapeHtml(playerName)}. Заведение = <strong>сложность</strong> прохождения: оплата на смене, цены лаунжа и сети.</p>
             <div class="boot-venues" data-list>${list}</div>
             <button type="button" class="boot-cta boot-venue-start" data-start disabled>Начать смену здесь</button>
           </div>

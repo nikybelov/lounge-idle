@@ -383,7 +383,7 @@ function updateRateHud(
       ? 'Пассив копится только пока игра открыта'
       : payroll > 0
         ? `Выручка ${formatMoney(gross)}/с минус зарплата · полная смена ≈ 30–36% ФОТ`
-        : 'Пассивный доход зала — только пока ты в игре'
+        : 'Пассивный доход лаунжа — только пока ты в игре'
 }
 
 function coachContext(
@@ -422,7 +422,7 @@ function updateTopbarHints(root: HTMLElement, state: GameState): void {
     cashBlock.title =
       state.scene === 'job'
         ? 'Деньги на смене — задачи и покупки инструментов'
-        : 'Выручка зала — заказы, пассив и минус зарплата команды'
+        : 'Выручка лаунжа — заказы, пассив и минус зарплата команды'
   }
 
   const repWrap = root.querySelector('[data-reputation-wrap]') as HTMLElement | null
@@ -775,7 +775,7 @@ export function updateHud(
     ownTab.classList.toggle('locked', !ready)
     ownTab.classList.toggle('ready', ready)
     ownTab.title = ready
-      ? 'Выбор своего зала'
+      ? 'Выбор своего лаунжа'
       : `Накопи ${formatMoney(minOpenLoungeCost(state))}`
   }
 
@@ -1189,14 +1189,14 @@ export function renderShell(
       subRows.push(`
         <div class="subnav-row">
           <button type="button" class="nav-btn ${state.scene === 'job' ? 'active' : ''}" data-go="job" title="Подработка на чужой точке — задачи и карьера">Смена</button>
-          <button type="button" class="nav-btn ${state.scene === 'lounge' ? 'active' : ''}" data-go="lounge" title="Свой лаунж — закупки, заказы и расширения">Мой зал</button>
+          <button type="button" class="nav-btn ${state.scene === 'lounge' ? 'active' : ''}" data-go="lounge" title="Свой лаунж — закупки, заказы и расширения">Мой лаунж</button>
         </div>
       `)
     }
     if (showJobSubnav(state, menuTab)) {
       subRows.push(`
         <div class="subnav-row">
-          <button type="button" class="nav-btn ${storySubTab === 'tasks' ? 'active' : ''}" data-story-sub="tasks" title="${state.phase === 'dual' && state.scene === 'lounge' ? 'Обзор зала и подработка' : 'Задачи смены и карьера'}">${state.phase === 'dual' && state.scene === 'lounge' ? 'Обзор' : 'Задачи'}</button>
+          <button type="button" class="nav-btn ${storySubTab === 'tasks' ? 'active' : ''}" data-story-sub="tasks" title="${state.phase === 'dual' && state.scene === 'lounge' ? 'Обзор лаунжа и подработка' : 'Задачи смены и карьера'}">${state.phase === 'dual' && state.scene === 'lounge' ? 'Обзор' : 'Задачи'}</button>
           <button type="button" class="nav-btn ${storySubTab === 'shop' ? 'active' : ''}" data-story-sub="shop" title="Инструменты — ускоряют задачи и повышают оплату">Инструменты</button>
         </div>
       `)
@@ -1348,7 +1348,7 @@ function renderJobStoryPanel(state: GameState, now: number): string {
           ? `<p class="row-sub career-rank-next">До «${next.title}»</p>
              <p class="row-sub career-rank-progress">${progressLine || 'считаем задачи…'}</p>
              <div class="bar" aria-label="Прогресс до следующего ранга ${progressPct}%"><i style="width:${progressPct}%"></i></div>`
-          : `<p class="row-sub">Макс. ранг — копи на свой угол</p>`
+          : `<p class="row-sub">Макс. ранг — копи на свой лаунж</p>`
       }
     </div>
   `
@@ -1371,7 +1371,7 @@ function renderJobStoryPanel(state: GameState, now: number): string {
         <div class="bar"><i style="width:${progress * 100}%"></i></div>
         <button type="button" class="row-btn accent row-btn--solo" data-open ${ready ? '' : 'disabled'}>
           <span class="row-main">
-            <span class="row-title">${ready ? 'Выбрать зал' : 'Копим на лаунж'}</span>
+            <span class="row-title">${ready ? 'Выбрать лаунж' : 'Копим на лаунж'}</span>
             <span class="row-sub">${LOUNGE_TIERS.map((t) => formatMoney(loungeTierCost(state, t.cost))).join(' · ')}</span>
           </span>
         </button>
@@ -1430,7 +1430,7 @@ function renderOwnLoungePanel(state: GameState): string {
       <button type="button" class="text-btn own-back" data-own-back>← Назад к смене</button>
       <div class="milestone">
         <div class="milestone-head">
-          <span>Какой зал открыть?</span>
+          <span>Какой лаунж открыть?</span>
           <span>${formatMoney(state.cash)}</span>
         </div>
         <p class="row-sub shop-note">
@@ -1543,8 +1543,8 @@ function renderCareerTrackPanel(state: GameState): string {
         <p class="row-sub shop-note">Рейтинг прокачки для зала славы и сравнения с друзьями. <strong>Дни на очки не влияют</strong> — только достижения и прогресс.</p>
         <ul class="career-score-rules">
           <li><span>Трофеи</span><span>+8 / +20 / +50 / +150 по тиру</span></li>
-          <li><span>Смена + зал / только свой</span><span>+40 / +70</span></li>
-          <li><span>Тариф зала</span><span>+20 / +45 / +80</span></li>
+          <li><span>Смена + лаунж / только свой</span><span>+40 / +70</span></li>
+          <li><span>Тариф лаунжа</span><span>+20 / +45 / +80</span></li>
           <li><span>Филиал сети</span><span>+30 за точку</span></li>
           <li><span>Узнаваемость</span><span>до +40</span></li>
           <li><span>Грейд роликов</span><span>+5 за грейд</span></li>
@@ -1970,7 +1970,7 @@ function renderStaffPanel(state: GameState): string {
 
   return `
     <div class="list staff-panel">
-      ${sectionPurpose('Команда усиливает зал · зарплата списывается из выручки')}
+      ${sectionPurpose('Команда усиливает лаунж · зарплата списывается из выручки')}
       <div class="milestone career shelf-status">
         <div class="milestone-head">
           <span>Команда · ${team}/${teamMax}</span>
@@ -2053,7 +2053,7 @@ function renderNetworkPanel(state: GameState): string {
             }
           </p>
           <ul class="row-sub shop-note empire-checklist">
-            <li class="${state.phase !== 'employed' ? 'done' : ''}">Открыть свой зал</li>
+            <li class="${state.phase !== 'employed' ? 'done' : ''}">Открыть свой лаунж</li>
             <li class="${state.phase === 'ownOnly' ? 'done' : ''}">Уволиться со смены</li>
           </ul>
         </div>
@@ -2104,7 +2104,7 @@ function renderNetworkPanel(state: GameState): string {
       ? 'Полная сеть — бонус империи +10%'
       : count >= 2
         ? `Синергия сети: +${Math.round(networkSynergyBonus(state) * 100)}% ко всему доходу`
-        : 'Открой вторую точку — бонус синергии ко всем залам'
+        : 'Открой вторую точку — бонус синергии ко всем лаунжам'
 
   return `
     <div class="list">
@@ -2460,7 +2460,7 @@ function renderPersonalPanel(state: GameState, now: number): string {
 
       ${renderAmbassadorBlock(state)}
 
-      <p class="section-label">Мероприятие в зале</p>
+      <p class="section-label">Мероприятие в лаунже</p>
       <button type="button" class="row-btn shop ${eventReady && state.cash >= EVENT_COST ? 'afford' : ''}" data-personal-event ${eventReady && state.cash >= EVENT_COST ? '' : 'disabled'}>
         ${icon('lounge')}
         <span class="row-main">
@@ -2983,11 +2983,11 @@ function renderLoungePanel(state: GameState, now: number): string {
     const quitNeed = quitIncomeThreshold(state)
     quit = `
       <div class="milestone">
-        <p class="row-sub">Уволиться можно, когда свой зал даёт от ${quitNeed}/сек. Сейчас: ${formatMoney(loungeIncomePerSec(state))}/с</p>
+        <p class="row-sub">Уволиться можно, когда свой лаунж даёт от ${quitNeed}/сек. Сейчас: ${formatMoney(loungeIncomePerSec(state))}/с</p>
         <button type="button" class="row-btn accent row-btn--solo" data-quit ${ready ? '' : 'disabled'}>
           <span class="row-main">
             <span class="row-title">Уволиться из «${getVenue(state.venueId).name}»</span>
-            <span class="row-sub">Необязательно — ачивка «Трудяга» за смену и свой зал</span>
+            <span class="row-sub">Необязательно — ачивка «Трудяга» за смену и свой лаунж</span>
           </span>
         </button>
       </div>
@@ -3004,7 +3004,7 @@ function renderLoungePanel(state: GameState, now: number): string {
           ? `<div class="milestone"><p class="row-sub shop-note">${empireHint}</p></div>`
           : ''
       }
-      <p class="section-label">Закупка зала</p>
+      <p class="section-label">Закупка лаунжа</p>
       ${sectionPurpose('Доход/с и места · прогресс открывает акции и расширения')}
       <div class="lounge-shop">${rows}</div>
       <p class="section-label">Расширения</p>

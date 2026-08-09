@@ -89,7 +89,7 @@ export function canLaunchPromotion(
 
 function gate(state: GameState): ActionResult | null {
   if (!isPromotionsUnlocked(state)) {
-    return { ok: false, message: 'Акции — после открытия своего зала' }
+    return { ok: false, message: 'Акции — после открытия своего лаунжа' }
   }
   return null
 }

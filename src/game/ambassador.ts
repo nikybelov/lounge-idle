@@ -77,7 +77,7 @@ export function canSignAmbassador(state: GameState, id: TobaccoId): boolean {
 
 export function signAmbassador(state: GameState, id: TobaccoId): ActionResult {
   if (!isPersonalUnlocked(state)) {
-    return { ok: false, message: 'Амбассадорство — после открытия своего зала' }
+    return { ok: false, message: 'Амбассадорство — после открытия своего лаунжа' }
   }
   if (!isAmbassadorSectionUnlocked(state)) {
     return {
@@ -130,7 +130,7 @@ export function signAmbassador(state: GameState, id: TobaccoId): ActionResult {
 
 export function breakAmbassadorContract(state: GameState, id: TobaccoId): ActionResult {
   if (!isPersonalUnlocked(state)) {
-    return { ok: false, message: 'Амбассадорство — после открытия своего зала' }
+    return { ok: false, message: 'Амбассадорство — после открытия своего лаунжа' }
   }
   if (!isAmbassador(state, id)) {
     return { ok: false, message: 'Контракта с этим брендом нет' }

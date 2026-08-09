@@ -35,7 +35,7 @@ export const STAFF_ROLES: StaffRoleDef[] = [
     blurb: 'Встречает гостей — выше поток',
     grades: [
       { grade: 1, title: 'Подменная', hireCost: 750, salaryPerSec: 0.32, guestBonus: 0.07, incomeBonus: 0.05, clickBonus: 0 },
-      { grade: 2, title: 'В зале', hireCost: 3200, salaryPerSec: 1.0, guestBonus: 0.14, incomeBonus: 0.12, clickBonus: 0.5 },
+      { grade: 2, title: 'В лаунже', hireCost: 3200, salaryPerSec: 1.0, guestBonus: 0.14, incomeBonus: 0.12, clickBonus: 0.5 },
       { grade: 3, title: 'Старшая', hireCost: 11_000, salaryPerSec: 2.4, guestBonus: 0.24, incomeBonus: 0.28, clickBonus: 1.2 },
       { grade: 4, title: 'Лицо бренда', hireCost: 38_000, salaryPerSec: 5.4, guestBonus: 0.38, incomeBonus: 0.5, clickBonus: 2.5 },
     ],
@@ -54,7 +54,7 @@ export const STAFF_ROLES: StaffRoleDef[] = [
   {
     id: 'master',
     name: 'Кальянщик',
-    blurb: 'Сервис и чаевые — сердце зала',
+    blurb: 'Сервис и чаевые — сердце лаунжа',
     grades: [
       { grade: 1, title: 'Стажёр', hireCost: 1100, salaryPerSec: 0.48, guestBonus: 0.03, incomeBonus: 0.25, clickBonus: 1.2 },
       { grade: 2, title: 'Мастер', hireCost: 4800, salaryPerSec: 1.45, guestBonus: 0.06, incomeBonus: 0.6, clickBonus: 3.5 },

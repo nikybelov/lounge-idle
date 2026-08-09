@@ -29,7 +29,7 @@ export const PROMOTIONS: PromotionDef[] = [
   {
     id: 'happy_hour',
     name: 'Счастливый час',
-    blurb: 'Скидка в «тихие» часы — зал заполняется быстрее',
+    blurb: 'Скидка в «тихие» часы — лаунж заполняется быстрее',
     needFurniture: 1,
     grades: [
       {
@@ -92,7 +92,7 @@ export const PROMOTIONS: PromotionDef[] = [
       },
       {
         grade: 2,
-        title: 'Баннер в зале',
+        title: 'Баннер в лаунже',
         upgradeCost: 2400,
         launchCost: 320,
         passiveGuest: 0.035,

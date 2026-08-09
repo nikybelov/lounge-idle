@@ -288,7 +288,7 @@ function menuTabButton(
   ]
     .filter(Boolean)
     .join(' ')
-  const tip = title || label
+  const tip = title || label.replace(/<br\s*\/?>/gi, ' ')
   if (chip) {
     return `<button type="button" class="${cls}" data-menu-tab="${tab}" title="${tip}">${tabIcon(tab)}<span class="menu-btn-chip-label">${label}</span></button>`
   }
@@ -1118,13 +1118,13 @@ export function renderShell(
   const empireReady = canBrowseEmpire(state)
   menuPrimary.innerHTML = [
     menuTabButton('story', 'Сюжет', menuTab === 'story', {
-      title: 'Задачи смены, свой зал и сюжетные цели',
+      title: 'Задачи смены, свой лаунж и сюжетные цели',
     }),
     menuTabButton('career', 'Карьера', menuTab === 'career', {
       title: 'Дни, очки карьеры, трофеи и сравнение',
     }),
     state.phase === 'employed'
-      ? menuTabButton('own', 'Свой лаунж', menuTab === 'own', {
+      ? menuTabButton('own', 'Свой<br>лаунж', menuTab === 'own', {
           extraClass: ownReady ? 'ready' : 'locked',
           locked: !ownReady,
           title: ownReady
@@ -1189,7 +1189,7 @@ export function renderShell(
       subRows.push(`
         <div class="subnav-row">
           <button type="button" class="nav-btn ${state.scene === 'job' ? 'active' : ''}" data-go="job" title="Подработка на чужой точке — задачи и карьера">Смена</button>
-          <button type="button" class="nav-btn ${state.scene === 'lounge' ? 'active' : ''}" data-go="lounge" title="Свой зал — закупки, заказы и расширения">Мой зал</button>
+          <button type="button" class="nav-btn ${state.scene === 'lounge' ? 'active' : ''}" data-go="lounge" title="Свой лаунж — закупки, заказы и расширения">Мой зал</button>
         </div>
       `)
     }
@@ -1360,8 +1360,8 @@ function renderJobStoryPanel(state: GameState, now: number): string {
     const ready = canBrowseLoungeOffer(state)
     const progress = Math.min(1, state.cash / minCost)
     const hint = ready
-      ? 'Открыта вкладка «Свой зал»'
-      : `До вкладки «Свой зал»`
+      ? 'Открыта вкладка «Свой лаунж»'
+      : `До вкладки «Свой лаунж»`
     milestone = `
       <div class="milestone">
         <div class="milestone-head">
@@ -1391,7 +1391,7 @@ function renderJobStoryPanel(state: GameState, now: number): string {
       <div class="job-tasks" data-job-tasks>${tasks}</div>
       <p class="section-label">Карьера</p>
       ${careerBlock}
-      ${milestone ? `<p class="section-label">Свой зал</p>${milestone}` : ''}
+      ${milestone ? `<p class="section-label">Свой лаунж</p>${milestone}` : ''}
     </div>
   `
 }

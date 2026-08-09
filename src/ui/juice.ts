@@ -21,6 +21,11 @@ export function resumeAudioContext(): void {
   if (c?.state === 'suspended') void c.resume()
 }
 
+export function suspendAudioContext(): void {
+  const c = audioCtx
+  if (c?.state === 'running') void c.suspend()
+}
+
 export function primeAudio(): void {
   const c = ctx()
   if (!c || audioReady) return

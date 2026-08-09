@@ -1,5 +1,5 @@
 import { isMusicEnabled } from '../save/settings'
-import { getAudioContext, resumeAudioContext } from './juice'
+import { getAudioContext, resumeAudioContext, suspendAudioContext } from './juice'
 
 /** D-minor pentatonic — короткие «лаунж»-ноты, без подложки */
 const NOTES = [293.66, 329.63, 392.0, 440.0, 523.25, 587.33, 659.25]
@@ -8,6 +8,7 @@ let master: GainNode | null = null
 let running = false
 let melodyTimer: ReturnType<typeof setTimeout> | null = null
 let percTimer: ReturnType<typeof setTimeout> | null = null
+let stopFadeTimer: ReturnType<typeof setTimeout> | null = null
 let beat = 0
 
 function clearTimers(): void {
@@ -19,6 +20,22 @@ function clearTimers(): void {
     window.clearTimeout(percTimer)
     percTimer = null
   }
+  if (stopFadeTimer !== null) {
+    window.clearTimeout(stopFadeTimer)
+    stopFadeTimer = null
+  }
+}
+
+function killMaster(): void {
+  if (!master) return
+  try {
+    master.gain.cancelScheduledValues(0)
+    master.gain.value = 0
+    master.disconnect()
+  } catch {
+    /* already gone */
+  }
+  master = null
 }
 
 function fadeMaster(to: number, sec: number): void {
@@ -40,7 +57,7 @@ function pickNote(): number {
 /** Короткий pluck — как далёкое фортепiano в лаунже */
 function playPluck(freq: number, gain = 0.045): void {
   const c = getAudioContext()
-  if (!c || !master) return
+  if (!c || !master || !running) return
   const t = c.currentTime
 
   const osc = c.createOscillator()
@@ -71,7 +88,7 @@ function playPluck(freq: number, gain = 0.045): void {
 /** Мягкий «shaker» — короткий шум, не постоянная подложка */
 function playShaker(gain = 0.018): void {
   const c = getAudioContext()
-  if (!c || !master) return
+  if (!c || !master || !running) return
   const t = c.currentTime
   const len = Math.floor(c.sampleRate * 0.055)
   const buf = c.createBuffer(1, len, c.sampleRate)
@@ -116,8 +133,8 @@ function schedulePerc(): void {
 
 /** Процедурный lounge — редкие ноты и перкуссия, без дронов */
 export function syncAmbientMusic(): void {
-  if (!isMusicEnabled()) {
-    stopAmbientMusic()
+  if (!isMusicEnabled() || document.hidden) {
+    stopAmbientMusic({ suspend: document.hidden })
     return
   }
   if (running) return
@@ -125,12 +142,14 @@ export function syncAmbientMusic(): void {
 }
 
 export function startAmbientMusic(): void {
+  if (document.hidden || !isMusicEnabled()) return
   const c = getAudioContext()
-  if (!c || !isMusicEnabled()) return
+  if (!c) return
   resumeAudioContext()
   if (running) return
 
   clearTimers()
+  killMaster()
   beat = 0
 
   master = c.createGain()
@@ -144,18 +163,32 @@ export function startAmbientMusic(): void {
   percTimer = window.setTimeout(schedulePerc, 400)
 }
 
-export function stopAmbientMusic(): void {
-  if (!running) return
+export function stopAmbientMusic(opts: { suspend?: boolean } = {}): void {
+  const wasRunning = running
   running = false
   clearTimers()
-  fadeMaster(0, 0.6)
-  window.setTimeout(() => {
-    master?.disconnect()
-    master = null
-  }, 700)
+  if (wasRunning && master) {
+    fadeMaster(0, 0.25)
+    stopFadeTimer = window.setTimeout(() => {
+      killMaster()
+      stopFadeTimer = null
+      if (opts.suspend !== false) suspendAudioContext()
+    }, 280)
+  } else {
+    killMaster()
+    if (opts.suspend !== false) suspendAudioContext()
+  }
+}
+
+function silenceForBackground(): void {
+  stopAmbientMusic({ suspend: true })
 }
 
 document.addEventListener('visibilitychange', () => {
-  if (document.hidden) stopAmbientMusic()
+  if (document.hidden) silenceForBackground()
   else if (isMusicEnabled()) startAmbientMusic()
 })
+
+window.addEventListener('pagehide', silenceForBackground)
+window.addEventListener('freeze', silenceForBackground)
+window.addEventListener('beforeunload', silenceForBackground)

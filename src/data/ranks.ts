@@ -40,6 +40,28 @@ export function normalizeJobRank(value: unknown): JobRank {
   return isJobRank(value) ? value : 'assistant'
 }
 
+/** Ранг не выше того, что реально открыт задачами (чинит админ/битые сейвы) */
+export function clampJobRankToProgress(
+  rank: JobRank,
+  taskDone: Partial<Record<TaskId, number>> | undefined,
+): JobRank {
+  const done = taskDone ?? {}
+  let allowed: JobRank = 'assistant'
+  for (const def of JOB_RANKS) {
+    if (!def.requires) {
+      allowed = def.id
+      continue
+    }
+    const ok = Object.entries(def.requires).every(
+      ([id, need]) => (done[id as TaskId] ?? 0) >= (need ?? 0),
+    )
+    if (!ok) break
+    allowed = def.id
+  }
+  const want = normalizeJobRank(rank)
+  return rankIndex(want) <= rankIndex(allowed) ? want : allowed
+}
+
 export function rankIndex(rank: JobRank): number {
   const i = JOB_RANKS.findIndex((r) => r.id === normalizeJobRank(rank))
   return i >= 0 ? i : 0

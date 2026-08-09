@@ -1,7 +1,7 @@
 import { normalizeAchievementId } from '../data/achievements'
 import { normalizeAmbassadorOf } from '../game/ambassador'
 import { createInitialState, type GameState } from '../game/state'
-import { normalizeJobRank } from '../data/ranks'
+import { clampJobRankToProgress, normalizeJobRank } from '../data/ranks'
 import { getLoungeTier } from '../data/loungeTiers'
 import { normalizeVenueId } from '../data/venues'
 import { difficultyFromVenue } from '../data/difficulty'
@@ -246,7 +246,10 @@ export function loadState(): GameState {
       loungeTier: parsed.loungeTier ?? null,
       loungeIncomeMult: parsed.loungeIncomeMult ?? 1,
       loungeClickMult: parsed.loungeClickMult ?? 1,
-      jobRank: normalizeJobRank(parsed.jobRank ?? base.jobRank),
+      jobRank: clampJobRankToProgress(
+        normalizeJobRank(parsed.jobRank ?? base.jobRank),
+        { ...base.taskDone, ...parsed.taskDone },
+      ),
       onboarded: parsed.onboarded ?? hasProgress,
       playerName: parsed.playerName || (hasProgress ? 'Игрок' : ''),
       venueId: parsed.venueId

@@ -52,9 +52,11 @@ function isAndroid(): boolean {
 }
 
 export function shouldShowBrowserGate(): boolean {
-  if (!isInAppBrowser()) return false
   const params = new URLSearchParams(location.search)
   if (params.get('force_play') === '1') return false
+  // Для теста в обычном Safari: ?gate=1
+  if (params.get('gate') === '1') return true
+  if (!isInAppBrowser()) return false
   try {
     if (sessionStorage.getItem(SKIP_KEY) === '1') return false
   } catch {

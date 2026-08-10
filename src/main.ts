@@ -77,6 +77,7 @@ import {
 import { applySettings, isCoachEnabled, loadSettings } from './save/settings'
 import { formatMoney } from './game/economy'
 import { runBoot } from './ui/boot'
+import { presentBrowserGate, shouldShowBrowserGate } from './ui/browserGate'
 import { openSettingsPanel } from './ui/settingsPanel'
 import { launchPromotion, upgradePromotion } from './game/promotions'
 import type { PromotionId } from './data/promotions'
@@ -752,6 +753,11 @@ async function startFromBoot(preservedTrophies?: GameState['achievements']): Pro
 }
 
 async function bootApp(): Promise<void> {
+  if (shouldShowBrowserGate()) {
+    await presentBrowserGate(root)
+    root.innerHTML = ''
+  }
+
   const params = new URLSearchParams(location.search)
   if (params.get('boot') === 'name' || params.get('preview') === 'name') {
     params.delete('boot')

@@ -4387,6 +4387,55 @@ body.achieve-locked {
   cursor: default;
 }
 
+.boot--browser-gate {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 100dvh;
+  padding: 24px var(--pad-x) calc(24px + var(--safe-b));
+  box-sizing: border-box;
+}
+
+.boot-browser-gate-card {
+  width: min(100%, 400px);
+  padding: 22px 18px 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.boot-browser-gate-copy {
+  margin: 0;
+  line-height: 1.45;
+}
+
+.boot-browser-gate-steps {
+  margin: 0;
+  padding-left: 1.2rem;
+  color: var(--muted);
+  font-size: 0.88rem;
+  line-height: 1.5;
+}
+
+.boot-browser-gate-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 4px;
+}
+
+.boot-browser-gate-hint {
+  margin: 0;
+  font-size: 0.78rem;
+  color: var(--gold);
+  line-height: 1.35;
+}
+
+.text-btn--muted {
+  color: var(--muted);
+  opacity: 0.85;
+}
+
 .boot-venues {
   display: flex;
   flex-direction: column;

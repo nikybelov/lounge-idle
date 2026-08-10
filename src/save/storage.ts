@@ -281,20 +281,58 @@ export function loadState(): GameState {
   }
 }
 
-export function saveState(state: GameState): void {
+export function saveState(state: GameState): boolean {
   state.lastActive = Date.now()
-  persistLifetimeTrophies(state)
-  localStorage.setItem(KEY, JSON.stringify(state))
-}
-
-export function createDebouncedSave(ms = 400): (state: GameState) => void {
-  let t: ReturnType<typeof setTimeout> | null = null
-  return (state) => {
-    if (t) clearTimeout(t)
-    t = setTimeout(() => saveState(state), ms)
+  try {
+    persistLifetimeTrophies(state)
+    localStorage.setItem(KEY, JSON.stringify(state))
+    return true
+  } catch {
+    // Safari private / квота / блокировка storage
+    return false
   }
 }
 
+export function isSaveStorageAvailable(): boolean {
+  try {
+    const probe = '__lounge_idle_probe__'
+    localStorage.setItem(probe, '1')
+    localStorage.removeItem(probe)
+    return true
+  } catch {
+    return false
+  }
+}
+
+export function createDebouncedSave(ms = 400): ((state: GameState) => void) & {
+  flush: (state: GameState) => boolean
+} {
+  let t: ReturnType<typeof setTimeout> | null = null
+  let pending: GameState | null = null
+  const schedule = ((state: GameState) => {
+    pending = state
+    if (t) clearTimeout(t)
+    t = setTimeout(() => {
+      t = null
+      if (pending) {
+        saveState(pending)
+        pending = null
+      }
+    }, ms)
+  }) as ((state: GameState) => void) & { flush: (state: GameState) => boolean }
+  schedule.flush = (state: GameState) => {
+    if (t) clearTimeout(t)
+    t = null
+    pending = null
+    return saveState(state)
+  }
+  return schedule
+}
+
 export function resetSave(): void {
-  localStorage.removeItem(KEY)
+  try {
+    localStorage.removeItem(KEY)
+  } catch {
+    /* ignore */
+  }
 }

@@ -69,6 +69,7 @@ import { archiveCareerRun, encodeCareerShare, decodeCareerShare } from './save/l
 import { createInitialState, type GameState } from './game/state'
 import {
   createDebouncedSave,
+  isSaveStorageAvailable,
   loadState,
   resetSave,
   saveState,
@@ -527,7 +528,9 @@ function afterAction(): void {
     state.flags.loungeOfferUnlocked &&
     state.phase === 'employed'
   ) {
-    showToast(root, 'Вкладка «Свой лаунж» открыта — можно выбрать тариф')
+    menuTab = 'own'
+    showToast(root, 'Хватает на лаунж — выбери тариф во вкладке «Свой лаунж»')
+    scheduleSave.flush(state)
   }
   if (
     empireWasLocked &&
@@ -645,6 +648,13 @@ function beginGame(): void {
   initUiPolish(root)
   primeAudio()
   syncAmbientMusic()
+  if (!isSaveStorageAvailable()) {
+    showToast(
+      root,
+      'Safari не сохраняет прогресс (частный режим?). Играй в обычном Safari.',
+    )
+  }
+  scheduleSave.flush(state)
   if (admin) {
     mountAdminPanel(document.body, {
       onCash(amount) {
@@ -732,7 +742,12 @@ async function startFromBoot(preservedTrophies?: GameState['achievements']): Pro
   state.difficulty = difficultyFromVenue(boot.venueId)
   state.loungeName = 'Мой лаунж'
   applyBootGuideToState(state, boot.venueGuideDone)
-  saveState(state)
+  if (!saveState(state)) {
+    showToast(
+      root,
+      'Не удалось сохранить старт — выключи частный режим Safari и обнови страницу',
+    )
+  }
   beginGame()
 }
 
@@ -768,11 +783,16 @@ async function bootApp(): Promise<void> {
   requestAnimationFrame(frame)
 }
 
-window.addEventListener('beforeunload', () => {
-  if (state.onboarded) saveState(state)
-})
+function persistNow(): void {
+  if (!state.onboarded) return
+  scheduleSave.flush(state)
+}
+
+window.addEventListener('beforeunload', persistNow)
+window.addEventListener('pagehide', persistNow)
+window.addEventListener('freeze', persistNow)
 document.addEventListener('visibilitychange', () => {
-  if (document.visibilityState === 'hidden' && state.onboarded) saveState(state)
+  if (document.visibilityState === 'hidden') persistNow()
   if (gameStarted) updateHud(root, state, hudCoachContext())
 })
 

@@ -1,6 +1,6 @@
 /**
- * CloudStorage v2: один gzip+base64 blob (или короткие куски).
- * Старые чанки v1 на Desktop часто не читаются — Mac видит meta, но не body.
+ * CloudStorage sync — fail-soft: никогда не блокируем boot дольше ~6с.
+ * На Telegram Desktop getItem часто не отвечает → короткие таймауты.
  */
 import type { GameState } from '../game/state'
 import {
@@ -15,7 +15,9 @@ const BLOB_PREFIX = 'li_b'
 const LEGACY_META = 'li_save_meta'
 const CHUNK_SIZE = 3500
 const CLOUD_DEBOUNCE_MS = 500
-const CLOUD_OP_TIMEOUT_MS = 15000
+/** Desktop часто не вызывает callback — нельзя ждать долго. */
+const CLOUD_OP_TIMEOUT_MS = 2000
+const MERGE_BUDGET_MS = 6000
 
 type CloudMeta = {
   v: 2
@@ -155,6 +157,18 @@ export function lastTelegramCloudWriteOk(): boolean | null {
   return lastCloudWriteOk
 }
 
+/** Desktop/WebK — CloudStorage часто ломается; не мучаем boot. */
+export function isTelegramCloudFlakyPlatform(): boolean {
+  const p = getTelegramWebApp()?.platform?.toLowerCase() ?? ''
+  return (
+    p === 'tdesktop' ||
+    p === 'macos' ||
+    p === 'weba' ||
+    p === 'webk' ||
+    p === 'unigram'
+  )
+}
+
 export async function peekTelegramCloudCash(): Promise<number | null> {
   const cs = cloud()
   if (!cs) return null
@@ -182,18 +196,13 @@ async function readCloudJson(cs: TelegramCloudStorage): Promise<string | null> {
   } catch {
     return null
   }
-  if (meta.v !== 2 || !Number.isFinite(meta.n) || meta.n < 1 || meta.n > 64) {
+  if (meta.v !== 2 || !Number.isFinite(meta.n) || meta.n < 1 || meta.n > 32) {
     return null
   }
 
   let b64 = ''
   for (let i = 0; i < meta.n; i++) {
-    let part: string | null = null
-    for (let attempt = 0; attempt < 3; attempt++) {
-      part = await getItem(cs, blobKey(i))
-      if (part != null) break
-      await new Promise((r) => setTimeout(r, 250 * (attempt + 1)))
-    }
+    const part = await getItem(cs, blobKey(i))
     if (part == null) return null
     b64 += part
   }
@@ -241,16 +250,6 @@ export async function writeTelegramCloudSave(state: GameState): Promise<boolean>
       lastCloudWriteOk = false
       return false
     }
-    // подчистить хвост
-    for (let i = parts.length; i < parts.length + 8; i++) {
-      await new Promise<void>((resolve) => {
-        try {
-          cs.removeItem(blobKey(i), () => resolve())
-        } catch {
-          resolve()
-        }
-      })
-    }
     lastCloudWriteOk = true
     return true
   } catch (err) {
@@ -264,7 +263,7 @@ export async function clearTelegramCloudSave(): Promise<void> {
   const cs = cloud()
   if (!cs) return
   const keys = [META_KEY, CASH_KEY, LEGACY_META]
-  for (let i = 0; i < 48; i++) {
+  for (let i = 0; i < 32; i++) {
     keys.push(blobKey(i))
     keys.push(`li_save_${i}`)
   }
@@ -275,11 +274,12 @@ export async function clearTelegramCloudSave(): Promise<void> {
       } catch {
         resolve()
       }
+      setTimeout(resolve, 500)
     })
   }
 }
 
-export async function mergeTelegramCloudIntoLocal(
+async function mergeInner(
   localHasBlob: boolean,
   local: GameState,
   applyCloudRaw: (raw: string) => GameState,
@@ -293,8 +293,19 @@ export async function mergeTelegramCloudIntoLocal(
       cloudAvailable: false,
       cloudHadSave: false,
       localCash,
-      error: 'CloudStorage недоступен',
-      detail: 'CloudStorage нет — перенеси сейв через Настройки → копировать',
+      detail: 'CloudStorage нет — копируй сейв в Настройках',
+    }
+  }
+
+  // На flaky Desktop не трогаем облако при старте — только локальный сейв
+  if (isTelegramCloudFlakyPlatform()) {
+    return {
+      state: local,
+      source: localHasBlob ? 'local' : 'none',
+      cloudAvailable: true,
+      cloudHadSave: false,
+      localCash,
+      detail: 'Mac/Desktop: облако пропускаем — вставь сейв в Настройках',
     }
   }
 
@@ -328,14 +339,13 @@ export async function mergeTelegramCloudIntoLocal(
       cloudCash: 0,
       uploaded,
       detail: uploaded
-        ? `облако пусто → записали ${localCash}₽ (v2)`
+        ? `облако пусто → записали ${localCash}₽`
         : localHasBlob
           ? `облако пусто, запись не удалась`
           : 'облако пусто',
     }
   }
 
-  // Старый v1 meta без читаемого body — не затираем, просим копипаст
   if (!metaRaw && legacyMeta) {
     return {
       state: local,
@@ -344,7 +354,7 @@ export async function mergeTelegramCloudIntoLocal(
       cloudHadSave: true,
       localCash,
       cloudCash: hintCash ?? 0,
-      detail: `старый формат облака (~${hintCash ?? '?'}₽) — на телефоне открой игру ещё раз, или копируй сейв`,
+      detail: `старый формат облака — копируй сейв с телефона`,
       error: 'legacy_cloud',
     }
   }
@@ -358,7 +368,7 @@ export async function mergeTelegramCloudIntoLocal(
       cloudHadSave: true,
       localCash,
       cloudCash: hintCash ?? 0,
-      detail: `облако ~${hintCash ?? '?'}₽ не прочиталось — Настройки → копировать с телефона`,
+      detail: `облако не прочиталось — Настройки → вставить сейв`,
       error: 'cloud_read_failed',
     }
   }
@@ -417,7 +427,7 @@ export async function mergeTelegramCloudIntoLocal(
       uploaded: !!ok,
       detail: ok
         ? `местн. ${localCash}₽ → облако ok`
-        : `местн. ${localCash}₽, облако не приняло — копируй вручную`,
+        : `местн. ${localCash}₽ — копируй вручную при переносе`,
     }
   }
 
@@ -432,8 +442,30 @@ export async function mergeTelegramCloudIntoLocal(
   }
 }
 
+export async function mergeTelegramCloudIntoLocal(
+  localHasBlob: boolean,
+  local: GameState,
+  applyCloudRaw: (raw: string) => GameState,
+): Promise<CloudMergeResult> {
+  const localCash = Math.max(0, Math.floor(local.cash ?? 0))
+  const fallback: CloudMergeResult = {
+    state: local,
+    source: localHasBlob ? 'local' : 'none',
+    cloudAvailable: false,
+    cloudHadSave: false,
+    localCash,
+    detail: 'облако долго не отвечало — играем локально',
+  }
+  return withTimeout(
+    mergeInner(localHasBlob, local, applyCloudRaw),
+    MERGE_BUDGET_MS,
+    fallback,
+  )
+}
+
 export function scheduleTelegramCloudSave(state: GameState): void {
   if (!cloud() || !state.onboarded) return
+  if (isTelegramCloudFlakyPlatform()) return
   cloudPending = state
   if (cloudTimer) clearTimeout(cloudTimer)
   cloudTimer = setTimeout(() => {
@@ -446,6 +478,7 @@ export function scheduleTelegramCloudSave(state: GameState): void {
 
 export async function flushTelegramCloudSave(state: GameState): Promise<boolean> {
   if (!cloud() || !state.onboarded) return false
+  if (isTelegramCloudFlakyPlatform()) return false
   if (cloudTimer) {
     clearTimeout(cloudTimer)
     cloudTimer = null

@@ -12,6 +12,18 @@ export type ChangelogEntry = Readonly<{
 
 export const CHANGELOG: readonly ChangelogEntry[] = [
   {
+    version: '0.2.0',
+    releasedAt: '2026-08-11',
+    title: 'Ветка Telegram Mini App',
+    details: [
+      'Отдельная ветка telegram-miniapp — веб на main не трогаем',
+      'Сейв / трофеи / настройки в отдельных ключах (-tg), прогресс не смешивается',
+      'Запуск внутри Telegram WebApp без browser gate',
+      'Тест в браузере: ?tg=1 или npm run dev:tg',
+    ],
+    sourceRevision: null,
+  },
+  {
     version: '0.1.5',
     releasedAt: '2026-08-10',
     title: 'Трофеи заново',

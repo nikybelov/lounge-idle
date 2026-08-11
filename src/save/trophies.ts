@@ -1,11 +1,15 @@
 import type { AchievementId } from '../data/achievements'
 import type { GameState } from '../game/state'
+import { storageKey } from '../platform/runtime'
 
-const KEY = 'lounge-idle-trophies-v1'
+const KEY_BASE = 'lounge-idle-trophies-v1'
+function trophiesKey(): string {
+  return storageKey(KEY_BASE)
+}
 
 export function loadLifetimeTrophies(): GameState['achievements'] {
   try {
-    const raw = localStorage.getItem(KEY)
+    const raw = localStorage.getItem(trophiesKey())
     if (!raw) return {}
     const parsed = JSON.parse(raw) as Partial<Record<AchievementId, boolean | number>>
     const out: GameState['achievements'] = {}
@@ -20,7 +24,7 @@ export function loadLifetimeTrophies(): GameState['achievements'] {
 }
 
 export function saveLifetimeTrophies(achievements: GameState['achievements']): void {
-  localStorage.setItem(KEY, JSON.stringify(achievements))
+  localStorage.setItem(trophiesKey(), JSON.stringify(achievements))
 }
 
 export function mergeLifetimeTrophies(

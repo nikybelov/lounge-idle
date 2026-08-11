@@ -137,6 +137,11 @@ body {
   overflow: hidden;
 }
 
+body.flavor-telegram {
+  /* Telegram WebView: чуть плотнее к краям с учётом safe-area */
+  min-height: 100dvh;
+}
+
 body::before {
   content: '';
   position: fixed;

@@ -6,6 +6,12 @@ const base = process.env.VITE_BASE || './'
 
 export default defineConfig({
   base,
+  define: {
+    'import.meta.env.VITE_APP_VERSION': JSON.stringify(
+      process.env.VITE_APP_VERSION || '0.2.0',
+    ),
+    'import.meta.env.VITE_FLAVOR': JSON.stringify(process.env.VITE_FLAVOR || ''),
+  },
   plugins: [
     checker({
       typescript: {

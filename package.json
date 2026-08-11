@@ -1,14 +1,16 @@
 {
   "name": "lounge-idle",
   "private": true,
-  "version": "0.1.5",
+  "version": "0.2.0",
   "type": "module",
   "scripts": {
     "dev": "npm run check && vite",
     "dev:fast": "vite",
+    "dev:tg": "VITE_FLAVOR=telegram VITE_APP_VERSION=0.2.0 vite",
     "typecheck": "tsc --noEmit",
     "check": "tsc --noEmit && node scripts/check-modules.mjs && node scripts/check-save-migrations.mjs",
     "build": "npm run check && vite build",
+    "build:tg": "VITE_FLAVOR=telegram VITE_APP_VERSION=0.2.0 npm run check && VITE_FLAVOR=telegram VITE_APP_VERSION=0.2.0 vite build",
     "preview": "vite preview",
     "omniroute": "bash scripts/omniroute-start.sh",
     "prepare": "husky"

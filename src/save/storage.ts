@@ -21,8 +21,12 @@ import {
   persistLifetimeTrophies,
   seedLifetimeTrophiesFromSave,
 } from './trophies'
+import { storageKey } from '../platform/runtime'
 
-const KEY = 'lounge-idle-save-v1'
+const KEY_BASE = 'lounge-idle-save-v1'
+function saveKey(): string {
+  return storageKey(KEY_BASE)
+}
 
 /**
  * Ревизия одноразовых миграций.
@@ -217,7 +221,7 @@ const TELEGRAM_GRADE_MAX = TELEGRAM_GRADES.reduce((m, g) => Math.max(m, g.grade)
 
 export function loadState(): GameState {
   try {
-    const raw = localStorage.getItem(KEY)
+    const raw = localStorage.getItem(saveKey())
     if (!raw) return createInitialState()
     const parsed = JSON.parse(raw) as LegacySave
     if (parsed.v !== 1) return createInitialState()
@@ -416,7 +420,7 @@ export function saveState(state: GameState): boolean {
   state.migrateRev = CURRENT_MIGRATE_REV
   try {
     persistLifetimeTrophies(state)
-    localStorage.setItem(KEY, JSON.stringify(state))
+    localStorage.setItem(saveKey(), JSON.stringify(state))
     return true
   } catch {
     // Safari private / квота / блокировка storage
@@ -462,7 +466,7 @@ export function createDebouncedSave(ms = 400): ((state: GameState) => void) & {
 
 export function resetSave(): void {
   try {
-    localStorage.removeItem(KEY)
+    localStorage.removeItem(saveKey())
   } catch {
     /* ignore */
   }

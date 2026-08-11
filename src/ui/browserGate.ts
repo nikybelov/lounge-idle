@@ -1,10 +1,14 @@
 /** Детект in-app браузеров (Telegram и т.п.) — у них свой storage, сейв пропадает. */
 
+import { isTelegramMiniApp } from '../platform/runtime'
 import { MASCOT_NAME, mascotSvg } from './mascot'
 
 const SKIP_KEY = 'lounge-idle-skip-browser-gate'
 
 export function isInAppBrowser(): boolean {
+  // Официальный Mini App — это наша целевая среда, не «чужой» in-app браузер
+  if (isTelegramMiniApp()) return false
+
   const ua = navigator.userAgent || ''
   const w = window as Window & {
     TelegramWebviewProxy?: unknown
@@ -67,6 +71,8 @@ function markSkip(): void {
 }
 
 export function shouldShowBrowserGate(): boolean {
+  // Mini App запускаем внутри Telegram — gate не показываем
+  if (isTelegramMiniApp()) return false
   const params = new URLSearchParams(location.search)
   if (params.get('force_play') === '1') return false
   // Для теста в обычном Safari: ?gate=1

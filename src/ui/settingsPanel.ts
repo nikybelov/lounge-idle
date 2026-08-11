@@ -1,6 +1,7 @@
 import { icon } from './icons'
 import { syncAmbientMusic } from './ambientMusic'
 import { CHANGELOG, CURRENT_VERSION } from '../data/changelog'
+import { appFlavorLabel, detectAppFlavor } from '../platform/runtime'
 import {
   applySettings,
   getSettings,
@@ -83,7 +84,9 @@ function settingsMainHtml(settings: GameSettings): string {
     </div>
     <footer class="settings-sheet__foot">
       <button type="button" class="settings-version-btn" data-open-changelog>
-        <span class="settings-version">Дымная Империя · v${CURRENT_VERSION}</span>
+        <span class="settings-version">Дымная Империя · ${
+          detectAppFlavor() === 'telegram' ? 'TG · ' : ''
+        }v${CURRENT_VERSION} · ${appFlavorLabel()}</span>
         <span class="settings-version-cta">Что нового</span>
       </button>
     </footer>

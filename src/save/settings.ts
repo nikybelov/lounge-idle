@@ -1,3 +1,5 @@
+import { storageKey } from '../platform/runtime'
+
 export type ReducedMotionPref = 'system' | 'reduce' | 'full'
 
 export interface GameSettings {
@@ -7,7 +9,10 @@ export interface GameSettings {
   coachHints: boolean
 }
 
-const KEY = 'lounge-idle-settings-v1'
+const KEY_BASE = 'lounge-idle-settings-v1'
+function settingsKey(): string {
+  return storageKey(KEY_BASE)
+}
 
 const DEFAULTS: GameSettings = {
   sound: true,
@@ -24,7 +29,7 @@ export function getSettings(): GameSettings {
 
 export function loadSettings(): GameSettings {
   try {
-    const raw = localStorage.getItem(KEY)
+    const raw = localStorage.getItem(settingsKey())
     if (!raw) {
       cached = { ...DEFAULTS }
       return cached
@@ -44,7 +49,7 @@ export function loadSettings(): GameSettings {
 
 export function saveSettings(next: GameSettings): void {
   cached = { ...next }
-  localStorage.setItem(KEY, JSON.stringify(cached))
+  localStorage.setItem(settingsKey(), JSON.stringify(cached))
 }
 
 export function patchSettings(patch: Partial<GameSettings>): GameSettings {

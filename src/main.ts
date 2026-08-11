@@ -82,6 +82,7 @@ import { pluralRuCount } from './game/ru'
 import { runBoot } from './ui/boot'
 import { presentBrowserGate, shouldShowBrowserGate } from './ui/browserGate'
 import { showFatalError } from './ui/fatalError'
+import { prepareTelegramMiniApp } from './platform/telegram'
 import { openSettingsPanel } from './ui/settingsPanel'
 import { launchPromotion, upgradePromotion } from './game/promotions'
 import type { PromotionId } from './data/promotions'
@@ -810,6 +811,8 @@ async function startFromBoot(preservedTrophies?: GameState['achievements']): Pro
 }
 
 async function bootApp(): Promise<void> {
+  prepareTelegramMiniApp()
+
   if (shouldShowBrowserGate()) {
     await presentBrowserGate(root)
     root.innerHTML = ''

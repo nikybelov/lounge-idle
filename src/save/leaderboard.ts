@@ -1,8 +1,12 @@
 import { achievementProgress } from '../data/achievements'
 import { careerScore, displayWorkDay, type CareerMilestoneId } from '../data/careerTrack'
 import type { CareerPhase, GameState } from '../game/state'
+import { storageKey } from '../platform/runtime'
 
-const KEY = 'lounge-idle-hall-v1'
+const KEY_BASE = 'lounge-idle-hall-v1'
+function hallKey(): string {
+  return storageKey(KEY_BASE)
+}
 const MAX_ENTRIES = 24
 
 export interface CareerRunRecord {
@@ -41,7 +45,7 @@ function snapshotFromState(state: GameState): CareerRunRecord {
 
 export function loadHallOfFame(): CareerRunRecord[] {
   try {
-    const raw = localStorage.getItem(KEY)
+    const raw = localStorage.getItem(hallKey())
     if (!raw) return []
     const parsed = JSON.parse(raw) as CareerRunRecord[]
     return Array.isArray(parsed) ? parsed : []
@@ -51,7 +55,7 @@ export function loadHallOfFame(): CareerRunRecord[] {
 }
 
 function saveHall(entries: CareerRunRecord[]): void {
-  localStorage.setItem(KEY, JSON.stringify(entries.slice(0, MAX_ENTRIES)))
+  localStorage.setItem(hallKey(), JSON.stringify(entries.slice(0, MAX_ENTRIES)))
 }
 
 export function archiveCareerRun(state: GameState): CareerRunRecord | null {

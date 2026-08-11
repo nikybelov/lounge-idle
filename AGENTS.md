@@ -8,6 +8,13 @@ Browser idle tycoon (hookah lounge). Vite + TypeScript + vanilla DOM.
 2. Read core skills: `hookah-game-design`, `browser-idle-tycoon`, then task-specific MengTo skill
 3. Match patterns in the file you edit
 
+## Branches
+
+- `main` — веб-версия (Safari/Chrome, GitHub Pages)
+- `telegram-miniapp` — Telegram Mini App: отдельный сейв (`*-tg`), WebApp SDK, без browser gate
+
+Локальный тест TG: `npm run dev:tg` или `?tg=1`
+
 ## Layout
 
 ```

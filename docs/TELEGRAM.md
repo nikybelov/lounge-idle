@@ -49,8 +49,9 @@
 ### 1. Аватар
 
 `/mybots` → бот → **Edit Bot** → **Edit Botpic**  
-Файл в репо: `public/assets/bot-avatar.jpg`  
-(или открой на Pages после деплоя: `…/lounge-idle/tg/assets/bot-avatar.jpg`)
+Аватар — **Огонёк** (тот же SVG, что в игре): `public/assets/bot-avatar.jpg`  
+Исходник: `public/assets/bot-avatar-ogonek.svg`  
+После деплоя: `…/lounge-idle/tg/assets/bot-avatar.jpg`
 
 ### 2. Описание (Description)
 

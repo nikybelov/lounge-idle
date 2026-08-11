@@ -13,9 +13,20 @@ import {
   type GameSettings,
   type ReducedMotionPref,
 } from '../save/settings'
+import {
+  copySaveToClipboard,
+  pasteSaveFromClipboard,
+} from '../save/transfer'
+import type { GameState } from '../game/state'
 
 type SettingsChangeHandler = (settings: GameSettings) => void
 type SettingsView = 'main' | 'changelog'
+
+export type SettingsPanelOptions = {
+  getState?: () => GameState
+  onImportSave?: (rawJson: string) => void
+  onToast?: (message: string) => void
+}
 
 function motionLabel(value: ReducedMotionPref): string {
   if (value === 'system') return 'Как в системе'
@@ -95,8 +106,12 @@ function settingsMainHtml(settings: GameSettings): string {
       </button>
       ${
         detectAppFlavor() === 'telegram'
-          ? `<p class="settings-sync-hint">Синк через облако Telegram. Если на Mac старый прогресс — нажми кнопку ниже.</p>
-      <button type="button" class="settings-cloud-pull" data-cloud-pull>Забрать прогресс из облака</button>`
+          ? `<p class="settings-sync-hint">CloudStorage на Mac часто не читается. Надёжный путь: скопируй сейв на телефоне и вставь на Mac.</p>
+      <div class="settings-sync-actions">
+        <button type="button" class="settings-cloud-pull" data-save-copy>Скопировать прогресс</button>
+        <button type="button" class="settings-cloud-pull" data-save-paste>Вставить прогресс</button>
+        <button type="button" class="settings-cloud-pull settings-cloud-pull--ghost" data-cloud-pull>Попробовать облако ещё раз</button>
+      </div>`
           : ''
       }
     </footer>
@@ -131,7 +146,11 @@ function changelogHtml(): string {
   `
 }
 
-export function openSettingsPanel(root: HTMLElement, onChange: SettingsChangeHandler): void {
+export function openSettingsPanel(
+  root: HTMLElement,
+  onChange: SettingsChangeHandler,
+  options: SettingsPanelOptions = {},
+): void {
   if (root.querySelector('.settings-overlay')) return
 
   const overlay = document.createElement('div')
@@ -193,6 +212,34 @@ export function openSettingsPanel(root: HTMLElement, onChange: SettingsChangeHan
       const url = new URL(location.href)
       url.searchParams.set('cloud', 'pull')
       location.href = url.toString()
+    })
+
+    el.querySelector('[data-save-copy]')?.addEventListener('click', () => {
+      void (async () => {
+        const state = options.getState?.()
+        if (!state?.onboarded) {
+          options.onToast?.('Сначала начни игру — копировать нечего')
+          return
+        }
+        const ok = await copySaveToClipboard(JSON.stringify(state))
+        options.onToast?.(
+          ok
+            ? 'Сейв скопирован — вставь его в Настройках на другом устройстве'
+            : 'Не удалось скопировать',
+        )
+      })()
+    })
+
+    el.querySelector('[data-save-paste]')?.addEventListener('click', () => {
+      void (async () => {
+        const raw = await pasteSaveFromClipboard()
+        if (!raw) {
+          options.onToast?.('Не похоже на код сейва Дымной Империи')
+          return
+        }
+        options.onImportSave?.(raw)
+        close()
+      })()
     })
 
     el.querySelector('[data-setting="sound"]')?.addEventListener('change', (e) => {

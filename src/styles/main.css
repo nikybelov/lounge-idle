@@ -623,8 +623,15 @@ body {
   opacity: 0.85;
 }
 
-.settings-cloud-pull {
+.settings-sync-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
   margin-top: 8px;
+}
+
+.settings-cloud-pull {
+  margin-top: 0;
   width: 100%;
   padding: 10px 12px;
   border: 1px solid rgba(196, 165, 116, 0.45);
@@ -635,6 +642,13 @@ body {
   font-size: 0.82rem;
   font-weight: 600;
   cursor: pointer;
+}
+
+.settings-cloud-pull--ghost {
+  background: transparent;
+  border-color: rgba(255, 255, 255, 0.14);
+  font-weight: 500;
+  opacity: 0.85;
 }
 
 .settings-cloud-pull:focus-visible {

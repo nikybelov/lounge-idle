@@ -563,12 +563,28 @@ const handlers = {
     paint()
   },
   onOpenSettings() {
-    openSettingsPanel(root, () => {
-      applySettings(root)
-      syncAmbientMusic()
-      dismissGuideCoach(root)
-      paint()
-    })
+    openSettingsPanel(
+      root,
+      () => {
+        applySettings(root)
+        syncAmbientMusic()
+        dismissGuideCoach(root)
+        paint()
+      },
+      {
+        getState: () => state,
+        onToast: (msg) => showToast(root, msg),
+        onImportSave: (raw) => {
+          state = applySaveRaw(raw)
+          saveState(state)
+          void flushTelegramCloudSave(state)
+          showSyncBanner(`Вставлен сейв · ${Math.floor(state.cash)}₽`)
+          showToast(root, `Прогресс вставлен · касса ${Math.floor(state.cash)}₽`)
+          if (gameStarted) paint()
+          else beginGame()
+        },
+      },
+    )
   },
 }
 

@@ -95,7 +95,8 @@ function settingsMainHtml(settings: GameSettings): string {
       </button>
       ${
         detectAppFlavor() === 'telegram'
-          ? `<p class="settings-sync-hint" data-cloud-hint>Синк устройств: через облако Telegram. После игры на телефоне подожди 3 сек, потом открой на Mac.</p>`
+          ? `<p class="settings-sync-hint">Синк через облако Telegram. Если на Mac старый прогресс — нажми кнопку ниже.</p>
+      <button type="button" class="settings-cloud-pull" data-cloud-pull>Забрать прогресс из облака</button>`
           : ''
       }
     </footer>
@@ -187,6 +188,11 @@ export function openSettingsPanel(root: HTMLElement, onChange: SettingsChangeHan
     const el = sheet()
     el.querySelector('[data-open-changelog]')?.addEventListener('click', () => {
       renderView('changelog')
+    })
+    el.querySelector('[data-cloud-pull]')?.addEventListener('click', () => {
+      const url = new URL(location.href)
+      url.searchParams.set('cloud', 'pull')
+      location.href = url.toString()
     })
 
     el.querySelector('[data-setting="sound"]')?.addEventListener('change', (e) => {

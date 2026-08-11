@@ -1,7 +1,6 @@
 /**
  * Кросс-девайс сейв через Telegram.WebApp.CloudStorage.
- * Телефон и Mac с одним аккаунтом делят прогресс без своего бэкенда.
- * Лимит Telegram: 4096 символов на ключ → чанки.
+ * Важно: при ошибке чтения Mac НЕ должен затирать облако слабым локальным сейвом.
  */
 import type { GameState } from '../game/state'
 import {
@@ -11,27 +10,26 @@ import {
 } from './runtime'
 
 const META_KEY = 'li_save_meta'
+const CASH_KEY = 'li_cash'
 const CHUNK_PREFIX = 'li_save_'
-/** Запас под UTF-8 / старые клиенты (жёсткий лимит 4096). */
+/** Запас под UTF-8 (лимит Telegram 4096). */
 const CHUNK_SIZE = 2800
 const CLOUD_DEBOUNCE_MS = 600
-const CLOUD_OP_TIMEOUT_MS = 8000
+const CLOUD_OP_TIMEOUT_MS = 12000
 
 type CloudMeta = {
   v: 1
   n: number
   t: number
+  cash?: number
 }
 
 export type CloudMergeResult = {
   state: GameState
-  /** Откуда взяли итоговый сейв */
   source: 'local' | 'cloud' | 'none'
-  /** Облако вообще ответило / доступно */
   cloudAvailable: boolean
   cloudHadSave: boolean
   error?: string
-  /** Для плашки: местная / облачная касса */
   localCash?: number
   cloudCash?: number
   uploaded?: boolean
@@ -47,7 +45,6 @@ function cloud(): TelegramCloudStorage | null {
   if (detectAppFlavor() !== 'telegram') return null
   const wa = getTelegramWebApp()
   if (!wa?.CloudStorage) return null
-  // Не отсекаем по isVersionAtLeast — на части клиентов строка версии врёт.
   return wa.CloudStorage
 }
 
@@ -81,7 +78,6 @@ function setItem(cs: TelegramCloudStorage, key: string, value: string): Promise<
     new Promise((resolve) => {
       try {
         cs.setItem(key, value, (err, ok) => {
-          // success: err null/undefined, ok true или undefined
           resolve(!err && ok !== false)
         })
       } catch {
@@ -111,55 +107,6 @@ function getItem(cs: TelegramCloudStorage, key: string): Promise<string | null> 
   )
 }
 
-function getItems(
-  cs: TelegramCloudStorage,
-  keys: string[],
-): Promise<Record<string, string>> {
-  if (keys.length === 0) return Promise.resolve({})
-  return withTimeout(
-    new Promise((resolve) => {
-      try {
-        cs.getItems(keys, (err, values) => {
-          if (err || !values) resolve({})
-          else resolve(values)
-        })
-      } catch {
-        resolve({})
-      }
-    }),
-    CLOUD_OP_TIMEOUT_MS,
-    {},
-  )
-}
-
-function removeItems(cs: TelegramCloudStorage, keys: string[]): Promise<void> {
-  return withTimeout(
-    new Promise<void>((resolve) => {
-      if (keys.length === 0) {
-        resolve()
-        return
-      }
-      try {
-        if (typeof cs.removeItems === 'function') {
-          cs.removeItems(keys, () => resolve())
-          return
-        }
-        let left = keys.length
-        for (const key of keys) {
-          cs.removeItem(key, () => {
-            left -= 1
-            if (left <= 0) resolve()
-          })
-        }
-      } catch {
-        resolve()
-      }
-    }),
-    CLOUD_OP_TIMEOUT_MS,
-    undefined,
-  ).then(() => undefined)
-}
-
 function chunkPayload(raw: string): string[] {
   const out: string[] = []
   for (let i = 0; i < raw.length; i += CHUNK_SIZE) {
@@ -172,11 +119,9 @@ function chunkKey(i: number): string {
   return `${CHUNK_PREFIX}${i}`
 }
 
-/** Грубый «вес» прогресса — без lastActive (иначе свежий Mac с 72₽ бьёт телефон с 1500₽). */
 export function saveProgressScore(raw: {
   onboarded?: boolean
   cash?: number
-  lastActive?: number
   taskDone?: Record<string, number>
   phase?: string
 }): number {
@@ -200,7 +145,25 @@ export function lastTelegramCloudWriteOk(): boolean | null {
   return lastCloudWriteOk
 }
 
-/** Прочитать сырой JSON сейва из облака (или null). */
+/** Только sequential getItem — getItems на Desktop часто врёт. */
+async function readChunks(
+  cs: TelegramCloudStorage,
+  n: number,
+): Promise<string | null> {
+  let raw = ''
+  for (let i = 0; i < n; i++) {
+    let part: string | null = null
+    for (let attempt = 0; attempt < 3; attempt++) {
+      part = await getItem(cs, chunkKey(i))
+      if (part != null) break
+      await new Promise((r) => setTimeout(r, 200 * (attempt + 1)))
+    }
+    if (part == null) return null
+    raw += part
+  }
+  return raw.length > 0 ? raw : null
+}
+
 export async function readTelegramCloudSaveRaw(): Promise<string | null> {
   const cs = cloud()
   if (!cs) return null
@@ -218,40 +181,52 @@ export async function readTelegramCloudSaveRaw(): Promise<string | null> {
     return null
   }
 
-  const keys = Array.from({ length: meta.n }, (_, i) => chunkKey(i))
-  let values = await getItems(cs, keys)
-
-  // Fallback: getItems на части клиентов пустой — читаем по одному
-  const missing = keys.filter((k) => typeof values[k] !== 'string' || !values[k])
-  if (missing.length > 0) {
-    const next = { ...values }
-    for (const k of missing) {
-      const v = await getItem(cs, k)
-      if (v != null) next[k] = v
-    }
-    values = next
-  }
-
-  let raw = ''
-  for (let i = 0; i < meta.n; i++) {
-    const part = values[chunkKey(i)]
-    if (typeof part !== 'string') return null
-    raw += part
-  }
-  return raw.length > 0 ? raw : null
+  return readChunks(cs, meta.n)
 }
 
-/** Записать JSON сейва в облако (чанки). Сначала чанки, потом meta — атомарнее. */
+export async function peekTelegramCloudMeta(): Promise<CloudMeta | null> {
+  const cs = cloud()
+  if (!cs) return null
+  const metaRaw = await getItem(cs, META_KEY)
+  if (!metaRaw) return null
+  try {
+    const meta = JSON.parse(metaRaw) as CloudMeta
+    if (meta.v !== 1) return null
+    return meta
+  } catch {
+    return null
+  }
+}
+
+export async function peekTelegramCloudCash(): Promise<number | null> {
+  const cs = cloud()
+  if (!cs) return null
+  const fromKey = await getItem(cs, CASH_KEY)
+  if (fromKey != null && Number.isFinite(Number(fromKey))) {
+    return Math.max(0, Math.floor(Number(fromKey)))
+  }
+  const meta = await peekTelegramCloudMeta()
+  if (meta && typeof meta.cash === 'number') return Math.max(0, Math.floor(meta.cash))
+  return null
+}
+
 export async function writeTelegramCloudSaveRaw(
   raw: string,
   lastActive: number,
+  cash: number,
 ): Promise<boolean> {
   const cs = cloud()
   if (!cs) return false
 
   const parts = chunkPayload(raw)
-  const meta: CloudMeta = { v: 1, n: parts.length, t: lastActive }
+  const meta: CloudMeta = {
+    v: 1,
+    n: parts.length,
+    t: lastActive,
+    cash: Math.max(0, Math.floor(cash)),
+  }
 
+  // Сначала чанки, потом cash/meta — meta последней = «сейв готов»
   for (let i = 0; i < parts.length; i++) {
     const ok = await setItem(cs, chunkKey(i), parts[i]!)
     if (!ok) {
@@ -260,17 +235,18 @@ export async function writeTelegramCloudSaveRaw(
     }
   }
 
+  const okCash = await setItem(cs, CASH_KEY, String(meta.cash))
+  if (!okCash) {
+    lastCloudWriteOk = false
+    return false
+  }
+
   const okMeta = await setItem(cs, META_KEY, JSON.stringify(meta))
   if (!okMeta) {
     lastCloudWriteOk = false
     return false
   }
 
-  const stale: string[] = []
-  for (let i = parts.length; i < parts.length + 16; i++) {
-    stale.push(chunkKey(i))
-  }
-  await removeItems(cs, stale)
   lastCloudWriteOk = true
   return true
 }
@@ -279,7 +255,11 @@ export async function writeTelegramCloudSave(state: GameState): Promise<boolean>
   if (!state.onboarded) return false
   try {
     const raw = JSON.stringify(state)
-    return await writeTelegramCloudSaveRaw(raw, state.lastActive ?? Date.now())
+    return await writeTelegramCloudSaveRaw(
+      raw,
+      state.lastActive ?? Date.now(),
+      state.cash ?? 0,
+    )
   } catch (err) {
     console.warn('[telegram] cloud save failed', err)
     lastCloudWriteOk = false
@@ -290,23 +270,27 @@ export async function writeTelegramCloudSave(state: GameState): Promise<boolean>
 export async function clearTelegramCloudSave(): Promise<void> {
   const cs = cloud()
   if (!cs) return
-  const metaRaw = await getItem(cs, META_KEY)
-  let n = 0
-  if (metaRaw) {
-    try {
-      const meta = JSON.parse(metaRaw) as CloudMeta
-      if (Number.isFinite(meta.n)) n = Math.max(0, Math.floor(meta.n))
-    } catch {
-      /* ignore */
-    }
+  const meta = await peekTelegramCloudMeta()
+  const n = meta && Number.isFinite(meta.n) ? Math.max(0, Math.floor(meta.n)) : 48
+  const keys = [
+    META_KEY,
+    CASH_KEY,
+    ...Array.from({ length: Math.max(n, 48) }, (_, i) => chunkKey(i)),
+  ]
+  for (const key of keys) {
+    await new Promise<void>((resolve) => {
+      try {
+        cs.removeItem(key, () => resolve())
+      } catch {
+        resolve()
+      }
+    })
   }
-  const keys = [META_KEY, ...Array.from({ length: Math.max(n, 48) }, (_, i) => chunkKey(i))]
-  await removeItems(cs, keys)
 }
 
 /**
  * Свести локальный и облачный сейв.
- * Касса решает: больший cash побеждает; lastActive только при равенстве.
+ * Никогда не затираем облако, если оно не прочиталось или там больше кассы.
  */
 export async function mergeTelegramCloudIntoLocal(
   localHasBlob: boolean,
@@ -328,8 +312,7 @@ export async function mergeTelegramCloudIntoLocal(
 
   const probeKey = 'li_probe'
   const probeVal = `p${Date.now()}`
-  const probeOk = await setItem(cs, probeKey, probeVal)
-  if (!probeOk) {
+  if (!(await setItem(cs, probeKey, probeVal))) {
     return {
       state: local,
       source: localHasBlob ? 'local' : 'none',
@@ -339,8 +322,7 @@ export async function mergeTelegramCloudIntoLocal(
       error: 'Облако не пишет (клиент Telegram?)',
     }
   }
-  const probeRead = await getItem(cs, probeKey)
-  if (probeRead !== probeVal) {
+  if ((await getItem(cs, probeKey)) !== probeVal) {
     return {
       state: local,
       source: localHasBlob ? 'local' : 'none',
@@ -351,22 +333,11 @@ export async function mergeTelegramCloudIntoLocal(
     }
   }
 
-  let cloudRaw: string | null = null
-  try {
-    cloudRaw = await readTelegramCloudSaveRaw()
-  } catch (err) {
-    console.warn('[telegram] cloud read failed', err)
-    return {
-      state: local,
-      source: localHasBlob ? 'local' : 'none',
-      cloudAvailable: true,
-      cloudHadSave: false,
-      localCash,
-      error: 'Не удалось прочитать облако',
-    }
-  }
+  const meta = await peekTelegramCloudMeta()
+  const hintCash = await peekTelegramCloudCash()
 
-  if (!cloudRaw) {
+  if (!meta) {
+    // Правда пусто — можно залить локальный
     let uploaded = false
     if (localHasBlob && local.onboarded) {
       uploaded = await writeTelegramCloudSave(local)
@@ -387,6 +358,24 @@ export async function mergeTelegramCloudIntoLocal(
     }
   }
 
+  const cloudHint = hintCash ?? meta.cash ?? 0
+  const cloudRaw = await readChunks(cs, meta.n)
+
+  if (!cloudRaw) {
+    // Облако ЕСТЬ, но Mac/клиент не вытащил чанки — НЕ затираем
+    return {
+      state: local,
+      source: localHasBlob ? 'local' : 'none',
+      cloudAvailable: true,
+      cloudHadSave: true,
+      localCash,
+      cloudCash: cloudHint,
+      uploaded: false,
+      detail: `облако ~${cloudHint}₽ не прочиталось на этом устройстве (не затираем)`,
+      error: 'cloud_read_failed',
+    }
+  }
+
   let cloudPeek: {
     onboarded?: boolean
     cash?: number
@@ -404,6 +393,7 @@ export async function mergeTelegramCloudIntoLocal(
         cloudAvailable: true,
         cloudHadSave: true,
         localCash,
+        cloudCash: cloudHint,
         error: 'Облачный сейв другой версии',
       }
     }
@@ -414,11 +404,13 @@ export async function mergeTelegramCloudIntoLocal(
       cloudAvailable: true,
       cloudHadSave: true,
       localCash,
-      error: 'Облачный сейв битый',
+      cloudCash: cloudHint,
+      detail: `облако битое, hint ${cloudHint}₽ — не затираем`,
+      error: 'cloud_corrupt',
     }
   }
 
-  const cloudCash = Math.max(0, Math.floor(cloudPeek.cash ?? 0))
+  const cloudCash = Math.max(0, Math.floor(cloudPeek.cash ?? cloudHint))
 
   if (!localHasBlob) {
     return {
@@ -432,18 +424,13 @@ export async function mergeTelegramCloudIntoLocal(
     }
   }
 
-  const localScore = saveProgressScore(local)
-  const cloudScore = saveProgressScore(cloudPeek)
-  const cloudTs = cloudPeek.lastActive ?? 0
-  const localTs = local.lastActive ?? 0
-
-  // Жёстко: большая касса всегда побеждает
   const preferCloud =
     cloudCash > localCash ||
-    (cloudCash === localCash && cloudScore > localScore) ||
     (cloudCash === localCash &&
-      cloudScore === localScore &&
-      cloudTs > localTs) ||
+      saveProgressScore(cloudPeek) > saveProgressScore(local)) ||
+    (cloudCash === localCash &&
+      saveProgressScore(cloudPeek) === saveProgressScore(local) &&
+      (cloudPeek.lastActive ?? 0) > (local.lastActive ?? 0)) ||
     (!local.onboarded && !!cloudPeek.onboarded)
 
   if (preferCloud) {
@@ -458,34 +445,22 @@ export async function mergeTelegramCloudIntoLocal(
     }
   }
 
-  let uploaded = false
-  if (local.onboarded) {
-    uploaded = await writeTelegramCloudSave(local)
-    if (uploaded) {
-      const verifyRaw = await readTelegramCloudSaveRaw()
-      let verified = -1
-      if (verifyRaw) {
-        try {
-          verified = Math.floor(
-            (JSON.parse(verifyRaw) as { cash?: number }).cash ?? -1,
-          )
-        } catch {
-          verified = -1
-        }
-      }
-      uploaded = verified === localCash
-      return {
-        state: local,
-        source: 'local',
-        cloudAvailable: true,
-        cloudHadSave: true,
-        localCash,
-        cloudCash,
-        uploaded,
-        detail: uploaded
-          ? `местн. ${localCash}₽ записали в облако (было ${cloudCash}₽)`
-          : `местн. ${localCash}₽, облако НЕ подтвердило запись (там ${verified}₽)`,
-      }
+  // Локальный богаче — пишем в облако, но только если реально больше
+  if (local.onboarded && localCash >= cloudCash) {
+    const uploaded = await writeTelegramCloudSave(local)
+    const verified = uploaded ? await peekTelegramCloudCash() : null
+    const ok = uploaded && verified === localCash
+    return {
+      state: local,
+      source: 'local',
+      cloudAvailable: true,
+      cloudHadSave: true,
+      localCash,
+      cloudCash,
+      uploaded: ok,
+      detail: ok
+        ? `местн. ${localCash}₽ записали в облако (было ${cloudCash}₽)`
+        : `местн. ${localCash}₽, облако не подтвердило (там ${verified ?? '—'}₽)`,
     }
   }
 
@@ -496,12 +471,10 @@ export async function mergeTelegramCloudIntoLocal(
     cloudHadSave: true,
     localCash,
     cloudCash,
-    uploaded: false,
-    detail: `оставили местн. ${localCash}₽ (облако ${cloudCash}₽), запись не удалась`,
+    detail: `оставили местн. ${localCash}₽ (облако ${cloudCash}₽)`,
   }
 }
 
-/** Debounce-пуш в облако после локального сейва. */
 export function scheduleTelegramCloudSave(state: GameState): void {
   if (!cloud() || !state.onboarded) return
   cloudPending = state
@@ -527,6 +500,13 @@ export async function flushTelegramCloudSave(state: GameState): Promise<boolean>
   }
   cloudWriting = true
   try {
+    // Не затирать облако более бедной кассой
+    const cloudCash = await peekTelegramCloudCash()
+    const localCash = Math.max(0, Math.floor(state.cash ?? 0))
+    if (cloudCash != null && cloudCash > localCash) {
+      lastCloudWriteOk = false
+      return false
+    }
     return await writeTelegramCloudSave(state)
   } finally {
     cloudWriting = false

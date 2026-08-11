@@ -623,6 +623,25 @@ body {
   opacity: 0.85;
 }
 
+.settings-cloud-pull {
+  margin-top: 8px;
+  width: 100%;
+  padding: 10px 12px;
+  border: 1px solid rgba(196, 165, 116, 0.45);
+  border-radius: var(--radius-xs);
+  background: rgba(196, 165, 116, 0.16);
+  color: var(--text);
+  font: inherit;
+  font-size: 0.82rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.settings-cloud-pull:focus-visible {
+  outline: 2px solid rgba(224, 122, 58, 0.55);
+  outline-offset: 2px;
+}
+
 .settings-version-btn {
   display: flex;
   align-items: center;

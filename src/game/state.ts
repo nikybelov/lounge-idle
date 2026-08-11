@@ -121,6 +121,11 @@ export interface GameState {
   taskDone: Record<TaskId, number>
   achievements: Partial<Record<AchievementId, boolean>>
   lastActive: number
+  /**
+   * Монотонная ревизия кросс-девайс синка.
+   * Растёт только при игровом saveState (покупка/тап), не при простом свернуть/открыть.
+   */
+  syncRev: number
   flags: {
     sawBrokeHint: boolean
     sawQuitReady: boolean
@@ -274,6 +279,7 @@ export function createInitialState(now = Date.now()): GameState {
     },
     achievements: {},
     lastActive: now,
+    syncRev: 0,
     flags: {
       sawBrokeHint: false,
       sawQuitReady: false,

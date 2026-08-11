@@ -1,6 +1,6 @@
 /**
  * Cloudflare Worker: кросс-девайс сейв по Telegram user id.
- * Конфликт: побеждает больший progressScore (инструменты), не касса и не lastActive в одиночку.
+ * Конфликт: syncRev → progressScore → lastActive.
  */
 export default {
   async fetch(request, env) {
@@ -24,17 +24,26 @@ export default {
 
       if (request.method === 'GET') {
         const raw = await env.SAVES.get(key)
-        if (!raw) return json({ save: null, cash: 0, lastActive: 0, score: 0 }, 200, cors)
+        if (!raw) {
+          return json({ save: null, cash: 0, lastActive: 0, syncRev: 0, score: 0 }, 200, cors)
+        }
         let save = null
         try {
           save = JSON.parse(raw)
         } catch {
           return json({ error: 'corrupt' }, 500, cors)
         }
-        const cash = num(save?.cash)
-        const lastActive = num(save?.lastActive)
-        const score = progressScore(save)
-        return json({ save, cash, lastActive, score }, 200, cors)
+        return json(
+          {
+            save,
+            cash: num(save?.cash),
+            lastActive: num(save?.lastActive),
+            syncRev: rev(save),
+            score: progressScore(save),
+          },
+          200,
+          cors,
+        )
       }
 
       if (request.method === 'PUT') {
@@ -46,25 +55,27 @@ export default {
         const cash = num(save.cash)
         const lastActive = num(save.lastActive) || Date.now()
         save.lastActive = lastActive
+        if (typeof save.syncRev !== 'number' || !Number.isFinite(save.syncRev)) {
+          save.syncRev = 0
+        } else {
+          save.syncRev = Math.max(0, Math.floor(save.syncRev))
+        }
         const score = progressScore(save)
+        const syncRev = save.syncRev
 
         const existingRaw = await env.SAVES.get(key)
         if (existingRaw) {
           try {
             const existing = JSON.parse(existingRaw)
-            const existingScore = progressScore(existing)
-            const existingTs = num(existing?.lastActive)
-            const remoteAhead =
-              existingScore > score ||
-              (existingScore === score && existingTs > lastActive)
-            if (remoteAhead) {
+            if (remoteAhead(existing, save)) {
               return json(
                 {
                   ok: false,
                   reason: 'remote_ahead',
                   cash: num(existing?.cash),
-                  lastActive: existingTs,
-                  score: existingScore,
+                  lastActive: num(existing?.lastActive),
+                  syncRev: rev(existing),
+                  score: progressScore(existing),
                 },
                 409,
                 cors,
@@ -76,9 +87,9 @@ export default {
         }
 
         await env.SAVES.put(key, JSON.stringify(save), {
-          metadata: { cash, lastActive, score, updatedAt: Date.now() },
+          metadata: { cash, lastActive, syncRev, score, updatedAt: Date.now() },
         })
-        return json({ ok: true, cash, lastActive, score }, 200, cors)
+        return json({ ok: true, cash, lastActive, syncRev, score }, 200, cors)
       }
 
       return json({ error: 'method' }, 405, cors)
@@ -94,6 +105,10 @@ export default {
 
 function num(v) {
   return typeof v === 'number' && Number.isFinite(v) ? Math.floor(v) : 0
+}
+
+function rev(save) {
+  return num(save?.syncRev)
 }
 
 function sumValues(obj) {
@@ -134,6 +149,16 @@ function progressScore(save) {
     tasks * 100 +
     cash
   )
+}
+
+function remoteAhead(existing, incoming) {
+  const er = rev(existing)
+  const ir = rev(incoming)
+  if (er !== ir) return er > ir
+  const es = progressScore(existing)
+  const is = progressScore(incoming)
+  if (es !== is) return es > is
+  return num(existing?.lastActive) > num(incoming?.lastActive)
 }
 
 function json(data, status, cors) {

@@ -285,6 +285,7 @@ export function loadState(): GameState {
       ...base,
       ...parsed,
       migrateRev: CURRENT_MIGRATE_REV,
+      syncRev: clampInt(parsed.syncRev ?? 0, 0, Number.MAX_SAFE_INTEGER, 0),
       owned: clampOwnedUpgrades({ ...base.owned, ...parsed.owned }),
       shopOwned: migrateShopOwned(parsed.shopOwned, base.shopOwned),
       taskReadyAt: { ...base.taskReadyAt, ...parsed.taskReadyAt },
@@ -444,7 +445,23 @@ export function loadState(): GameState {
   }
 }
 
-export function saveState(state: GameState): boolean {
+export function saveState(
+  state: GameState,
+  opts?: { bumpSync?: boolean },
+): boolean {
+  const bumpSync = opts?.bumpSync !== false
+  if (bumpSync) {
+    const prev =
+      typeof state.syncRev === 'number' && Number.isFinite(state.syncRev)
+        ? Math.max(0, Math.floor(state.syncRev))
+        : 0
+    state.syncRev = prev + 1
+  } else if (
+    typeof state.syncRev !== 'number' ||
+    !Number.isFinite(state.syncRev)
+  ) {
+    state.syncRev = 0
+  }
   state.lastActive = Date.now()
   state.migrateRev = CURRENT_MIGRATE_REV
   try {
@@ -470,7 +487,7 @@ export function isSaveStorageAvailable(): boolean {
 }
 
 export function createDebouncedSave(ms = 400): ((state: GameState) => void) & {
-  flush: (state: GameState) => boolean
+  flush: (state: GameState, opts?: { bumpSync?: boolean }) => boolean
 } {
   let t: ReturnType<typeof setTimeout> | null = null
   let pending: GameState | null = null
@@ -480,16 +497,21 @@ export function createDebouncedSave(ms = 400): ((state: GameState) => void) & {
     t = setTimeout(() => {
       t = null
       if (pending) {
-        saveState(pending)
+        saveState(pending, { bumpSync: true })
         pending = null
       }
     }, ms)
-  }) as ((state: GameState) => void) & { flush: (state: GameState) => boolean }
-  schedule.flush = (state: GameState) => {
+  }) as ((state: GameState) => void) & {
+    flush: (state: GameState, opts?: { bumpSync?: boolean }) => boolean
+  }
+  schedule.flush = (state: GameState, opts?: { bumpSync?: boolean }) => {
+    const hadPending = pending != null || t != null
     if (t) clearTimeout(t)
     t = null
     pending = null
-    const ok = saveState(state)
+    // Сворот без новых действий — не бампаем syncRev (иначе телефон затирает Mac)
+    const bumpSync = opts?.bumpSync ?? hadPending
+    const ok = saveState(state, { bumpSync })
     if (ok) void flushTelegramCloudSave(state)
     return ok
   }

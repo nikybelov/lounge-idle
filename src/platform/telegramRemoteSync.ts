@@ -1,7 +1,7 @@
 /**
  * Автосинк сейва через наш Worker (телефон ↔ Mac).
- * Побеждает больший прогресс (инструменты/апгрейды), не касса:
- * после покупок cash падает, а lastActive на фоне часто «новее» без прогресса.
+ * Побеждает больший syncRev (игровые сохранения), затем прогресс, затем lastActive.
+ * Сворот приложения syncRev не бампает — иначе телефон затирает Mac.
  */
 import type { GameState } from '../game/state'
 import { getTelegramWebApp, isTelegramMiniApp } from './runtime'
@@ -40,6 +40,12 @@ function tsOf(s: { lastActive?: number } | null | undefined): number {
     : 0
 }
 
+function revOf(s: { syncRev?: number } | null | undefined): number {
+  return typeof s?.syncRev === 'number' && Number.isFinite(s.syncRev)
+    ? Math.max(0, Math.floor(s.syncRev))
+    : 0
+}
+
 /** Сколько «прогресса» в сейве — покупки важнее кассы. */
 export function progressScore(s: {
   cash?: number
@@ -67,7 +73,6 @@ export function progressScore(s: {
   for (const v of Object.values(s.branches || {})) if (v) flags += 1
   for (const v of Object.values(s.ownedTobacco || {})) if (v) flags += 1
   const cash = Math.max(0, Math.floor(s.cash ?? 0))
-  // 1 уровень инструмента >> любой разумный cash
   return (
     shop * 1_000_000_000 +
     owned * 10_000_000 +
@@ -78,14 +83,19 @@ export function progressScore(s: {
   )
 }
 
-function remoteBeatsLocal(
-  remote: GameState,
-  local: GameState,
-): boolean {
+/** remote строго лучше local → берём remote */
+function remoteBeatsLocal(remote: GameState, local: GameState): boolean {
+  const rr = revOf(remote)
+  const lr = revOf(local)
+  if (rr !== lr) return rr > lr
   const rs = progressScore(remote)
   const ls = progressScore(local)
   if (rs !== ls) return rs > ls
   return tsOf(remote) > tsOf(local)
+}
+
+function localBeatsRemote(local: GameState, remote: GameState): boolean {
+  return remoteBeatsLocal(local, remote)
 }
 
 async function fetchJson(
@@ -125,10 +135,11 @@ export async function pullRemoteSave(): Promise<{
   save: GameState | null
   cash: number
   lastActive: number
+  syncRev: number
   ok: boolean
 }> {
   const res = await fetchJson('/', { method: 'GET' })
-  if (!res.ok) return { save: null, cash: 0, lastActive: 0, ok: false }
+  if (!res.ok) return { save: null, cash: 0, lastActive: 0, syncRev: 0, ok: false }
   const save = (res.body.save as GameState | null) ?? null
   const cash =
     typeof res.body.cash === 'number'
@@ -138,7 +149,11 @@ export async function pullRemoteSave(): Promise<{
     typeof res.body.lastActive === 'number'
       ? Math.floor(res.body.lastActive)
       : tsOf(save)
-  return { save, cash, lastActive, ok: true }
+  const syncRev =
+    typeof res.body.syncRev === 'number'
+      ? Math.floor(res.body.syncRev)
+      : revOf(save)
+  return { save, cash, lastActive, syncRev, ok: true }
 }
 
 export async function pushRemoteSave(state: GameState): Promise<{
@@ -148,6 +163,9 @@ export async function pushRemoteSave(state: GameState): Promise<{
 }> {
   if (!state.onboarded) return { ok: false, reason: 'not_onboarded' }
   if (!state.lastActive) state.lastActive = Date.now()
+  if (typeof state.syncRev !== 'number' || !Number.isFinite(state.syncRev)) {
+    state.syncRev = 0
+  }
   const res = await fetchJson('/', {
     method: 'PUT',
     headers: { 'Content-Type': 'application/json' },
@@ -182,7 +200,7 @@ export function scheduleRemoteSave(state: GameState): void {
     const pending = pushPending
     pushPending = null
     if (pending) void pushRemoteSave(pending)
-  }, 900)
+  }, 500)
 }
 
 export async function flushRemoteSave(state: GameState): Promise<boolean> {
@@ -214,7 +232,6 @@ export async function mergeRemoteSave(
   const localCash = Math.max(0, Math.floor(local.cash ?? 0))
   const pulled = await pullRemoteSave()
   if (!pulled.ok) {
-    // Не пушим вслепую — можем затереть чужой прогресс при сетевом сбое GET
     return {
       state: local,
       source: localHasBlob ? 'local' : 'none',
@@ -255,12 +272,12 @@ export async function mergeRemoteSave(
       available: true,
       localCash,
       remoteCash,
-      detail: `с сервера ${remoteCash}₽ (больше прогресса)`,
+      detail: `с сервера ${remoteCash}₽ (rev ${revOf(remote)})`,
     }
   }
 
-  // Локальный прогресс сильнее или равный + новее → пушим
-  if (local.onboarded) {
+  // Локальный строго сильнее → пушим. Ничья — не затираем сервер просто так.
+  if (local.onboarded && localBeatsRemote(local, remote)) {
     const push = await pushRemoteSave(local)
     return {
       state: local,
@@ -270,10 +287,10 @@ export async function mergeRemoteSave(
       remoteCash,
       uploaded: push.ok,
       detail: push.ok
-        ? `местн. прогресс → сервер ok (${localCash}₽)`
+        ? `местн. rev ${revOf(local)} → сервер ok`
         : push.reason === 'remote_ahead' || push.reason === 'remote_newer'
-          ? `на сервере сильнее прогресс (${push.remoteCash ?? remoteCash}₽)`
-          : `местн. ${localCash}₽, сервер не принял`,
+          ? `на сервере новее (rev выше)`
+          : `местн. не приняли на сервер`,
     }
   }
 
@@ -283,6 +300,6 @@ export async function mergeRemoteSave(
     available: true,
     localCash,
     remoteCash,
-    detail: `местн. ${localCash}₽ / сервер ${remoteCash}₽`,
+    detail: `без изменений · местн./сервер ${localCash}₽/${remoteCash}₽`,
   }
 }

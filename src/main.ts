@@ -266,6 +266,8 @@ const handlers = {
     if (res.message) showToast(root, res.message)
     juicePurchase(root)
     afterAction()
+    // Покупка должна сразу уйти на сервер — иначе Mac→телефон теряется при быстром закрытии
+    scheduleSave.flush(state)
   },
   onBuyTobacco(id: TobaccoId) {
     const res = buyTobacco(state, id)
@@ -800,24 +802,14 @@ function beginGame(): void {
   }
   announceCloudMerge()
   if (isTelegramMiniApp() && state.onboarded) {
-    if (isRemoteSyncConfigured()) {
-      void pushRemoteSave(state).then((res) => {
-        if (
-          !res.ok &&
-          res.reason !== 'remote_ahead' &&
-          res.reason !== 'remote_newer' &&
-          res.reason !== 'remote_richer'
-        ) {
-          showToast(root, 'Не удалось отправить сейв на сервер синка')
-        }
-      })
-    } else {
+    if (!isRemoteSyncConfigured()) {
       void flushTelegramCloudSave(state).then((ok) => {
         if (ok === false && isTelegramCloudSaveAvailable()) {
           showToast(root, 'Облако Telegram на этом устройстве не пишет — нужен сервер синка')
         }
       })
     }
+    // HTTP-синк: mergeRemoteSave уже запушил при необходимости — лишний push тут затирал Mac
   }
   scheduleSave.flush(state)
   if (admin) {

@@ -179,7 +179,7 @@ function announceCloudMerge(): void {
   } else if (!m.cloudHadSave) {
     msg = 'В облаке пока пусто — поиграй на телефоне 3 сек и открой снова'
   } else if (m.source === 'local') {
-    msg = 'На Mac сейв новее облака — оставили местный'
+    msg = 'На этом устройстве сейв новее облака — оставили местный'
   } else if (m.error) {
     msg = m.error
   } else {

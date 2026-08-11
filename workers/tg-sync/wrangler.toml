@@ -5,8 +5,5 @@ workers_dev = true
 
 [[kv_namespaces]]
 binding = "SAVES"
-# После создания KV подставь id:
-#   npx wrangler kv namespace create SAVES
-# id = "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
-id = "REPLACE_WITH_KV_NAMESPACE_ID"
-preview_id = "REPLACE_WITH_KV_NAMESPACE_ID"
+id = "69487405caa445ef977c2c6a8ecde2f0"
+preview_id = "69487405caa445ef977c2c6a8ecde2f0"

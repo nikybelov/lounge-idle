@@ -54,7 +54,7 @@ jobs:
         working-directory: tg
         env:
           VITE_FLAVOR: telegram
-          VITE_APP_VERSION: 0.2.0
+          VITE_APP_VERSION: 0.2.1
           VITE_BASE: /${{ github.event.repository.name }}/tg/
         run: |
           npm ci

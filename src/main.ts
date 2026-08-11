@@ -78,6 +78,7 @@ import {
   resetSave,
   saveState,
 } from './save/storage'
+import { showSyncBanner } from './ui/syncBanner'
 import {
   flushTelegramCloudSave,
   isTelegramCloudSaveAvailable,
@@ -157,29 +158,38 @@ let lastTs = performance.now()
 let gameStarted = false
 const admin = isAdminEnabled()
 let cloudMergeNote: CloudMergeResult | null = null
+let cloudAnnounced = false
 
 function announceCloudMerge(): void {
+  if (cloudAnnounced) return
+  cloudAnnounced = true
   const m = cloudMergeNote
   cloudMergeNote = null
-  if (!m) return
+  if (!m) {
+    if (isTelegramMiniApp()) {
+      showSyncBanner('Проверка облака не запускалась')
+    }
+    return
+  }
+  let msg = ''
   if (m.source === 'cloud') {
-    showToast(root, 'Прогресс подтянут с другого устройства')
-    return
+    msg = 'Прогресс подтянут с другого устройства'
+  } else if (!m.cloudAvailable) {
+    msg = m.error || 'Облако Telegram недоступно — сейв только здесь'
+  } else if (!m.cloudHadSave) {
+    msg = 'В облаке пока пусто — поиграй на телефоне 3 сек и открой снова'
+  } else if (m.source === 'local') {
+    msg = 'На Mac сейв новее облака — оставили местный'
+  } else if (m.error) {
+    msg = m.error
+  } else {
+    msg = 'Синк проверен'
   }
-  if (!m.cloudAvailable) {
-    showToast(root, 'Облако Telegram недоступно — сейв только здесь')
-    return
-  }
-  if (!m.cloudHadSave) {
-    showToast(root, 'В облаке пока пусто — поиграй на телефоне 3 сек и открой снова')
-    return
-  }
-  if (m.source === 'local') {
-    showToast(root, 'На Mac сейв новее облака — оставили местный')
-    return
-  }
-  if (m.error) {
-    showToast(root, m.error)
+  showSyncBanner(msg)
+  try {
+    showToast(root, msg)
+  } catch {
+    /* shell ещё нет */
   }
 }
 
@@ -863,6 +873,10 @@ async function bootApp(): Promise<void> {
     const merged = await mergeTelegramCloudIntoLocal(hadLocal, state, applySaveRaw)
     state = merged.state
     cloudMergeNote = merged
+    // Сразу золотой баннер сверху — до shell, чтобы было видно
+    announceCloudMerge()
+  } else {
+    showSyncBanner('Открыто не как Mini App — облачный синк выключен')
   }
 
   if (shouldShowBrowserGate()) {

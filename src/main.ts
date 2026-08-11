@@ -83,7 +83,6 @@ import {
   flushTelegramCloudSave,
   isTelegramCloudSaveAvailable,
   mergeTelegramCloudIntoLocal,
-  type CloudMergeResult,
 } from './platform/telegramCloudSave'
 import {
   isRemoteSyncConfigured,
@@ -91,7 +90,6 @@ import {
   pushRemoteSave,
   scheduleRemoteSave,
   flushRemoteSave,
-  type RemoteSyncResult,
 } from './platform/telegramRemoteSync'
 import { showSyncBanner } from './ui/syncBanner'
 import { applySettings, isCoachEnabled, loadSettings } from './save/settings'
@@ -179,41 +177,6 @@ const scheduleSave = Object.assign(
 let lastTs = performance.now()
 let gameStarted = false
 const admin = isAdminEnabled()
-let cloudMergeNote: CloudMergeResult | RemoteSyncResult | null = null
-let cloudAnnounced = false
-
-function announceCloudMerge(): void {
-  if (cloudAnnounced) return
-  cloudAnnounced = true
-  const m = cloudMergeNote
-  cloudMergeNote = null
-  if (!m) {
-    if (isTelegramMiniApp()) {
-      showSyncBanner('Синк не запускался')
-    }
-    return
-  }
-  const remote = 'available' in m ? m : null
-  const cloud = 'cloudAvailable' in m ? m : null
-  let msg = m.detail || ''
-  if (!msg) {
-    if (remote) {
-      if (m.source === 'remote') msg = `С сервера ${remote.remoteCash ?? '?'}₽`
-      else if (!remote.available) msg = 'Сервер синка недоступен'
-      else msg = `Местн. ${remote.localCash ?? '?'}₽`
-    } else if (cloud) {
-      if (m.source === 'cloud') msg = `Из облака ${cloud.cloudCash ?? '?'}₽`
-      else msg = cloud.detail || 'Локальный сейв'
-    }
-  }
-  if (!msg) msg = 'Синк проверен'
-  showSyncBanner(msg, 7000)
-  try {
-    showToast(root, msg)
-  } catch {
-    /* shell ещё нет */
-  }
-}
 
 function hudCoachContext() {
   return { menuTab, storySubTab, scene: state.scene }
@@ -800,7 +763,6 @@ function beginGame(): void {
       'Safari не сохраняет прогресс (частный режим?). Играй в обычном Safari.',
     )
   }
-  announceCloudMerge()
   if (isTelegramMiniApp() && state.onboarded) {
     if (!isRemoteSyncConfigured()) {
       void flushTelegramCloudSave(state).then((ok) => {
@@ -930,14 +892,10 @@ async function bootApp(): Promise<void> {
     const remote = await mergeRemoteSave(hadLocal, state, applySaveRaw)
     if (remote) {
       state = remote.state
-      cloudMergeNote = remote
     } else {
       const merged = await mergeTelegramCloudIntoLocal(hadLocal, state, applySaveRaw)
       state = merged.state
-      cloudMergeNote = merged
     }
-    cloudAnnounced = false
-    announceCloudMerge()
   }
 
   if (shouldShowBrowserGate()) {
@@ -1004,8 +962,6 @@ document.addEventListener('visibilitychange', () => {
       scheduleSave.flush(state)
       renderShell(root, state, handlers, menuTab, Date.now(), careerSubTab, storySubTab)
       updateHud(root, state, hudCoachContext())
-      showToast(root, remote.detail || 'Подтянули прогресс с сервера')
-      showSyncBanner(remote.detail || 'С сервера', 5000)
     })
   }
 })

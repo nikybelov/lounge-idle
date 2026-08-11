@@ -8,6 +8,7 @@ import { difficultyFromVenue } from '../data/difficulty'
 import type { TobaccoId } from '../data/tobacco'
 import { SHOP_ITEMS, type ShopItemId } from '../data/shop'
 import { STAFF_ROLES, type StaffId } from '../data/staff'
+import { UPGRADES, type UpgradeId } from '../data/upgrades'
 import {
   applyLifetimeTrophies,
   persistLifetimeTrophies,
@@ -15,6 +16,18 @@ import {
 } from './trophies'
 
 const KEY = 'lounge-idle-save-v1'
+
+function clampOwnedUpgrades(
+  owned: GameState['owned'],
+): GameState['owned'] {
+  const next = { ...owned }
+  for (const def of UPGRADES) {
+    const id = def.id as UpgradeId
+    const cur = next[id] ?? 0
+    if (cur > def.maxLevel) next[id] = def.maxLevel
+  }
+  return next
+}
 
 type LegacySave = Partial<GameState> & {
   menuSlots?: (TobaccoId | null)[]
@@ -131,7 +144,7 @@ export function loadState(): GameState {
     const merged: GameState = {
       ...base,
       ...parsed,
-      owned: { ...base.owned, ...parsed.owned },
+      owned: clampOwnedUpgrades({ ...base.owned, ...parsed.owned }),
       shopOwned: migrateShopOwned(parsed.shopOwned, base.shopOwned),
       taskReadyAt: { ...base.taskReadyAt, ...parsed.taskReadyAt },
       taskDone: { ...base.taskDone, ...parsed.taskDone },
@@ -177,6 +190,8 @@ export function loadState(): GameState {
         shelfEmptyWarned: parsed.flags?.shelfEmptyWarned ?? false,
         empireOfferUnlocked: parsed.flags?.empireOfferUnlocked ?? false,
         payrollWarned: parsed.flags?.payrollWarned ?? false,
+        serviceWarned: parsed.flags?.serviceWarned ?? false,
+        everServiceStrain: parsed.flags?.everServiceStrain ?? false,
         hadDualPhase:
           parsed.flags?.hadDualPhase ??
           (parsed.phase === 'dual' || parsed.phase === 'ownOnly'),

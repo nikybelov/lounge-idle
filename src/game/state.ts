@@ -129,6 +129,10 @@ export interface GameState {
     /** Вкладка «Сеть» после авторского зала + увольнения */
     empireOfferUnlocked: boolean
     payrollWarned: boolean
+    /** Перегруз сервиса — посадка без команды (тост за эпизод) */
+    serviceWarned: boolean
+    /** Хотя бы раз словили перегруз сервиса (для секрета) */
+    everServiceStrain: boolean
     /** Был период «смена + свой зал» — для трофея «Трудяга» */
     hadDualPhase: boolean
     /** Накопил лишнее на смене до открытия зала */
@@ -276,6 +280,8 @@ export function createInitialState(now = Date.now()): GameState {
       shelfEmptyWarned: false,
       empireOfferUnlocked: false,
       payrollWarned: false,
+      serviceWarned: false,
+      everServiceStrain: false,
       hadDualPhase: false,
       loyalPockets: false,
       bareHandsEarned: false,

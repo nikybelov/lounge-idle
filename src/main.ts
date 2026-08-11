@@ -15,6 +15,8 @@ import {
   maybeBrokeHint,
   maybeShelfFeedback,
   maybePayrollFeedback,
+  maybeServiceFeedback,
+  maybeServiceComplaintFloat,
   minOpenLoungeCost,
   openLounge,
   openBranch,
@@ -78,6 +80,7 @@ import { applySettings, isCoachEnabled, loadSettings } from './save/settings'
 import { formatMoney } from './game/economy'
 import { runBoot } from './ui/boot'
 import { presentBrowserGate, shouldShowBrowserGate } from './ui/browserGate'
+import { showFatalError } from './ui/fatalError'
 import { openSettingsPanel } from './ui/settingsPanel'
 import { launchPromotion, upgradePromotion } from './game/promotions'
 import type { PromotionId } from './data/promotions'
@@ -102,10 +105,16 @@ import {
   isLoungeOnlyMenuTab,
   setCareerCompareCard,
 } from './ui/shell'
-import { dismissGuideCoach, presentStandaloneCoach, queueTabHint } from './ui/guideOverlay'
+import {
+  dismissGuideCoach,
+  hasPendingTabHint,
+  isGuideCoachVisible,
+  presentStandaloneCoach,
+  queueTabHint,
+} from './ui/guideOverlay'
+import { isCelebrationVisible, primeAudio, spawnFloatComplaint } from './ui/juice'
 import { initUiPolish } from './ui/atmosphere'
 import { syncAmbientMusic } from './ui/ambientMusic'
-import { primeAudio } from './ui/juice'
 import { loungeClickPower } from './game/economy'
 import {
   adminForceLounge,
@@ -426,6 +435,9 @@ const handlers = {
     if (state.phase === 'dual' && isLoungeOnlyMenuTab(tab)) {
       state.scene = 'lounge'
     }
+    if (tab === 'personal') {
+      state.flags.personalIntroPending = false
+    }
     const tabHint = tabHintMessage(state, tab)
     if (tabHint) {
       queueTabHint(tabHint, () => {
@@ -517,73 +529,105 @@ function onAchievementsUnlocked(unlocked: ReturnType<typeof evaluateAchievements
   announceAchievements(root, state, menuTab, unlocked)
 }
 
+function paint(): void {
+  if (!gameStarted) return
+  try {
+    renderShell(root, state, handlers, menuTab, Date.now(), careerSubTab, storySubTab)
+  } catch (err) {
+    console.error(err)
+    showFatalError(err, 'отрисовке')
+  }
+}
+
 function afterAction(): void {
-  touchOgonokInteraction()
-  syncProgressFlags(state)
-  const offerWasLocked = !state.flags.loungeOfferUnlocked
-  syncLoungeOfferUnlock(state)
-  const empireWasLocked = !state.flags.empireOfferUnlocked
-  syncEmpireUnlock(state)
-  if (
-    offerWasLocked &&
-    state.flags.loungeOfferUnlocked &&
-    state.phase === 'employed'
-  ) {
-    menuTab = 'own'
-    showToast(root, 'Хватает на лаунж — выбери тариф во вкладке «Свой лаунж»')
-    scheduleSave.flush(state)
-  }
-  if (
-    empireWasLocked &&
-    state.flags.empireOfferUnlocked &&
-    state.phase === 'ownOnly' &&
-    !isCoachEnabled()
-  ) {
-    showToast(root, 'Вкладка «Сеть» открыта — можно открыть второе заведение')
-  }
-  const unlocked = evaluateAchievements(state)
-  if (!isCoachEnabled()) {
-    const hint = maybeBrokeHint(state)
-    if (hint) showToast(root, hint)
-    const shelfHint = maybeShelfFeedback(state)
-    if (shelfHint) showToast(root, shelfHint)
-    const payrollHint = maybePayrollFeedback(state)
-    if (payrollHint) showToast(root, payrollHint)
-  }
-  syncGuideProgress(state)
-  if (state.phase !== 'employed' && menuTab === 'own') menuTab = 'story'
-  if (state.phase === 'employed' && menuTab === 'tobacco') menuTab = 'story'
-  if (state.phase === 'employed' && menuTab === 'staff') menuTab = 'story'
-  if (state.phase === 'employed' && menuTab === 'personal') menuTab = 'story'
-  if (!canBrowseEmpire(state) && menuTab === 'network') menuTab = 'story'
-  paint()
-  maybePresentCelebration(state, () => {
-    const tobaccoHint = consumeTobaccoSetupHint(state)
-    if (tobaccoHint) {
-      queueTabHint(tobaccoHint, () => {
-        markTabHintSeen(state, 'tobacco')
-        scheduleSave(state)
-        paint()
-      })
+  try {
+    touchOgonokInteraction()
+    syncProgressFlags(state)
+    const offerWasLocked = !state.flags.loungeOfferUnlocked
+    syncLoungeOfferUnlock(state)
+    const empireWasLocked = !state.flags.empireOfferUnlocked
+    syncEmpireUnlock(state)
+    if (
+      offerWasLocked &&
+      state.flags.loungeOfferUnlocked &&
+      state.phase === 'employed'
+    ) {
+      menuTab = 'own'
+      showToast(root, 'Хватает на лаунж — выбери тариф во вкладке «Свой лаунж»')
+      scheduleSave.flush(state)
+    }
+    if (
+      empireWasLocked &&
+      state.flags.empireOfferUnlocked &&
+      state.phase === 'ownOnly' &&
+      !isCoachEnabled()
+    ) {
+      showToast(root, 'Вкладка «Сеть» открыта — можно открыть второе заведение')
+    }
+    const unlocked = evaluateAchievements(state)
+    if (!isCoachEnabled()) {
+      const hint = maybeBrokeHint(state)
+      if (hint) showToast(root, hint)
+      const shelfHint = maybeShelfFeedback(state)
+      if (shelfHint) showToast(root, shelfHint)
+      const payrollHint = maybePayrollFeedback(state)
+      if (payrollHint) showToast(root, payrollHint)
+    }
+    const serviceHint = maybeServiceFeedback(state)
+    if (serviceHint) showToast(root, serviceHint)
+    syncGuideProgress(state)
+    if (state.phase !== 'employed' && menuTab === 'own') menuTab = 'story'
+    if (state.phase === 'employed' && menuTab === 'tobacco') menuTab = 'story'
+    if (state.phase === 'employed' && menuTab === 'staff') menuTab = 'story'
+    if (state.phase === 'employed' && menuTab === 'personal') menuTab = 'story'
+    if (!canBrowseEmpire(state) && menuTab === 'network') menuTab = 'story'
+    paint()
+    const hadCelebration = Boolean(state.flags.celebration)
+    maybePresentCelebration(state, () => {
+      flushPendingTabIntros()
       scheduleSave(state)
       paint()
       flushAchievementQueue(root, state, menuTab)
-      return
-    }
-    const personalHint = consumePersonalIntroHint(state)
-    if (personalHint) {
-      queueTabHint(personalHint, () => {
-        markTabHintSeen(state, 'personal')
-        scheduleSave(state)
-      })
-    }
+    })
+    // Без celebration onDismiss не вызывается — иначе personalIntroPending
+    // зависает и «Личное» моргает на каждом paint.
+    if (!hadCelebration) flushPendingTabIntros()
+    if (unlocked.length) onAchievementsUnlocked(unlocked)
+    else flushAchievementQueue(root, state, menuTab)
+    scheduleSave(state)
+  } catch (err) {
+    console.error(err)
+    showFatalError(err, 'действии')
+  }
+}
+
+/** Одноразовые intro после открытия лаунжа: сначала табак, потом личное */
+function flushPendingTabIntros(): void {
+  if (hasPendingTabHint() || isGuideCoachVisible() || isCelebrationVisible()) return
+
+  const tobaccoHint = consumeTobaccoSetupHint(state)
+  if (tobaccoHint) {
+    queueTabHint(tobaccoHint, () => {
+      markTabHintSeen(state, 'tobacco')
+      scheduleSave(state)
+      paint()
+      flushPendingTabIntros()
+    })
     scheduleSave(state)
     paint()
-    flushAchievementQueue(root, state, menuTab)
-  })
-  if (unlocked.length) onAchievementsUnlocked(unlocked)
-  else flushAchievementQueue(root, state, menuTab)
-  scheduleSave(state)
+    return
+  }
+
+  const personalHint = consumePersonalIntroHint(state)
+  if (personalHint) {
+    queueTabHint(personalHint, () => {
+      markTabHintSeen(state, 'personal')
+      scheduleSave(state)
+      paint()
+    })
+    scheduleSave(state)
+    paint()
+  }
 }
 
 function maybeQuitToast(): void {
@@ -597,45 +641,57 @@ function maybeQuitToast(): void {
   // milestone quit_ready — через guideCoach
 }
 
-function paint(): void {
-  if (!gameStarted) return
-  renderShell(root, state, handlers, menuTab, Date.now(), careerSubTab, storySubTab)
-}
-
 function passiveAccruesNow(): boolean {
   return gameStarted && !document.hidden
 }
 
 function frame(ts: number): void {
-  if (!gameStarted) {
-    requestAnimationFrame(frame)
+  try {
+    if (!gameStarted) {
+      requestAnimationFrame(frame)
+      return
+    }
+    const dt = Math.min(0.25, (ts - lastTs) / 1000)
+    lastTs = ts
+    if (passiveAccruesNow()) {
+      tickIncome(state, dt)
+      tickWorkDays(state, dt)
+    }
+    updateHud(root, state, hudCoachContext())
+    if (state.phase !== 'employed' && !isCoachEnabled()) {
+      const shelfHint = maybeShelfFeedback(state)
+      if (shelfHint) showToast(root, shelfHint)
+      const payrollHint = maybePayrollFeedback(state)
+      if (payrollHint) showToast(root, payrollHint)
+    }
+    if (state.phase !== 'employed') {
+      const serviceHint = maybeServiceFeedback(state)
+      if (serviceHint) showToast(root, serviceHint)
+    }
+    if (state.phase !== 'employed' && state.scene === 'lounge') {
+      const complaint = maybeServiceComplaintFloat(state, Date.now())
+      if (complaint) {
+        const from = root.querySelector('[data-cta]') as HTMLElement | null
+        spawnFloatComplaint(root, complaint, from)
+      }
+    }
+    if (menuTab === 'story' && canDoJobTasks(state)) {
+      updateJobCooldowns(root, state, Date.now())
+    }
+    if (menuTab === 'personal' && state.phase !== 'employed') {
+      updatePersonalCooldowns(root, state, Date.now())
+    }
+    const unlocked = evaluateAchievements(state)
+    if (unlocked.length) {
+      onAchievementsUnlocked(unlocked)
+      if (menuTab === 'career') paint()
+    }
+    scheduleSave(state)
+  } catch (err) {
+    console.error(err)
+    showFatalError(err, 'игре')
     return
   }
-  const dt = Math.min(0.25, (ts - lastTs) / 1000)
-  lastTs = ts
-  if (passiveAccruesNow()) {
-    tickIncome(state, dt)
-    tickWorkDays(state, dt)
-  }
-  updateHud(root, state, hudCoachContext())
-  if (state.phase !== 'employed' && !isCoachEnabled()) {
-    const shelfHint = maybeShelfFeedback(state)
-    if (shelfHint) showToast(root, shelfHint)
-    const payrollHint = maybePayrollFeedback(state)
-    if (payrollHint) showToast(root, payrollHint)
-  }
-  if (menuTab === 'story' && canDoJobTasks(state)) {
-    updateJobCooldowns(root, state, Date.now())
-  }
-  if (menuTab === 'personal' && state.phase !== 'employed') {
-    updatePersonalCooldowns(root, state, Date.now())
-  }
-  const unlocked = evaluateAchievements(state)
-  if (unlocked.length) {
-    onAchievementsUnlocked(unlocked)
-    if (menuTab === 'career') paint()
-  }
-  scheduleSave(state)
   requestAnimationFrame(frame)
 }
 
@@ -818,4 +874,7 @@ function preventMobileZoomGestures(): void {
 
 preventMobileZoomGestures()
 
-void bootApp()
+void bootApp().catch((err) => {
+  console.error(err)
+  showFatalError(err, 'запуске')
+})

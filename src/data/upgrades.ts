@@ -9,11 +9,17 @@ export interface UpgradeDef {
   incomePerLevel: number
   /** Добавка к заказу (клику) за уровень */
   clickPerLevel: number
+  /** Потолок прокачки (не безлимит) */
+  maxLevel: number
   unlockAtOwned?: Partial<Record<UpgradeId, number>>
 }
 
 export const COST_GROWTH = 1.17
 
+/**
+ * Потолки: посадка конечная, но можно обогнать команду → штрафы сервиса.
+ * Стол/диван/VIP дают места; стеллаж упирается в shelfCapacity 12; вытяжка — только комфорт/доход.
+ */
 export const UPGRADES: UpgradeDef[] = [
   {
     id: 'table',
@@ -22,6 +28,7 @@ export const UPGRADES: UpgradeDef[] = [
     baseCost: 15,
     incomePerLevel: 0.5,
     clickPerLevel: 0.5,
+    maxLevel: 12,
   },
   {
     id: 'sofa',
@@ -30,6 +37,7 @@ export const UPGRADES: UpgradeDef[] = [
     baseCost: 100,
     incomePerLevel: 1.15,
     clickPerLevel: 1,
+    maxLevel: 10,
     unlockAtOwned: { table: 3 },
   },
   {
@@ -39,6 +47,7 @@ export const UPGRADES: UpgradeDef[] = [
     baseCost: 500,
     incomePerLevel: 2.2,
     clickPerLevel: 8,
+    maxLevel: 5,
     unlockAtOwned: { sofa: 2 },
   },
   {
@@ -48,6 +57,7 @@ export const UPGRADES: UpgradeDef[] = [
     baseCost: 3000,
     incomePerLevel: 5.5,
     clickPerLevel: 3,
+    maxLevel: 10,
     unlockAtOwned: { menu: 1 },
   },
   {
@@ -57,6 +67,7 @@ export const UPGRADES: UpgradeDef[] = [
     baseCost: 12000,
     incomePerLevel: 28,
     clickPerLevel: 10,
+    maxLevel: 8,
     unlockAtOwned: { hood: 1 },
   },
 ]
@@ -66,11 +77,10 @@ export const BASE_LOUNGE_PASSIVE = 0.45
 
 export const BASE_LOUNGE_CLICK = 2
 
-/** Названия этапов прокачки — каждые 5 уровней новый этап в UI */
-export const UPGRADE_MILESTONE_NAMES: Record<UpgradeId, string[]> = {
-  table: ['Стартовый', 'Уютный', 'Оживлённый', 'Популярный', 'Легенда'],
-  sofa: ['Первый', 'Мягкий', 'Премиум', 'Культовый', 'Икона лаунжа'],
-  menu: ['Уголок', 'Витрина', 'Коллекция', 'Бутик', 'Храм вкусов'],
-  hood: ['Черновик', 'Чистый воздух', 'Комфорт', 'Премиум', 'Идеал'],
-  vip: ['Ниша', 'Кабинет', 'Лаунж', 'Резиденция', 'Империя'],
+export function getUpgrade(id: UpgradeId): UpgradeDef | undefined {
+  return UPGRADES.find((u) => u.id === id)
+}
+
+export function upgradeMaxLevel(id: UpgradeId): number {
+  return getUpgrade(id)?.maxLevel ?? 1
 }

@@ -17,6 +17,48 @@
   </head>
   <body>
     <div id="app"></div>
-    <script type="module" src="/src/main.ts"></script>
+    <script>
+      window.__loungeShowFatal = function (err, where) {
+        var app = document.getElementById('app')
+        if (!app || app.getAttribute('data-fatal') === '1') return
+        app.setAttribute('data-fatal', '1')
+        var detail =
+          err && err.message
+            ? String(err.message)
+            : err
+              ? String(err)
+              : 'неизвестная ошибка'
+        app.innerHTML =
+          '<style>.fatal-boot{min-height:100dvh;margin:0;padding:2rem 1.25rem;box-sizing:border-box;display:flex;flex-direction:column;justify-content:center;gap:.75rem;background:#0e0b08;color:#f3e8d8;font-family:system-ui,sans-serif}.fatal-boot__brand{margin:0;opacity:.7;letter-spacing:.08em;text-transform:uppercase;font-size:.75rem}.fatal-boot__title{margin:0;font-size:1.5rem}.fatal-boot__body{margin:0;line-height:1.45;opacity:.9;max-width:28rem}.fatal-boot__detail{margin:0;font-size:.8rem;opacity:.55;word-break:break-word;max-width:28rem}.fatal-boot__btn{align-self:flex-start;margin-top:.5rem;padding:.7rem 1.1rem;border:0;border-radius:.75rem;background:#c4a574;color:#1a120c;font-weight:600;cursor:pointer}</style>' +
+          '<div class="fatal-boot" role="alert">' +
+          '<p class="fatal-boot__brand">Дымная Империя</p>' +
+          '<h1 class="fatal-boot__title">Что-то пошло не так</h1>' +
+          '<p class="fatal-boot__body">Игра споткнулась при ' +
+          (where || 'загрузке') +
+          '. Обнови страницу — обычно помогает. Сейв в браузере не трогаем.</p>' +
+          '<p class="fatal-boot__detail"></p>' +
+          '<button type="button" class="fatal-boot__btn" id="fatal-reload">Обновить</button>' +
+          '</div>'
+        var d = app.querySelector('.fatal-boot__detail')
+        if (d) d.textContent = detail
+        var btn = document.getElementById('fatal-reload')
+        if (btn) btn.onclick = function () {
+          location.reload()
+        }
+      }
+      window.addEventListener('error', function (e) {
+        if (e && e.message && /import|export|module/i.test(e.message)) {
+          window.__loungeShowFatal(e.error || e.message, 'загрузке')
+        }
+      })
+      window.addEventListener('unhandledrejection', function (e) {
+        window.__loungeShowFatal(e.reason, 'загрузке')
+      })
+    </script>
+    <script type="module">
+      import('/src/main.ts').catch(function (err) {
+        window.__loungeShowFatal(err, 'загрузке')
+      })
+    </script>
   </body>
 </html>

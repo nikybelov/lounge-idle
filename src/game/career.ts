@@ -43,9 +43,11 @@ import {
 import {
   furnitureLevel,
   isOnShelf,
+  loungeService,
   shelfCapacity,
   shelfMood,
 } from './appeal'
+import { pickServiceComplaint } from './service'
 import { UPGRADES, type UpgradeId } from '../data/upgrades'
 import {
   isUpgradeUnlocked,
@@ -371,6 +373,9 @@ export function buyUpgrade(state: GameState, id: UpgradeId): ActionResult {
     return { ok: false, message: 'Ещё рано' }
   }
   const level = state.owned[id]
+  if (level >= def.maxLevel) {
+    return { ok: false, message: `${def.name} — максимум (ур. ${def.maxLevel})` }
+  }
   const cost = scaledUpgradeCost(state, upgradeCost(def, level))
   if (state.cash < cost) {
     return { ok: false, message: 'Не хватает' }
@@ -630,4 +635,37 @@ export function maybePayrollFeedback(state: GameState): string | null {
     return `ФОТ (${payroll.toFixed(1)}/с) съедает выручку — уволи кого-то во вкладке «Команда».`
   }
   return `ФОТ ${Math.round(share * 100)}% выручки — команда дорогая, подумай об оптимизации.`
+}
+
+/** Одноразовый тост при перегрузе сервиса */
+export function maybeServiceFeedback(state: GameState): string | null {
+  if (state.phase === 'employed') return null
+  const svc = loungeService(state)
+  if (svc.mood === 'ok') {
+    state.flags.serviceWarned = false
+    return null
+  }
+  state.flags.everServiceStrain = true
+  if (state.flags.serviceWarned) return null
+  state.flags.serviceWarned = true
+  const cut = Math.round((1 - svc.incomeMult) * 100)
+  return `${svc.label}: посадка ${svc.seatedRaw}, команда тянет ~${svc.capacity}. Чек −${cut}% · ${svc.hint}`
+}
+
+let lastServiceFloatAt = 0
+
+/** Периодическая жалоба гостей для float на сцене */
+export function maybeServiceComplaintFloat(
+  state: GameState,
+  now = Date.now(),
+): string | null {
+  if (state.phase === 'employed') return null
+  if (state.scene !== 'lounge') return null
+  const svc = loungeService(state)
+  if (svc.mood === 'ok') return null
+  const gap =
+    svc.mood === 'chaos' ? 7_000 : svc.mood === 'poor' ? 9_000 : 12_000
+  if (now - lastServiceFloatAt < gap) return null
+  lastServiceFloatAt = now
+  return pickServiceComplaint(svc.mood)
 }

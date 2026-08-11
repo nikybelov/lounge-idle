@@ -4,13 +4,19 @@
   "version": "0.1.5",
   "type": "module",
   "scripts": {
-    "dev": "vite",
-    "build": "tsc && vite build",
+    "dev": "npm run check && vite",
+    "dev:fast": "vite",
+    "typecheck": "tsc --noEmit",
+    "check": "tsc --noEmit && node scripts/check-modules.mjs",
+    "build": "npm run check && vite build",
     "preview": "vite preview",
-    "omniroute": "bash scripts/omniroute-start.sh"
+    "omniroute": "bash scripts/omniroute-start.sh",
+    "prepare": "husky"
   },
   "devDependencies": {
+    "husky": "^9.1.7",
     "typescript": "~5.8.3",
-    "vite": "^7.0.4"
+    "vite": "^7.0.4",
+    "vite-plugin-checker": "^0.14.5"
   }
 }

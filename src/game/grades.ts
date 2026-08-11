@@ -1,15 +1,17 @@
-import type { UpgradeId } from '../data/upgrades'
-import { UPGRADE_MILESTONE_NAMES } from '../data/upgrades'
 import type { ChannelGearId, TelegramToolkitId } from '../data/personal'
-import { GEAR_GRADE_TITLES, TELEGRAM_TOOLKIT_GRADE_TITLES, CHANNEL_GEAR_GRADE_MAX } from '../data/personal'
+import {
+  GEAR_GRADE_TITLES,
+  TELEGRAM_TOOLKIT_GRADE_TITLES,
+  CHANNEL_GEAR_GRADE_MAX,
+} from '../data/personal'
 
 export const MILESTONE_STEP = 5
-/** Точек прогресса внутри этапа мебели — совпадает с MILESTONE_STEP */
+/** Точек прогресса внутри этапа — для старых helper'ов */
 export const MILESTONE_DOTS = MILESTONE_STEP
 /** Максимум грейдов в фиксированных ветках (персонал, акции, инструменты…) */
 export const FIXED_GRADE_MAX = 4
 
-/** Прогресс внутри этапа для бесконечных уровней (мебель): каждые 5 ур. — новый этап, 5 точек. */
+/** Прогресс внутри этапа (каждые 5 ур.) */
 export function milestoneProgress(level: number, step = MILESTONE_STEP): {
   milestone: number
   dots: number
@@ -40,13 +42,6 @@ export function fixedGradeProgress(
   return { grade, dots }
 }
 
-export function upgradeMilestoneName(id: UpgradeId, level: number): string {
-  if (level <= 0) return ''
-  const { milestone } = milestoneProgress(level)
-  const names = UPGRADE_MILESTONE_NAMES[id]
-  return names[milestone - 1] ?? `Этап ${milestone}`
-}
-
 export function gearGradeTitle(id: ChannelGearId, level: number, maxLevel: number): string {
   if (level <= 0) return ''
   const { grade } = fixedGradeProgress(level, maxLevel, CHANNEL_GEAR_GRADE_MAX)
@@ -70,12 +65,13 @@ export function gradeDotsHtml(
   max = FIXED_GRADE_MAX,
   label?: string,
 ): string {
-  const safe = Math.max(0, Math.min(max, filled))
-  const dots = Array.from({ length: max }, (_, i) => {
+  const safeMax = Math.max(1, max)
+  const safe = Math.max(0, Math.min(safeMax, filled))
+  const dots = Array.from({ length: safeMax }, (_, i) => {
     const on = i + 1 <= safe
     return `<span class="grade-dot ${on ? 'is-on' : ''}"></span>`
   }).join('')
-  const aria = label ?? `Грейд ${safe} из ${max}`
+  const aria = label ?? `Уровень ${safe} из ${safeMax}`
   return `<div class="grade-dots" aria-label="${aria}">${dots}</div>`
 }
 

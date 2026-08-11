@@ -147,7 +147,13 @@ import {
   trafficLabel,
   capacityStatus,
   furnitureLevel,
+  seatCapacity,
 } from '../game/appeal'
+import {
+  seatsFromUpgrade,
+  seatingPurchaseWarns,
+  staffServiceCapacity,
+} from '../game/service'
 import { EXPANSIONS, type ExpansionId } from '../data/expansions'
 import {
   ACHIEVEMENTS,
@@ -791,7 +797,22 @@ export function updateHud(
     const def = UPGRADES.find((u) => u.id === id)
     if (!def) return
     const unlocked = isUpgradeUnlocked(state, def)
-    const cost = scaledUpgradeCost(state, upgradeCost(def, state.owned[id]))
+    const level = state.owned[id]
+    const maxed = level >= def.maxLevel
+    const cost = scaledUpgradeCost(state, upgradeCost(def, level))
+    const canBuy = unlocked && !maxed && state.cash >= cost
+    btn.disabled = !canBuy
+    btn.classList.toggle('afford', canBuy)
+    btn.classList.toggle('locked', !unlocked)
+    btn.classList.toggle('owned', maxed)
+  })
+
+  root.querySelectorAll<HTMLButtonElement>('[data-expansion]').forEach((btn) => {
+    const id = btn.dataset.expansion as ExpansionId
+    const def = EXPANSIONS.find((e) => e.id === id)
+    if (!def || state.expansions[id]) return
+    const unlocked = furnitureLevel(state) >= def.needFurniture
+    const cost = scaledExpansionCost(state, def.cost)
     const canBuy = unlocked && state.cash >= cost
     btn.disabled = !canBuy
     btn.classList.toggle('afford', canBuy)
@@ -1163,7 +1184,15 @@ export function renderShell(
     menuSecondary.innerHTML = ''
   }
 
-  if (state.flags.personalIntroPending && state.phase !== 'employed') {
+  // Пинг только пока ждём intro и табак уже закрыт — иначе каждый paint
+  // перезапускает анимацию и вкладка «моргает» без остановки.
+  if (
+    state.flags.personalIntroPending &&
+    !state.flags.tobaccoSetupPending &&
+    !state.flags.tabHints.personal &&
+    menuTab !== 'personal' &&
+    state.phase !== 'employed'
+  ) {
     root.querySelector('[data-menu-tab="personal"]')?.classList.add('tab-ping')
   }
 
@@ -2901,6 +2930,7 @@ function renderLoungePanel(state: GameState, now: number): string {
         ? ' · богатый выбор — чаевые выше'
         : ''
 
+  const servicePower = Math.floor(staffServiceCapacity(state))
   const trafficBlock = `
     <div class="milestone career">
       <div class="milestone-head">
@@ -2908,6 +2938,15 @@ function renderLoungePanel(state: GameState, now: number): string {
         <span>${trafficLabel(traffic)} · ×${traffic.toFixed(2)}</span>
       </div>
       <div class="bar"><i style="width:${Math.min(100, (cap.seated / Math.max(1, cap.capacity)) * 100)}%"></i></div>
+      ${
+        cap.service.mood !== 'ok'
+          ? `<p class="row-sub shop-note service-note service-note--${cap.service.mood}">${cap.service.label}${
+              cap.service.incomeMult < 1
+                ? ` · чек −${Math.round((1 - cap.service.incomeMult) * 100)}%`
+                : ''
+            } · ${cap.service.hint}</p>`
+          : `<p class="row-sub shop-note">Сервис ок · смена тянет ~${servicePower} · можно растить зал, но без команды будут жалобы</p>`
+      }
       ${
         shelfNote
           ? `<p class="row-sub shop-note">Полка ${shelfN}/${shelfCap}${shelfNote} · вкладка «Табак»</p>`
@@ -2921,6 +2960,7 @@ function renderLoungePanel(state: GameState, now: number): string {
     </div>
   `
   const furn = furnitureLevel(state)
+  const seatsNow = seatCapacity(state)
   const expansionRows = EXPANSIONS.map((def) => {
     const owned = !!state.expansions[def.id]
     if (owned) {
@@ -2938,16 +2978,18 @@ function renderLoungePanel(state: GameState, now: number): string {
     const unlocked = furn >= def.needFurniture
     const expCost = scaledExpansionCost(state, def.cost)
     const can = unlocked && state.cash >= expCost
+    const warn = unlocked ? seatingPurchaseWarns(state, seatsNow, def.seats) : null
+    const sub = !unlocked
+      ? `Нужен прогресс мебели ${def.needFurniture}+ ур. (сейчас ${furn})`
+      : warn
+        ? `${def.blurb} · +${def.seats} · ${warn}`
+        : `${def.blurb} · +${def.seats} мест`
     return `
-      <button type="button" class="row-btn shop ${can ? 'afford' : ''} ${unlocked ? '' : 'locked'}" data-expansion="${def.id}" ${can ? '' : 'disabled'}>
+      <button type="button" class="row-btn shop ${can ? 'afford' : ''} ${unlocked ? '' : 'locked'}${warn ? ' upgrade-risk' : ''}" data-expansion="${def.id}" ${can ? '' : 'disabled'}>
         ${icon('tier_hall')}
         <span class="row-main">
           <span class="row-title">${def.name}</span>
-          <span class="row-sub">${
-            unlocked
-              ? `${def.blurb} · +${def.seats} мест`
-              : `Нужен прогресс мебели ${def.needFurniture}+ ур. (сейчас ${furn})`
-          }</span>
+          <span class="row-sub">${sub}</span>
         </span>
         <span class="row-meta">${formatMoney(expCost)}</span>
       </button>
@@ -2957,16 +2999,39 @@ function renderLoungePanel(state: GameState, now: number): string {
   const rows = UPGRADES.map((def) => {
     const unlocked = isUpgradeUnlocked(state, def)
     const level = state.owned[def.id]
+    const maxed = level >= def.maxLevel
     const cost = scaledUpgradeCost(state, upgradeCost(def, level))
-    const canBuy = unlocked && state.cash >= cost
-    const subText = unlocked ? def.blurb : upgradeUnlockHint(def, state.owned)
+    const canBuy = unlocked && !maxed && state.cash >= cost
+    const addSeats = seatsFromUpgrade(def.id)
+    const warn = unlocked && !maxed ? seatingPurchaseWarns(state, seatsNow, addSeats) : null
+    const subText = !unlocked
+      ? upgradeUnlockHint(def, state.owned)
+      : maxed
+        ? def.blurb
+        : warn
+          ? `${def.blurb} · ${warn}`
+          : def.blurb
     const ui = renderUpgradeGradeRow(def.id, level, subText)
+    if (maxed) {
+      return `
+        <div class="row-btn upgrade owned">
+          ${upgradeIcon(def.id)}
+          <span class="row-main">
+            <span class="row-title">${def.name}</span>
+            <span class="row-sub row-sub--grade">${ui.dots}<span>${subText} · ур.${level}/${def.maxLevel}</span></span>
+          </span>
+          <span class="row-meta">★ макс.</span>
+        </div>
+      `
+    }
     return `
-      <button type="button" class="row-btn upgrade ${unlocked ? '' : 'locked'} ${canBuy ? 'afford' : ''}" data-buy="${def.id}" ${unlocked && canBuy ? '' : 'disabled'}>
+      <button type="button" class="row-btn upgrade ${unlocked ? '' : 'locked'} ${canBuy ? 'afford' : ''}${warn ? ' upgrade-risk' : ''}" data-buy="${def.id}" ${unlocked && canBuy ? '' : 'disabled'}>
         ${upgradeIcon(def.id)}
         <span class="row-main">
-          <span class="row-title">${def.name}${level ? ` · ${ui.title}` : ''}</span>
-          <span class="row-sub row-sub--grade">${level ? ui.dots : ''}<span>${subText}${level ? ` · ур.${level}` : ''}</span></span>
+          <span class="row-title">${def.name}</span>
+          <span class="row-sub row-sub--grade">${ui.dots}<span>${subText}${
+            level > 0 ? ` · ур.${level}/${def.maxLevel}` : ` · ур. 0/${def.maxLevel}`
+          }</span></span>
         </span>
         <span class="row-meta">
           ${unlocked ? formatMoney(cost) : '—'}

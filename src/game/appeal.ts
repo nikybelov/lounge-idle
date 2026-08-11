@@ -5,6 +5,7 @@ import { isAmbassador } from './ambassador'
 import { staffGuestBonus } from './staff'
 import { personalTrafficBonus } from './personal'
 import { promotionTrafficBonus } from './promotions'
+import { serviceStatus, type ServiceStatus } from './service'
 import type { GameState } from './state'
 
 /** Сколько позиций можно выставить на табачную полку */
@@ -129,8 +130,20 @@ export function guestDemand(state: GameState): number {
   return Math.max(0, demand)
 }
 
-export function seatedGuests(state: GameState): number {
+/** Сырая посадка до ухода из-за плохого сервиса */
+export function rawSeatedGuests(state: GameState): number {
   return Math.min(guestDemand(state), seatCapacity(state))
+}
+
+export function loungeService(state: GameState): ServiceStatus {
+  return serviceStatus(state, rawSeatedGuests(state), seatCapacity(state))
+}
+
+/** Эффективные гости (минус ушедшие из-за сервиса) */
+export function seatedGuests(state: GameState): number {
+  const raw = rawSeatedGuests(state)
+  const { walkaway } = loungeService(state)
+  return raw * (1 - walkaway)
 }
 
 export function guestTraffic(state: GameState, now = Date.now()): number {
@@ -160,20 +173,23 @@ export function capacityStatus(state: GameState): {
   capacity: number
   demand: number
   full: boolean
+  service: ServiceStatus
 } {
   const capacity = seatCapacity(state)
   const demand = guestDemand(state)
   const seated = Math.min(demand, capacity)
+  const service = serviceStatus(state, seated, capacity)
   return {
     seated: Math.round(seated * 10) / 10,
     capacity,
     demand: Math.round(demand * 10) / 10,
     full: demand > capacity + 0.05,
+    service,
   }
 }
 
 export function trafficBreakdown(state: GameState): string {
-  const { seated, capacity, demand, full } = capacityStatus(state)
+  const { seated, capacity, demand, full, service } = capacityStatus(state)
   const active = shelfActiveCount(state)
   const cap = shelfCapacity(state)
   const mood = shelfMood(state)
@@ -185,7 +201,9 @@ export function trafficBreakdown(state: GameState): string {
         : mood === 'rich'
           ? 'богатая полка'
           : 'норм'
-  const base = `посадка ${seated}/${capacity} · спрос ${demand} · полка ${active}/${cap} (${moodText})`
+  const svc =
+    service.mood === 'ok' ? '' : ` · ${service.label.toLowerCase()}`
+  const base = `посадка ${seated}/${capacity} · спрос ${demand} · полка ${active}/${cap} (${moodText})${svc}`
   return full ? `${base} · лаунж полный` : base
 }
 

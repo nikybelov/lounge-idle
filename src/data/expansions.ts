@@ -23,8 +23,8 @@ export interface ExpansionDef {
 export const EXPANSIONS: ExpansionDef[] = [
   {
     id: 'second_hall',
-    name: 'Второй лаунж',
-    blurb: 'Ещё одна комната — больше посадки',
+    name: 'Второй этаж',
+    blurb: 'Ещё один ярус — больше посадки',
     cost: 4550,
     seats: 8,
     incomeBonus: 3,

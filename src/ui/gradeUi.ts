@@ -1,5 +1,6 @@
 import type { ShopItem } from '../data/shop'
 import type { UpgradeId } from '../data/upgrades'
+import { upgradeMaxLevel } from '../data/upgrades'
 import type { ChannelGearId, TelegramToolkitId } from '../data/personal'
 import { CHANNEL_GEAR_GRADE_MAX } from '../data/personal'
 import {
@@ -8,26 +9,20 @@ import {
   gradeDotsHtml,
   gradeLevelTag,
   gradeRoman,
-  milestoneProgress,
-  MILESTONE_DOTS,
   telegramToolkitGradeTitle,
-  upgradeMilestoneName,
 } from '../game/grades'
 
+/** Закупка зала: только уровни + точки, без грейдов/этапов */
 export function renderUpgradeGradeRow(
   id: UpgradeId,
   level: number,
   blurb: string,
 ): { title: string; sub: string; dots: string } {
-  if (level <= 0) {
-    return { title: '', sub: blurb, dots: gradeDotsHtml(0) }
-  }
-  const { dots } = milestoneProgress(level)
-  const milestone = upgradeMilestoneName(id, level)
+  const max = upgradeMaxLevel(id)
   return {
-    title: `${milestone} · ${gradeRoman(milestoneProgress(level).milestone)}`,
+    title: '',
     sub: blurb,
-    dots: gradeDotsHtml(dots, MILESTONE_DOTS),
+    dots: gradeDotsHtml(level, max, `Уровень ${level} из ${max}`),
   }
 }
 

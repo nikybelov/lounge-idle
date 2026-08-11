@@ -357,6 +357,28 @@ export function spawnFloatCash(
   window.setTimeout(() => el.remove(), 900)
 }
 
+/** Жалоба гостя — серый float на сцене лаунжа */
+export function spawnFloatComplaint(
+  root: HTMLElement,
+  text: string,
+  fromEl?: HTMLElement | null,
+): void {
+  if (!text) return
+  const stage = root.querySelector('.stage') as HTMLElement | null
+  if (!stage) return
+  const el = document.createElement('span')
+  el.className = 'float-complaint'
+  el.textContent = text
+  const rect = (fromEl ?? stage).getBoundingClientRect()
+  const stageRect = stage.getBoundingClientRect()
+  const jitter = (Math.random() - 0.5) * 48
+  el.style.left = `${rect.left - stageRect.left + rect.width * 0.4 + jitter}px`
+  el.style.top = `${rect.top - stageRect.top + rect.height * 0.35}px`
+  el.style.setProperty('--drift', `${jitter * 0.5}px`)
+  stage.appendChild(el)
+  window.setTimeout(() => el.remove(), 1400)
+}
+
 export function pulseCashHud(root: HTMLElement): void {
   const cash = root.querySelector('.cash-value')
   if (!cash) return

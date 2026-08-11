@@ -1,11 +1,11 @@
 import { TOBACCOS, type TobaccoDef, type TobaccoId } from './tobacco'
 import type { GameState } from '../game/state'
 
-/** Порог секции «Амбассадор» — раньше, чем полный личный бренд */
-export const AMBASSADOR_UNLOCK_FAME = 36
-export const AMBASSADOR_UNLOCK_MEDIA = 30
-/** fame + media×0.55 — если одна шкала отстаёт (часто узнаваемость от роликов) */
-export const AMBASSADOR_UNLOCK_REP = 52
+/** Порог секции «Амбассадор» — после первых роликов/постов, не под конец игры */
+export const AMBASSADOR_UNLOCK_FAME = 14
+export const AMBASSADOR_UNLOCK_MEDIA = 12
+/** fame + media×0.55 — если одна шкала отстаёт */
+export const AMBASSADOR_UNLOCK_REP = 22
 
 export function ambassadorReputationScore(fame: number, media: number): number {
   return Math.round(fame + media * 0.55)
@@ -32,13 +32,13 @@ export function ambassadorTierIndex(id: TobaccoId): number {
   return i >= 0 ? i : 0
 }
 
-/** Порог для контракта: обе шкалы или сводный рейтинг */
+/** Порог для контракта: обе шкалы или сводный рейтинг (ранние бренды — сразу после unlock секции) */
 export function ambassadorNeeds(id: TobaccoId): AmbassadorNeeds {
   const i = ambassadorTierIndex(id)
   return {
-    fame: 24 + i * 2,
-    media: 20 + i * 2,
-    rep: 42 + i * 3,
+    fame: 10 + i * 2,
+    media: 8 + i * 2,
+    rep: 16 + i * 2,
   }
 }
 

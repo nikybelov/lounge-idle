@@ -9,6 +9,7 @@ import {
 import {
   guestTraffic,
   expansionIncomeBonus,
+  loungeService,
   shelfBonuses,
   shelfHasService,
 } from './appeal'
@@ -57,6 +58,7 @@ export function loungeGrossIncomePerSec(state: GameState): number {
     sum *
     (state.loungeIncomeMult || 1) *
     guestTraffic(state) *
+    loungeService(state).incomeMult *
     empireIncomeMult(state)
   )
 }
@@ -85,6 +87,7 @@ export function loungeClickPower(state: GameState): number {
     (state.loungeClickMult || 1) *
     guestTraffic(state) *
     tip *
+    loungeService(state).clickMult *
     empireClickMult(state)
   )
 }

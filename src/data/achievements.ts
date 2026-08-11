@@ -293,17 +293,15 @@ export const ACHIEVEMENTS: AchievementDef[] = [
   },
   {
     id: 'secret_solo',
-    title: 'Один в дыму',
-    hint: 'Доведи чистые до порога увольнения, никого ни разу не нанимая',
-    secretHint: 'Никого в команде — а порог увольнения уже твой',
-    reward: 10_000,
+    title: 'Зал не тянет',
+    hint: 'Слови жалобы гостей: столов больше, чем команда тянет',
+    secretHint: 'Жадность к столам иногда громче голоса команды…',
+    reward: 8_000,
     tier: 'secret',
-    careerPoints: 50,
-    check: (s) =>
-      !s.flags.everHired &&
-      s.phase !== 'employed' &&
-      loungeIncomePerSec(s) >= quitIncomeThreshold(s),
+    careerPoints: 40,
+    check: (s) => s.flags.everServiceStrain,
   },
+
 
   // —— Платина (всегда последней) ——
   {
@@ -365,7 +363,14 @@ export function evaluateAchievements(
   for (const def of ACHIEVEMENTS) {
     if (unlocked.length >= cap) break
     if (isAchievementUnlocked(state, def.id)) continue
-    if (!def.check(state)) continue
+    let ok = false
+    try {
+      ok = def.check(state)
+    } catch {
+      // битый check не должен ронять игровой цикл
+      continue
+    }
+    if (!ok) continue
     if (!markAchievementUnlocked(state, def.id)) continue
     state.cash += achievementRewardCash(state, def.reward)
     unlocked.push(def)

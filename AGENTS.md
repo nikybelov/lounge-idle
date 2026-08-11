@@ -24,6 +24,13 @@ src/styles/   main.css
 - Boot: loading → welcome → contract → venue → game
 - Coach highlights tasks until player learns the loop
 
+## Quality gates (do not skip)
+
+- Before play/push: `npm run check` (also runs automatically on `npm run dev` / `build` / git commit)
+- Local Vite shows a TypeScript overlay if types break (`vite-plugin-checker`)
+- Agent stop hook re-runs `npm run check` and asks to fix failures
+- Broken module load shows a fatal screen instead of a blank page
+
 ## Skills install
 
 ```bash

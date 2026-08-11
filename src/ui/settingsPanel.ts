@@ -14,9 +14,9 @@ import {
   type ReducedMotionPref,
 } from '../save/settings'
 import {
-  copySaveToClipboard,
-  pasteSaveFromClipboard,
-} from '../save/transfer'
+  presentSaveExportModal,
+  presentSaveImportModal,
+} from './saveTransferModal'
 import type { GameState } from '../game/state'
 
 type SettingsChangeHandler = (settings: GameSettings) => void
@@ -106,11 +106,10 @@ function settingsMainHtml(settings: GameSettings): string {
       </button>
       ${
         detectAppFlavor() === 'telegram'
-          ? `<p class="settings-sync-hint">CloudStorage на Mac часто не читается. Надёжный путь: скопируй сейв на телефоне и вставь на Mac.</p>
+          ? `<p class="settings-sync-hint">Перенос телефон → Mac: через код в Избранном Telegram (облако на Mac не работает).</p>
       <div class="settings-sync-actions">
-        <button type="button" class="settings-cloud-pull" data-save-copy>Скопировать прогресс</button>
-        <button type="button" class="settings-cloud-pull" data-save-paste>Вставить прогресс</button>
-        <button type="button" class="settings-cloud-pull settings-cloud-pull--ghost" data-cloud-pull>Попробовать облако ещё раз</button>
+        <button type="button" class="settings-cloud-pull" data-save-copy>1. Показать код прогресса</button>
+        <button type="button" class="settings-cloud-pull" data-save-paste>2. Вставить код прогресса</button>
       </div>`
           : ''
       }
@@ -221,22 +220,14 @@ export function openSettingsPanel(
           options.onToast?.('Сначала начни игру — копировать нечего')
           return
         }
-        const ok = await copySaveToClipboard(JSON.stringify(state))
-        options.onToast?.(
-          ok
-            ? 'Сейв скопирован — вставь его в Настройках на другом устройстве'
-            : 'Не удалось скопировать',
-        )
+        await presentSaveExportModal(root, JSON.stringify(state))
       })()
     })
 
     el.querySelector('[data-save-paste]')?.addEventListener('click', () => {
       void (async () => {
-        const raw = await pasteSaveFromClipboard()
-        if (!raw) {
-          options.onToast?.('Не похоже на код сейва Дымной Империи')
-          return
-        }
+        const raw = await presentSaveImportModal(root)
+        if (!raw) return
         options.onImportSave?.(raw)
         close()
       })()

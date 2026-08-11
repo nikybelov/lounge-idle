@@ -656,6 +656,110 @@ body {
   outline-offset: 2px;
 }
 
+/* Перенос сейва телефон ↔ Mac */
+.save-transfer-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 2147483600;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: max(16px, env(safe-area-inset-top)) 16px
+    max(16px, env(safe-area-inset-bottom));
+  background: rgba(8, 6, 4, 0.72);
+  opacity: 0;
+  transition: opacity 0.2s ease;
+}
+
+.save-transfer-overlay.visible {
+  opacity: 1;
+}
+
+.save-transfer-card {
+  width: min(100%, 26rem);
+  max-height: min(90dvh, 40rem);
+  overflow: auto;
+  padding: 1.1rem 1.15rem 1.2rem;
+  border-radius: 14px;
+  border: 1px solid rgba(196, 165, 116, 0.35);
+  background: linear-gradient(165deg, #2a221c 0%, #14100c 100%);
+  color: var(--text, #f3e8d8);
+  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.45);
+}
+
+.save-transfer-title {
+  margin: 0 0 0.75rem;
+  font-size: 1.15rem;
+}
+
+.save-transfer-steps {
+  margin: 0 0 0.85rem;
+  padding-left: 1.2rem;
+  font-size: 0.84rem;
+  line-height: 1.45;
+  color: var(--muted, #a89880);
+}
+
+.save-transfer-steps strong {
+  color: var(--text, #f3e8d8);
+}
+
+.save-transfer-code {
+  display: block;
+  width: 100%;
+  box-sizing: border-box;
+  margin: 0 0 0.85rem;
+  padding: 0.7rem 0.75rem;
+  border-radius: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: rgba(0, 0, 0, 0.35);
+  color: #e8dcc8;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.72rem;
+  line-height: 1.4;
+  resize: vertical;
+  word-break: break-all;
+}
+
+.save-transfer-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.save-transfer-btn {
+  width: 100%;
+  padding: 0.7rem 0.9rem;
+  border-radius: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  background: rgba(255, 255, 255, 0.06);
+  color: inherit;
+  font: inherit;
+  font-size: 0.88rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.save-transfer-btn--primary {
+  border-color: rgba(196, 165, 116, 0.55);
+  background: #c4a574;
+  color: #1a120c;
+}
+
+.save-transfer-btn--ghost {
+  font-weight: 500;
+  opacity: 0.85;
+}
+
+.save-transfer-hint {
+  min-height: 1.2em;
+  margin: 0.65rem 0 0;
+  font-size: 0.78rem;
+  line-height: 1.35;
+  color: var(--muted, #a89880);
+}
+
+
 .settings-version-btn {
   display: flex;
   align-items: center;

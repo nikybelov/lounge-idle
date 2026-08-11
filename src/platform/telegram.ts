@@ -54,11 +54,10 @@ function applyViewportCss(wa: TelegramWebApp): void {
 function syncChrome(wa: TelegramWebApp): void {
   applyThemeCss(wa)
   applyViewportCss(wa)
-  const bg = wa.themeParams?.bg_color || BRAND_BG
-  const header = wa.themeParams?.header_bg_color || wa.themeParams?.secondary_bg_color || BRAND_HEADER
+  // Всегда бренд: иначе themeParams дают чёрный header и «наш» фон (полоска сверху).
   try {
-    wa.setHeaderColor?.(header)
-    wa.setBackgroundColor?.(bg)
+    wa.setHeaderColor?.(BRAND_HEADER)
+    wa.setBackgroundColor?.(BRAND_BG)
   } catch {
     try {
       wa.setHeaderColor?.(BRAND_HEADER)
@@ -67,6 +66,8 @@ function syncChrome(wa: TelegramWebApp): void {
       /* older clients */
     }
   }
+  document.documentElement.style.backgroundColor = BRAND_BG
+  document.body.style.backgroundColor = BRAND_BG
 }
 
 /**

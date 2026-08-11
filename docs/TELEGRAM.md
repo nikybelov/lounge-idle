@@ -75,12 +75,20 @@ Idle-игра: свой лаунж, команда и империя дыма. 1
 
 `/mybots` → бот → **Bot Settings** → **Configure Mini App** → **Configure Splash Screen**
 
+**Шаг 1 — иконка:** пришли файл `public/assets/splash-icon.svg`  
+(силуэт Огонька, 512×512, один `<path>` — как требует BotFather).  
+Цвета в SVG **не** пишутся.
+
+**Шаг 2 — цвета** (BotFather спросит отдельно, после иконки).  
+Важно: **header и background оба `#0e0b08`**. Не ставь `#c4a574` на фон — иначе сверху полоска другого цвета.
+
 | Поле | Значение |
 |---|---|
+| Header | `#0e0b08` |
 | Background | `#0e0b08` |
-| Accent / button | `#c4a574` |
+| Light (если спросит пару) | `#f3e8d8 #0e0b08` |
 
-Картинку splash — по желанию тот же `bot-avatar.jpg` или кадр из игры.
+`#c4a574` — акцент кнопок в игре, не цвет splash-фона.
 
 ### 5. Mini App URL + Menu Button
 

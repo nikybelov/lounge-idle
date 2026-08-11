@@ -1,6 +1,7 @@
 import { VENUES, type VenueId } from '../data/venues'
 import { DIFFICULTIES, difficultyFromVenue } from '../data/difficulty'
 import { bootDifficultyCoach, bootStartCoach, bootVenueCoach } from '../game/guide'
+import { telegramSuggestedName } from '../platform/runtime'
 import {
   animateBootVenueEntrance,
   animateContractEntrance,
@@ -37,6 +38,10 @@ function wireNameContract(
     next.disabled = name.length < 2
     if (preview) preview.textContent = name || '—'
     contract?.classList.toggle('boot-contract-signed', name.length >= 2)
+  }
+  const suggested = telegramSuggestedName()
+  if (suggested && !input.value.trim()) {
+    input.value = suggested
   }
   sync()
   window.setTimeout(() => input.focus(), 120)

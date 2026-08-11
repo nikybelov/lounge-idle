@@ -10,8 +10,8 @@ Browser idle tycoon (hookah lounge). Vite + TypeScript + vanilla DOM.
 
 ## Branches
 
-- `main` — веб-версия (Safari/Chrome, GitHub Pages)
-- `telegram-miniapp` — Telegram Mini App: отдельный сейв (`*-tg`), WebApp SDK, без browser gate
+- `main` — веб-версия (Safari/Chrome)
+- `telegram-miniapp` — Telegram Mini App (см. `docs/TELEGRAM.md`)
 
 Локальный тест TG: `npm run dev:tg` или `?tg=1`
 

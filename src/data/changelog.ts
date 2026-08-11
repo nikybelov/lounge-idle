@@ -18,8 +18,9 @@ export const CHANGELOG: readonly ChangelogEntry[] = [
     details: [
       'Отдельная ветка telegram-miniapp — веб на main не трогаем',
       'Сейв / трофеи / настройки в отдельных ключах (-tg), прогресс не смешивается',
-      'Запуск внутри Telegram WebApp без browser gate',
-      'Тест в браузере: ?tg=1 или npm run dev:tg',
+      'WebApp: ready/expand, тема, viewport/safe-area, BackButton в настройках',
+      'Дисклеймер 18+ при первом запуске в Telegram',
+      'Тест: ?tg=1 или npm run dev:tg · чеклист BotFather в docs/TELEGRAM.md',
     ],
     sourceRevision: null,
   },

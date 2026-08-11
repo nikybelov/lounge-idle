@@ -3,6 +3,10 @@ import { syncAmbientMusic } from './ambientMusic'
 import { CHANGELOG, CURRENT_VERSION } from '../data/changelog'
 import { appFlavorLabel, detectAppFlavor } from '../platform/runtime'
 import {
+  hideTelegramBackButton,
+  setTelegramBackHandler,
+} from '../platform/telegram'
+import {
   applySettings,
   getSettings,
   patchSettings,
@@ -138,9 +142,19 @@ export function openSettingsPanel(root: HTMLElement, onChange: SettingsChangeHan
   const sheet = () => overlay.querySelector('.settings-sheet') as HTMLElement
 
   const close = (): void => {
+    hideTelegramBackButton()
     overlay.classList.remove('visible')
     window.removeEventListener('keydown', onKey)
     window.setTimeout(() => overlay.remove(), 220)
+  }
+
+  const syncTelegramBack = (): void => {
+    if (detectAppFlavor() !== 'telegram') return
+    if (view === 'changelog') {
+      setTelegramBackHandler(() => renderView('main'))
+    } else {
+      setTelegramBackHandler(() => close())
+    }
   }
 
   const renderView = (next: SettingsView): void => {
@@ -161,6 +175,7 @@ export function openSettingsPanel(root: HTMLElement, onChange: SettingsChangeHan
         next === 'changelog' ? '[data-changelog-back]' : '[data-settings-close]',
       ) as HTMLElement | null) ?? el
     focusTarget.focus()
+    syncTelegramBack()
   }
 
   const wireMainControls = (): void => {
@@ -208,4 +223,5 @@ export function openSettingsPanel(root: HTMLElement, onChange: SettingsChangeHan
   window.addEventListener('keydown', onKey)
   sheet().querySelector('[data-settings-close]')!.addEventListener('click', close)
   wireMainControls()
+  syncTelegramBack()
 }

@@ -42,6 +42,32 @@ export interface TelegramBackButton {
   hide: () => void
 }
 
+/** Bot API 6.9+ — сейв на серверах Telegram, общий для устройств аккаунта. */
+export interface TelegramCloudStorage {
+  setItem: (
+    key: string,
+    value: string,
+    callback?: (error: string | null, stored?: boolean) => void,
+  ) => void
+  getItem: (
+    key: string,
+    callback: (error: string | null, value?: string) => void,
+  ) => void
+  getItems: (
+    keys: string[],
+    callback: (error: string | null, values?: Record<string, string>) => void,
+  ) => void
+  removeItem: (
+    key: string,
+    callback?: (error: string | null, removed?: boolean) => void,
+  ) => void
+  removeItems: (
+    keys: string[],
+    callback?: (error: string | null, removed?: boolean) => void,
+  ) => void
+  getKeys: (callback: (error: string | null, keys?: string[]) => void) => void
+}
+
 export interface TelegramWebApp {
   initData: string
   initDataUnsafe?: {
@@ -65,6 +91,7 @@ export interface TelegramWebApp {
   safeAreaInset?: TelegramSafeAreaInset
   contentSafeAreaInset?: TelegramSafeAreaInset
   BackButton?: TelegramBackButton
+  CloudStorage?: TelegramCloudStorage
   ready: () => void
   expand: () => void
   close?: () => void

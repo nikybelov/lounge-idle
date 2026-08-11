@@ -70,12 +70,15 @@ import { tickWorkDays } from './game/workDays'
 import { archiveCareerRun, encodeCareerShare, decodeCareerShare } from './save/leaderboard'
 import { createInitialState, type GameState } from './game/state'
 import {
+  applySaveRaw,
   createDebouncedSave,
+  hasLocalSaveBlob,
   isSaveStorageAvailable,
   loadState,
   resetSave,
   saveState,
 } from './save/storage'
+import { mergeTelegramCloudIntoLocal } from './platform/telegramCloudSave'
 import { applySettings, isCoachEnabled, loadSettings } from './save/settings'
 import { formatMoney } from './game/economy'
 import { pluralRuCount } from './game/ru'
@@ -817,6 +820,8 @@ async function bootApp(): Promise<void> {
 
   if (isTelegramMiniApp()) {
     await presentTelegramAgeGate(root)
+    const hadLocal = hasLocalSaveBlob()
+    state = await mergeTelegramCloudIntoLocal(hadLocal, state, applySaveRaw)
   }
 
   if (shouldShowBrowserGate()) {

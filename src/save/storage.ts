@@ -22,10 +22,30 @@ import {
   seedLifetimeTrophiesFromSave,
 } from './trophies'
 import { storageKey } from '../platform/runtime'
+import {
+  clearTelegramCloudSave,
+  scheduleTelegramCloudSave,
+  flushTelegramCloudSave,
+} from '../platform/telegramCloudSave'
 
 const KEY_BASE = 'lounge-idle-save-v1'
 function saveKey(): string {
   return storageKey(KEY_BASE)
+}
+
+/** Есть ли локальный blob (не путать с createInitialState().lastActive = now). */
+export function hasLocalSaveBlob(): boolean {
+  try {
+    return localStorage.getItem(saveKey()) != null
+  } catch {
+    return false
+  }
+}
+
+/** Применить сырой JSON сейва (облако → localStorage → миграции). */
+export function applySaveRaw(raw: string): GameState {
+  localStorage.setItem(saveKey(), raw)
+  return loadState()
 }
 
 /**
@@ -421,6 +441,7 @@ export function saveState(state: GameState): boolean {
   try {
     persistLifetimeTrophies(state)
     localStorage.setItem(saveKey(), JSON.stringify(state))
+    scheduleTelegramCloudSave(state)
     return true
   } catch {
     // Safari private / квота / блокировка storage
@@ -459,7 +480,9 @@ export function createDebouncedSave(ms = 400): ((state: GameState) => void) & {
     if (t) clearTimeout(t)
     t = null
     pending = null
-    return saveState(state)
+    const ok = saveState(state)
+    if (ok) void flushTelegramCloudSave(state)
+    return ok
   }
   return schedule
 }
@@ -470,4 +493,5 @@ export function resetSave(): void {
   } catch {
     /* ignore */
   }
+  void clearTelegramCloudSave()
 }

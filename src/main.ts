@@ -78,7 +78,11 @@ import {
   resetSave,
   saveState,
 } from './save/storage'
-import { mergeTelegramCloudIntoLocal } from './platform/telegramCloudSave'
+import {
+  flushTelegramCloudSave,
+  mergeTelegramCloudIntoLocal,
+  type CloudMergeResult,
+} from './platform/telegramCloudSave'
 import { applySettings, isCoachEnabled, loadSettings } from './save/settings'
 import { formatMoney } from './game/economy'
 import { pluralRuCount } from './game/ru'
@@ -151,6 +155,24 @@ let scheduleSave = createDebouncedSave(450)
 let lastTs = performance.now()
 let gameStarted = false
 const admin = isAdminEnabled()
+let cloudMergeNote: CloudMergeResult | null = null
+
+function announceCloudMerge(): void {
+  const m = cloudMergeNote
+  cloudMergeNote = null
+  if (!m) return
+  if (m.source === 'cloud') {
+    showToast(root, 'Прогресс подтянут с другого устройства')
+    return
+  }
+  if (!m.cloudAvailable) {
+    showToast(root, 'Облако Telegram недоступно — сейв только на этом устройстве')
+    return
+  }
+  if (m.cloudHadSave && m.source === 'local') {
+    showToast(root, 'На этом устройстве сейв новее — его оставили')
+  }
+}
 
 function hudCoachContext() {
   return { menuTab, storySubTab, scene: state.scene }
@@ -718,6 +740,10 @@ function beginGame(): void {
       'Safari не сохраняет прогресс (частный режим?). Играй в обычном Safari.',
     )
   }
+  announceCloudMerge()
+  if (isTelegramMiniApp() && state.onboarded) {
+    void flushTelegramCloudSave(state)
+  }
   scheduleSave.flush(state)
   if (admin) {
     mountAdminPanel(document.body, {
@@ -821,7 +847,9 @@ async function bootApp(): Promise<void> {
   if (isTelegramMiniApp()) {
     await presentTelegramAgeGate(root)
     const hadLocal = hasLocalSaveBlob()
-    state = await mergeTelegramCloudIntoLocal(hadLocal, state, applySaveRaw)
+    const merged = await mergeTelegramCloudIntoLocal(hadLocal, state, applySaveRaw)
+    state = merged.state
+    cloudMergeNote = merged
   }
 
   if (shouldShowBrowserGate()) {

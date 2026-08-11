@@ -1,6 +1,6 @@
 /**
  * Автосинк сейва через наш Worker (телефон ↔ Mac).
- * Требует VITE_TG_SYNC_URL и настоящий initData из Telegram.
+ * Побеждает более новый lastActive (не касса — после покупок cash падает).
  */
 import type { GameState } from '../game/state'
 import { getTelegramWebApp, isTelegramMiniApp } from './runtime'
@@ -31,6 +31,12 @@ function initDataHeader(): string | null {
   const wa = getTelegramWebApp()
   const data = wa?.initData
   return data && data.length > 0 ? data : null
+}
+
+function tsOf(s: { lastActive?: number } | null | undefined): number {
+  return typeof s?.lastActive === 'number' && Number.isFinite(s.lastActive)
+    ? Math.floor(s.lastActive)
+    : 0
 }
 
 async function fetchJson(
@@ -69,16 +75,21 @@ async function fetchJson(
 export async function pullRemoteSave(): Promise<{
   save: GameState | null
   cash: number
+  lastActive: number
   ok: boolean
 }> {
   const res = await fetchJson('/', { method: 'GET' })
-  if (!res.ok) return { save: null, cash: 0, ok: false }
+  if (!res.ok) return { save: null, cash: 0, lastActive: 0, ok: false }
   const save = (res.body.save as GameState | null) ?? null
   const cash =
     typeof res.body.cash === 'number'
       ? Math.floor(res.body.cash)
       : Math.floor(save?.cash ?? 0)
-  return { save, cash, ok: true }
+  const lastActive =
+    typeof res.body.lastActive === 'number'
+      ? Math.floor(res.body.lastActive)
+      : tsOf(save)
+  return { save, cash, lastActive, ok: true }
 }
 
 export async function pushRemoteSave(state: GameState): Promise<{
@@ -87,6 +98,10 @@ export async function pushRemoteSave(state: GameState): Promise<{
   reason?: string
 }> {
   if (!state.onboarded) return { ok: false, reason: 'not_onboarded' }
+  // Гарантируем свежий timestamp перед отправкой
+  if (!state.lastActive || state.lastActive < Date.now() - 1000) {
+    state.lastActive = Date.now()
+  }
   const res = await fetchJson('/', {
     method: 'PUT',
     headers: { 'Content-Type': 'application/json' },
@@ -95,7 +110,7 @@ export async function pushRemoteSave(state: GameState): Promise<{
   if (res.status === 409) {
     return {
       ok: false,
-      reason: 'remote_richer',
+      reason: 'remote_newer',
       remoteCash:
         typeof res.body.cash === 'number' ? Math.floor(res.body.cash) : undefined,
     }
@@ -150,9 +165,9 @@ export async function mergeRemoteSave(
   }
 
   const localCash = Math.max(0, Math.floor(local.cash ?? 0))
+  const localTs = tsOf(local)
   const pulled = await pullRemoteSave()
   if (!pulled.ok) {
-    // Сервер недоступен — не мешаем игре
     if (localHasBlob && local.onboarded) {
       void pushRemoteSave(local)
     }
@@ -187,18 +202,22 @@ export async function mergeRemoteSave(
   }
 
   const remoteCash = pulled.cash
-  if (!localHasBlob || remoteCash > localCash || (!local.onboarded && pulled.save.onboarded)) {
+  const remoteTs = pulled.lastActive || tsOf(pulled.save)
+
+  // Нет локального сейва или сервер новее → берём сервер
+  if (!localHasBlob || !local.onboarded || remoteTs > localTs) {
     return {
       state: applyCloudRaw(JSON.stringify(pulled.save)),
       source: 'remote',
       available: true,
       localCash,
       remoteCash,
-      detail: `с сервера ${remoteCash}₽ (было местн. ${localCash}₽)`,
+      detail: `с сервера ${remoteCash}₽ (новее)`,
     }
   }
 
-  if (local.onboarded && localCash >= remoteCash) {
+  // Локальный новее или тот же → оставляем и догоняем сервер
+  if (local.onboarded && localTs >= remoteTs) {
     const push = await pushRemoteSave(local)
     return {
       state: local,
@@ -209,8 +228,8 @@ export async function mergeRemoteSave(
       uploaded: push.ok,
       detail: push.ok
         ? `местн. ${localCash}₽ → сервер ok`
-        : push.reason === 'remote_richer'
-          ? `на сервере уже ${push.remoteCash}₽`
+        : push.reason === 'remote_newer'
+          ? `на сервере более новый сейв`
           : `местн. ${localCash}₽, сервер не принял`,
     }
   }

@@ -1,9 +1,6 @@
 /**
  * Cloudflare Worker: кросс-девайс сейв по Telegram user id.
- * Auth: HMAC проверка WebApp initData (официальный алгоритм Telegram).
- *
- * Secrets: BOT_TOKEN
- * Binding: SAVES (KV)
+ * Конфликт: побеждает более новый lastActive (трата денег уменьшает cash — cash нельзя брать как критерий).
  */
 export default {
   async fetch(request, env) {
@@ -27,18 +24,16 @@ export default {
 
       if (request.method === 'GET') {
         const raw = await env.SAVES.get(key)
-        if (!raw) return json({ save: null, cash: 0 }, 200, cors)
+        if (!raw) return json({ save: null, cash: 0, lastActive: 0 }, 200, cors)
         let save = null
         try {
           save = JSON.parse(raw)
         } catch {
           return json({ error: 'corrupt' }, 500, cors)
         }
-        const cash =
-          typeof save?.cash === 'number' && Number.isFinite(save.cash)
-            ? Math.floor(save.cash)
-            : 0
-        return json({ save, cash }, 200, cors)
+        const cash = num(save?.cash)
+        const lastActive = num(save?.lastActive)
+        return json({ save, cash, lastActive }, 200, cors)
       }
 
       if (request.method === 'PUT') {
@@ -47,20 +42,24 @@ export default {
         if (!save || typeof save !== 'object' || save.v !== 1) {
           return json({ error: 'bad_save' }, 400, cors)
         }
-        const cash =
-          typeof save.cash === 'number' && Number.isFinite(save.cash)
-            ? Math.floor(save.cash)
-            : 0
-        // Не даём более бедному клиенту затереть богатый сейв
+        const cash = num(save.cash)
+        const lastActive = num(save.lastActive) || Date.now()
+        save.lastActive = lastActive
+
         const existingRaw = await env.SAVES.get(key)
         if (existingRaw) {
           try {
             const existing = JSON.parse(existingRaw)
-            const existingCash =
-              typeof existing?.cash === 'number' ? Math.floor(existing.cash) : 0
-            if (existingCash > cash) {
+            const existingTs = num(existing?.lastActive)
+            // Сервер новее — не затираем старым клиентом
+            if (existingTs > lastActive) {
               return json(
-                { ok: false, reason: 'remote_richer', cash: existingCash },
+                {
+                  ok: false,
+                  reason: 'remote_newer',
+                  cash: num(existing?.cash),
+                  lastActive: existingTs,
+                },
                 409,
                 cors,
               )
@@ -69,10 +68,11 @@ export default {
             /* overwrite corrupt */
           }
         }
+
         await env.SAVES.put(key, JSON.stringify(save), {
-          metadata: { cash, updatedAt: Date.now() },
+          metadata: { cash, lastActive, updatedAt: Date.now() },
         })
-        return json({ ok: true, cash }, 200, cors)
+        return json({ ok: true, cash, lastActive }, 200, cors)
       }
 
       return json({ error: 'method' }, 405, cors)
@@ -84,6 +84,10 @@ export default {
       )
     }
   },
+}
+
+function num(v) {
+  return typeof v === 'number' && Number.isFinite(v) ? Math.floor(v) : 0
 }
 
 function json(data, status, cors) {
@@ -125,7 +129,6 @@ async function validateInitDataUserId(initData, botToken) {
     .join('')
   if (hex !== hash) return null
 
-  // Optional: reject old auth_date (> 24h)
   const authDate = Number(params.get('auth_date') || 0)
   if (authDate && Date.now() / 1000 - authDate > 86400) return null
 

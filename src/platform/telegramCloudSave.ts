@@ -167,7 +167,7 @@ function chunkKey(i: number): string {
   return `${CHUNK_PREFIX}${i}`
 }
 
-/** Грубый «вес» прогресса — чтобы свежий пустой Mac не перебил телефон. */
+/** Грубый «вес» прогресса — без lastActive (иначе свежий Mac с 72₽ бьёт телефон с 1500₽). */
 export function saveProgressScore(raw: {
   onboarded?: boolean
   cash?: number
@@ -184,12 +184,7 @@ export function saveProgressScore(raw: {
   }
   const phaseBonus =
     raw.phase === 'ownOnly' ? 50_000 : raw.phase === 'dual' ? 20_000 : 0
-  return (
-    Math.max(0, Math.floor(raw.cash ?? 0)) +
-    tasks * 500 +
-    phaseBonus +
-    Math.min(Math.max(0, raw.lastActive ?? 0) / 1000, 2_000_000_000)
-  )
+  return Math.max(0, Math.floor(raw.cash ?? 0)) + tasks * 500 + phaseBonus
 }
 
 export function isTelegramCloudSaveAvailable(): boolean {
@@ -415,12 +410,12 @@ export async function mergeTelegramCloudIntoLocal(
   const localScore = saveProgressScore(local)
   const cloudScore = saveProgressScore(cloudPeek)
 
-  // Облако явно богаче или новее по lastActive при похожем прогрессе
+  // lastActive — только тай-брейкер при одинаковом прогрессе
   const cloudTs = cloudPeek.lastActive ?? 0
   const localTs = local.lastActive ?? 0
   const preferCloud =
-    cloudScore > localScore + 50 ||
-    (cloudScore >= localScore && cloudTs > localTs) ||
+    cloudScore > localScore ||
+    (cloudScore === localScore && cloudTs > localTs) ||
     (!local.onboarded && !!cloudPeek.onboarded)
 
   if (preferCloud) {

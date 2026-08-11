@@ -338,7 +338,7 @@ export function enterGuideMastersAward(state: GameState, now = Date.now()): Acti
   state.personal.media += mediaGain
   return {
     ok: true,
-    message: `Гайд Мастерс: в финал не прошли (шанс был ${Math.round(chance * 100)}%), но о тебе написали (+${mediaGain} медийность)`,
+    message: `Гайд Мастерс: в финал не прошёл (шанс был ${Math.round(chance * 100)}%), но о тебе написали (+${mediaGain} медийность)`,
   }
 }
 

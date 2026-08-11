@@ -6,8 +6,15 @@ import { getLoungeTier } from '../data/loungeTiers'
 import { normalizeVenueId } from '../data/venues'
 import { difficultyFromVenue } from '../data/difficulty'
 import type { TobaccoId } from '../data/tobacco'
-import { SHOP_ITEMS, type ShopItemId } from '../data/shop'
-import { STAFF_ROLES, type StaffId } from '../data/staff'
+import { getTobacco } from '../data/tobacco'
+import {
+  CHANNEL_GEAR_GRADE_MAX,
+  TELEGRAM_GRADES,
+  TELEGRAM_TOOLKIT,
+} from '../data/personal'
+import { PROMOTIONS } from '../data/promotions'
+import { SHOP_ITEMS, shopMaxLevel, type ShopItemId } from '../data/shop'
+import { STAFF_ROLES, maxStaffForRole, type StaffId } from '../data/staff'
 import { UPGRADES, type UpgradeId } from '../data/upgrades'
 import {
   applyLifetimeTrophies,
@@ -17,14 +24,28 @@ import {
 
 const KEY = 'lounge-idle-save-v1'
 
+/**
+ * Ревизия одноразовых миграций.
+ * Увеличивать только когда нужна новая перекладка шкал (не clamp).
+ * Синхрон с createInitialState().migrateRev
+ */
+export const CURRENT_MIGRATE_REV = 2
+
+/** Rev, с которой шкалы канала/TG уже в текущих потолках (не сжимать повторно). */
+const SCALED_CAPS_REV = 2
+
+function clampInt(n: unknown, min: number, max: number, fallback = min): number {
+  if (typeof n !== 'number' || !Number.isFinite(n)) return fallback
+  return Math.min(max, Math.max(min, Math.floor(n)))
+}
+
 function clampOwnedUpgrades(
   owned: GameState['owned'],
 ): GameState['owned'] {
   const next = { ...owned }
   for (const def of UPGRADES) {
     const id = def.id as UpgradeId
-    const cur = next[id] ?? 0
-    if (cur > def.maxLevel) next[id] = def.maxLevel
+    next[id] = clampInt(next[id] ?? 0, 0, def.maxLevel, 0)
   }
   return next
 }
@@ -56,45 +77,77 @@ function migrateShopOwned(
   const out: GameState['shopOwned'] = { ...base }
   for (const item of SHOP_ITEMS) {
     const v = parsed?.[item.id]
-    if (typeof v === 'boolean') out[item.id] = v ? 1 : 0
-    else if (typeof v === 'number') out[item.id] = v
+    let level = 0
+    if (typeof v === 'boolean') level = v ? 1 : 0
+    else if (typeof v === 'number') level = v
+    out[item.id] = clampInt(level, 0, shopMaxLevel(item), 0)
   }
   return out
 }
 
-function migrateChannelGearLevel(level: number, oldMax: number): number {
-  if (level <= 0) return 0
-  if (oldMax <= 8) return Math.min(8, level)
-  return Math.min(8, Math.ceil((level / oldMax) * 8))
+/**
+ * Сжатие со старого потолка на новый — только для уровней выше newMax.
+ * Уровни уже в новой шкале не трогаем (иначе F5 снова сжимает прогресс).
+ */
+export function migrateScaledLevel(
+  level: number,
+  oldMax: number,
+  newMax: number,
+): number {
+  if (!Number.isFinite(level) || level <= 0) return 0
+  const n = Math.floor(level)
+  if (n <= newMax) return Math.min(newMax, n)
+  if (oldMax <= newMax) return Math.min(newMax, n)
+  return Math.min(newMax, Math.ceil((n / oldMax) * newMax))
 }
 
-function migrateChannelGear(
+function clampChannelGear(
   raw: Partial<{ camera: number; montage: number; branding: number }> | undefined,
   base: GameState['personal']['channelGear'],
 ): GameState['personal']['channelGear'] {
   const merged = { ...base, ...raw }
   return {
-    camera: migrateChannelGearLevel(merged.camera, 15),
-    montage: migrateChannelGearLevel(merged.montage, 12),
-    branding: migrateChannelGearLevel(merged.branding, 12),
+    camera: clampInt(merged.camera, 0, CHANNEL_GEAR_GRADE_MAX, 0),
+    montage: clampInt(merged.montage, 0, CHANNEL_GEAR_GRADE_MAX, 0),
+    branding: clampInt(merged.branding, 0, CHANNEL_GEAR_GRADE_MAX, 0),
   }
 }
 
-function migrateTelegramToolkitLevel(level: number, oldMax: number): number {
-  if (level <= 0) return 0
-  if (oldMax <= 4) return Math.min(4, level)
-  return Math.min(4, Math.ceil((level / oldMax) * 4))
+function scaleChannelGearOnce(
+  raw: Partial<{ camera: number; montage: number; branding: number }> | undefined,
+  base: GameState['personal']['channelGear'],
+): GameState['personal']['channelGear'] {
+  const merged = { ...base, ...raw }
+  return {
+    camera: migrateScaledLevel(merged.camera, 15, CHANNEL_GEAR_GRADE_MAX),
+    montage: migrateScaledLevel(merged.montage, 12, CHANNEL_GEAR_GRADE_MAX),
+    branding: migrateScaledLevel(merged.branding, 12, CHANNEL_GEAR_GRADE_MAX),
+  }
 }
 
-function migrateTelegramToolkit(
+function clampTelegramToolkit(
+  raw: Partial<{ content: number; visual: number; reach: number }> | undefined,
+  base: GameState['personal']['telegramToolkit'],
+): GameState['personal']['telegramToolkit'] {
+  const merged = { ...base, ...raw }
+  const maxOf = (id: 'content' | 'visual' | 'reach') =>
+    TELEGRAM_TOOLKIT.find((d) => d.id === id)?.maxLevel ?? 4
+  return {
+    content: clampInt(merged.content, 0, maxOf('content'), 0),
+    visual: clampInt(merged.visual, 0, maxOf('visual'), 0),
+    reach: clampInt(merged.reach, 0, maxOf('reach'), 0),
+  }
+}
+
+function scaleTelegramToolkitOnce(
   raw: Partial<{ content: number; visual: number; reach: number }> | undefined,
   base: GameState['personal']['telegramToolkit'],
 ): GameState['personal']['telegramToolkit'] {
   const merged = { ...base, ...raw }
   return {
-    content: migrateTelegramToolkitLevel(merged.content, 12),
-    visual: migrateTelegramToolkitLevel(merged.visual, 12),
-    reach: migrateTelegramToolkitLevel(merged.reach, 15),
+    content: migrateScaledLevel(merged.content, 12, 4),
+    visual: migrateScaledLevel(merged.visual, 12, 4),
+    reach: migrateScaledLevel(merged.reach, 15, 4),
   }
 }
 
@@ -106,25 +159,61 @@ function migrateStaffMembers(
     const out: GameState['staffMembers'] = { ...base }
     for (const role of STAFF_ROLES) {
       const arr = parsed.staffMembers[role.id]
-      if (arr?.length) out[role.id] = [...arr]
+      if (!arr?.length) continue
+      const max = maxStaffForRole(role.id)
+      out[role.id] = arr.slice(0, max).map((g) => clampInt(g, 1, 4, 1))
     }
     return out
   }
   const out: GameState['staffMembers'] = { ...base }
   for (const role of STAFF_ROLES) {
     const count = parsed.staffCount?.[role.id] ?? 0
-    const grade = parsed.staff?.[role.id] ?? 1
-    if (count > 0) out[role.id] = Array.from({ length: count }, () => grade)
+    const grade = clampInt(parsed.staff?.[role.id] ?? 1, 1, 4, 1)
+    const max = maxStaffForRole(role.id)
+    if (count > 0) {
+      out[role.id] = Array.from({ length: Math.min(max, count) }, () => grade)
+    }
   }
   return out
 }
 
 function migrateShelf(parsed: LegacySave): TobaccoId[] {
-  if (parsed.shelfActive?.length) return parsed.shelfActive
-  const fromSlots = (parsed.menuSlots ?? []).filter(Boolean) as TobaccoId[]
-  if (fromSlots.length) return [...new Set(fromSlots)]
-  return []
+  const raw = parsed.shelfActive?.length
+    ? parsed.shelfActive
+    : ((parsed.menuSlots ?? []).filter(Boolean) as TobaccoId[])
+  const uniq: TobaccoId[] = []
+  for (const id of raw) {
+    if (!getTobacco(id)) continue
+    if (uniq.includes(id)) continue
+    uniq.push(id)
+  }
+  return uniq
 }
+
+function clampPromotions(
+  raw: GameState['promotions'] | undefined,
+  base: GameState['promotions'],
+): GameState['promotions'] {
+  const grades: GameState['promotions']['grades'] = {
+    ...base.grades,
+    ...raw?.grades,
+  }
+  for (const def of PROMOTIONS) {
+    const max = def.grades.length
+    grades[def.id] = clampInt(grades[def.id] ?? 0, 0, max, 0)
+  }
+  return {
+    ...base,
+    ...raw,
+    grades,
+    readyAt: { ...base.readyAt, ...raw?.readyAt },
+    activeBoost: typeof raw?.activeBoost === 'number' ? raw.activeBoost : base.activeBoost,
+    activeUntil: typeof raw?.activeUntil === 'number' ? raw.activeUntil : base.activeUntil,
+    activeId: raw?.activeId ?? base.activeId,
+  }
+}
+
+const TELEGRAM_GRADE_MAX = TELEGRAM_GRADES.reduce((m, g) => Math.max(m, g.grade), 0)
 
 export function loadState(): GameState {
   try {
@@ -139,11 +228,30 @@ export function loadState(): GameState {
       parsed.phase === 'dual' ||
       parsed.phase === 'ownOnly'
 
+    const prevRev =
+      typeof parsed.migrateRev === 'number' && Number.isFinite(parsed.migrateRev)
+        ? Math.floor(parsed.migrateRev)
+        : 0
+    const needsScaleCaps = prevRev < SCALED_CAPS_REV
+
     const shelfActive = migrateShelf(parsed)
+    const channelGear = needsScaleCaps
+      ? scaleChannelGearOnce(parsed.personal?.channelGear, base.personal.channelGear)
+      : clampChannelGear(parsed.personal?.channelGear, base.personal.channelGear)
+    const telegramToolkit = needsScaleCaps
+      ? scaleTelegramToolkitOnce(
+          parsed.personal?.telegramToolkit,
+          base.personal.telegramToolkit,
+        )
+      : clampTelegramToolkit(
+          parsed.personal?.telegramToolkit,
+          base.personal.telegramToolkit,
+        )
 
     const merged: GameState = {
       ...base,
       ...parsed,
+      migrateRev: CURRENT_MIGRATE_REV,
       owned: clampOwnedUpgrades({ ...base.owned, ...parsed.owned }),
       shopOwned: migrateShopOwned(parsed.shopOwned, base.shopOwned),
       taskReadyAt: { ...base.taskReadyAt, ...parsed.taskReadyAt },
@@ -154,31 +262,38 @@ export function loadState(): GameState {
       expansions: { ...base.expansions, ...parsed.expansions },
       branches: { ...base.branches, ...parsed.branches },
       staffMembers: migrateStaffMembers(parsed, base.staffMembers),
-      personal: { ...base.personal, ...parsed.personal,       channelGear: migrateChannelGear(parsed.personal?.channelGear, base.personal.channelGear),
-      telegramGrade: parsed.personal?.telegramGrade ?? 0,
-      telegramPosts: parsed.personal?.telegramPosts ?? 0,
-      telegramPostReadyAt: parsed.personal?.telegramPostReadyAt ?? 0,
-      videoBoostUntil: parsed.personal?.videoBoostUntil ?? 0,
-      videoBoostAmount: parsed.personal?.videoBoostAmount ?? 0,
-      videoPromoReadyUntil: parsed.personal?.videoPromoReadyUntil ?? 0,
-      telegramBoostUntil: parsed.personal?.telegramBoostUntil ?? 0,
-      telegramBoostAmount: parsed.personal?.telegramBoostAmount ?? 0,
-      telegramToolkit: migrateTelegramToolkit(parsed.personal?.telegramToolkit, base.personal.telegramToolkit),
-      ambassadorOf: normalizeAmbassadorOf({
-        ...base.personal.ambassadorOf,
-        ...parsed.personal?.ambassadorOf,
-      }),
+      personal: {
+        ...base.personal,
+        ...parsed.personal,
+        channelLevel: clampInt(parsed.personal?.channelLevel ?? 0, 0, 1, 0),
+        channelGear,
+        telegramGrade: clampInt(
+          parsed.personal?.telegramGrade ?? 0,
+          0,
+          TELEGRAM_GRADE_MAX,
+          0,
+        ),
+        telegramPosts: clampInt(parsed.personal?.telegramPosts ?? 0, 0, 1_000_000, 0),
+        telegramPostReadyAt: parsed.personal?.telegramPostReadyAt ?? 0,
+        videoBoostUntil: parsed.personal?.videoBoostUntil ?? 0,
+        videoBoostAmount: parsed.personal?.videoBoostAmount ?? 0,
+        videoPromoReadyUntil: parsed.personal?.videoPromoReadyUntil ?? 0,
+        telegramBoostUntil: parsed.personal?.telegramBoostUntil ?? 0,
+        telegramBoostAmount: parsed.personal?.telegramBoostAmount ?? 0,
+        telegramToolkit,
+        ambassadorOf: normalizeAmbassadorOf({
+          ...base.personal.ambassadorOf,
+          ...parsed.personal?.ambassadorOf,
+        }),
       },
-      promotions: {
-        ...base.promotions,
-        ...parsed.promotions,
-        grades: { ...base.promotions.grades, ...parsed.promotions?.grades },
-        readyAt: { ...base.promotions.readyAt, ...parsed.promotions?.readyAt },
-      },
+      promotions: clampPromotions(parsed.promotions, base.promotions),
       career: {
         ...base.career,
         ...parsed.career,
         milestones: { ...base.career.milestones, ...parsed.career?.milestones },
+        workDays: clampInt(parsed.career?.workDays ?? 0, 0, 1_000_000, 0),
+        dayProgressSec: Math.max(0, parsed.career?.dayProgressSec ?? 0),
+        totalActiveSec: Math.max(0, parsed.career?.totalActiveSec ?? 0),
       },
       flags: {
         ...base.flags,
@@ -298,6 +413,7 @@ export function loadState(): GameState {
 
 export function saveState(state: GameState): boolean {
   state.lastActive = Date.now()
+  state.migrateRev = CURRENT_MIGRATE_REV
   try {
     persistLifetimeTrophies(state)
     localStorage.setItem(KEY, JSON.stringify(state))

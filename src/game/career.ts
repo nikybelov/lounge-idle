@@ -632,7 +632,7 @@ export function maybePayrollFeedback(state: GameState): string | null {
   if (state.flags.payrollWarned) return null
   state.flags.payrollWarned = true
   if (net < 0) {
-    return `ФОТ (${payroll.toFixed(1)}/с) съедает выручку — уволи кого-то во вкладке «Команда».`
+    return `ФОТ (${payroll.toFixed(1)}/с) съедает выручку — уволь кого-то во вкладке «Команда».`
   }
   return `ФОТ ${Math.round(share * 100)}% выручки — команда дорогая, подумай об оптимизации.`
 }

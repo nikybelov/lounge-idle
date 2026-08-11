@@ -175,7 +175,7 @@ export const ACHIEVEMENTS: AchievementDef[] = [
   {
     id: 'shift_loyal',
     title: 'Трудяга',
-    hint: 'Открой лаунж и не увольняйся с первой смены — поработай в dual',
+    hint: 'Открой лаунж и не увольняйся с первой смены — поработай в режиме «смена + свой лаунж»',
     reward: 1500,
     tier: 'silver',
     careerPoints: 20,

@@ -1,3 +1,5 @@
+import { pluralRuCount } from '../game/ru'
+
 export type TaskId = 'wash' | 'coals' | 'order'
 
 export interface JobTask {
@@ -67,5 +69,5 @@ export function taskUnlockHint(
   const have = taskDone[task.unlockAfter.task]
   const left = Math.max(0, need - have)
   const prev = JOB_TASKS.find((t) => t.id === task.unlockAfter!.task)
-  return `Сделай «${prev?.label ?? 'предыдущее'}» ещё ${left} раз`
+  return `Сделай «${prev?.label ?? 'предыдущее'}» ещё ${pluralRuCount(left, 'раз', 'раза', 'раз')}`
 }

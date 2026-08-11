@@ -38,6 +38,7 @@ import {
   staffPayrollShare,
   upgradeCost,
 } from '../game/economy'
+import { pluralRuCount } from '../game/ru'
 import {
   hiredStaffCount,
   maxTeamHeadcount,
@@ -661,7 +662,7 @@ export function mountShell(root: HTMLElement, handlers: ShellHandlers): void {
         </button>
       </header>
       <div class="goal-strip-row">
-        <button type="button" class="goal-strip-ogonyok" data-ogonyok-tip hidden aria-label="Подсказка от Огонёка">
+        <button type="button" class="goal-strip-ogonyok" data-ogonyok-tip hidden aria-label="Подсказка от Огонька">
           <span class="goal-strip-ogonyok__glyph" aria-hidden="true">🔥</span>
         </button>
         <p class="goal-strip" data-goal hidden></p>
@@ -1766,7 +1767,7 @@ function renderAmbassadorBlock(state: GameState): string {
           ${tobaccoIcon(t.id)}
           <span class="row-main">
             <span class="row-title">${t.brand} · ${t.name}</span>
-            <span class="row-sub">Сначала расторги «${other?.brand ?? 'контракт'}» — один бренд за раз</span>
+            <span class="row-sub">Сначала расторгни «${other?.brand ?? 'контракт'}» — один бренд за раз</span>
           </span>
           <span class="row-meta">—</span>
         </div>
@@ -2338,7 +2339,7 @@ function renderPersonalPanel(state: GameState, now: number): string {
         ${icon('trophy', 'row-icon--gold')}
         <span class="row-main">
           <span class="row-title">Подать заявку</span>
-          <span class="row-sub">${awardSub} · попыток ${p.awardAttempts}</span>
+          <span class="row-sub">${awardSub} · ${pluralRuCount(p.awardAttempts, 'попытка', 'попытки', 'попыток')}</span>
         </span>
         <span class="row-meta row-meta--status">бесплатно</span>
       </button>
@@ -2359,7 +2360,7 @@ function renderPersonalPanel(state: GameState, now: number): string {
       : `
       <div class="milestone career">
         <div class="milestone-head">
-          <span>Блогер · «Дымной дневник»${videoLevel >= 1 ? ` · грейд ${videoLevel}` : ''}${tier ? ` · ${tier}` : ''}</span>
+          <span>Блогер · «Дымный дневник»${videoLevel >= 1 ? ` · грейд ${videoLevel}` : ''}${tier ? ` · ${tier}` : ''}</span>
           <span>${channelBonus > 0 ? `+${Math.round(channelBonus * 100)}% гостей` : 'без охвата'}${
             shootReady ? ` · ~${videoCdSec}с` : ''
           }</span>
@@ -2643,7 +2644,7 @@ export function updatePersonalCooldowns(
     if (sub) {
       sub.textContent = `Шанс ${Math.round(bd.chance * 100)}% · победа +${AWARD_WIN_FAME} узн. · +${AWARD_WIN_MEDIA} мед. · ${personalRepBonusLabel()} навсегда${
         ready ? '' : formatCooldownLeft(p.awardReadyAt, now)
-      } · попыток ${p.awardAttempts}`
+      } · ${pluralRuCount(p.awardAttempts, 'попытка', 'попытки', 'попыток')}`
     }
   }
   const boostNote = root.querySelector<HTMLElement>('[data-boost-note]')

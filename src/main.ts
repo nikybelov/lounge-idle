@@ -78,6 +78,7 @@ import {
 } from './save/storage'
 import { applySettings, isCoachEnabled, loadSettings } from './save/settings'
 import { formatMoney } from './game/economy'
+import { pluralRuCount } from './game/ru'
 import { runBoot } from './ui/boot'
 import { presentBrowserGate, shouldShowBrowserGate } from './ui/browserGate'
 import { showFatalError } from './ui/fatalError'
@@ -783,7 +784,7 @@ async function confirmAndResetCareer(): Promise<void> {
   url.searchParams.set('admin', '0')
   history.replaceState(null, '', url.pathname + url.search + url.hash)
   if (archived) {
-    showToast(root, `Карьера в зале славы · ${archived.score} очков · день ${archived.workDays}`)
+    showToast(root, `Карьера в зале славы · ${pluralRuCount(archived.score, 'очко', 'очка', 'очков')} · день ${archived.workDays}`)
   }
   await startFromBoot(keptTrophies)
 }

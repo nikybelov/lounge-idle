@@ -86,6 +86,11 @@ export interface PromotionsState {
 
 export interface GameState {
   v: 1
+  /**
+   * Ревизия одноразовых миграций сейва.
+   * Растёт только когда нужна новая сжатие/перекладка шкал — не при каждом reload.
+   */
+  migrateRev: number
   cash: number
   phase: CareerPhase
   scene: Scene
@@ -192,6 +197,8 @@ export interface GameState {
 export function createInitialState(now = Date.now()): GameState {
   return {
     v: 1,
+    /** Синхрон с CURRENT_MIGRATE_REV в save/storage.ts */
+    migrateRev: 2,
     cash: 0,
     phase: 'employed',
     scene: 'job',

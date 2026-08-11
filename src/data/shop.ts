@@ -210,7 +210,7 @@ export function shopRankHint(item: ShopItem): string {
   const titles: Record<JobRank, string> = {
     assistant: 'помощника',
     master: 'кальянного мастера',
-    senior: 'старшего мастера',
+    senior: 'старшего кальянного мастера',
   }
   return `Нужен ранг ${titles[item.requiresRank]}`
 }

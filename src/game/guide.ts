@@ -11,6 +11,7 @@ import {
   canQuitJob,
 } from './career'
 import { formatMoney, loungeIncomePerSec, staffPayrollPerSec, staffPayrollShare } from './economy'
+import { pluralRuCount } from './ru'
 import { shelfMood } from './appeal'
 import { canBrowseEmpire } from './empire'
 import {
@@ -790,7 +791,7 @@ export function goalLine(state: GameState): string {
     case 'lounge_ready':
       return 'Цель: открыть свой лаунж — вкладка «Свой лаунж»'
     case 'first_order':
-      return `Цель: ${3 - state.flags.loungeOrders} заказов в своём лаунже`
+      return `Цель: ${pluralRuCount(3 - state.flags.loungeOrders, 'заказ', 'заказа', 'заказов')} в своём лаунже`
     default:
       return ''
   }

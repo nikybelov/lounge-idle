@@ -7,7 +7,7 @@
     "dev": "npm run check && vite",
     "dev:fast": "vite",
     "typecheck": "tsc --noEmit",
-    "check": "tsc --noEmit && node scripts/check-modules.mjs",
+    "check": "tsc --noEmit && node scripts/check-modules.mjs && node scripts/check-save-migrations.mjs",
     "build": "npm run check && vite build",
     "preview": "vite preview",
     "omniroute": "bash scripts/omniroute-start.sh",

@@ -131,7 +131,7 @@ export function serviceStatus(
     incomeMult = lerp(1, 0.84, t)
     clickMult = lerp(1, 0.9, t)
     walkaway = lerp(0, 0.08, t)
-    label = 'Не успеваете'
+    label = 'Не успеваешь'
     hint = 'Гости ждут — найми официанта или кальянщика'
   } else if (mood === 'poor') {
     const t = (load - 1.55) / 0.6

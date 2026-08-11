@@ -1,6 +1,6 @@
 /**
  * Cloudflare Worker: кросс-девайс сейв по Telegram user id.
- * Конфликт: побеждает более новый lastActive (трата денег уменьшает cash — cash нельзя брать как критерий).
+ * Конфликт: побеждает больший progressScore (инструменты), не касса и не lastActive в одиночку.
  */
 export default {
   async fetch(request, env) {
@@ -24,7 +24,7 @@ export default {
 
       if (request.method === 'GET') {
         const raw = await env.SAVES.get(key)
-        if (!raw) return json({ save: null, cash: 0, lastActive: 0 }, 200, cors)
+        if (!raw) return json({ save: null, cash: 0, lastActive: 0, score: 0 }, 200, cors)
         let save = null
         try {
           save = JSON.parse(raw)
@@ -33,7 +33,8 @@ export default {
         }
         const cash = num(save?.cash)
         const lastActive = num(save?.lastActive)
-        return json({ save, cash, lastActive }, 200, cors)
+        const score = progressScore(save)
+        return json({ save, cash, lastActive, score }, 200, cors)
       }
 
       if (request.method === 'PUT') {
@@ -45,20 +46,25 @@ export default {
         const cash = num(save.cash)
         const lastActive = num(save.lastActive) || Date.now()
         save.lastActive = lastActive
+        const score = progressScore(save)
 
         const existingRaw = await env.SAVES.get(key)
         if (existingRaw) {
           try {
             const existing = JSON.parse(existingRaw)
+            const existingScore = progressScore(existing)
             const existingTs = num(existing?.lastActive)
-            // Сервер новее — не затираем старым клиентом
-            if (existingTs > lastActive) {
+            const remoteAhead =
+              existingScore > score ||
+              (existingScore === score && existingTs > lastActive)
+            if (remoteAhead) {
               return json(
                 {
                   ok: false,
-                  reason: 'remote_newer',
+                  reason: 'remote_ahead',
                   cash: num(existing?.cash),
                   lastActive: existingTs,
+                  score: existingScore,
                 },
                 409,
                 cors,
@@ -70,9 +76,9 @@ export default {
         }
 
         await env.SAVES.put(key, JSON.stringify(save), {
-          metadata: { cash, lastActive, updatedAt: Date.now() },
+          metadata: { cash, lastActive, score, updatedAt: Date.now() },
         })
-        return json({ ok: true, cash, lastActive }, 200, cors)
+        return json({ ok: true, cash, lastActive, score }, 200, cors)
       }
 
       return json({ error: 'method' }, 405, cors)
@@ -88,6 +94,46 @@ export default {
 
 function num(v) {
   return typeof v === 'number' && Number.isFinite(v) ? Math.floor(v) : 0
+}
+
+function sumValues(obj) {
+  if (!obj || typeof obj !== 'object') return 0
+  let n = 0
+  for (const v of Object.values(obj)) n += Number(v) || 0
+  return n
+}
+
+function countTruthy(obj) {
+  if (!obj || typeof obj !== 'object') return 0
+  let n = 0
+  for (const v of Object.values(obj)) if (v) n += 1
+  return n
+}
+
+function progressScore(save) {
+  if (!save || typeof save !== 'object') return 0
+  const shop = sumValues(save.shopOwned)
+  const owned = sumValues(save.owned)
+  const tasks = sumValues(save.taskDone)
+  let staff = 0
+  if (save.staffMembers && typeof save.staffMembers === 'object') {
+    for (const arr of Object.values(save.staffMembers)) {
+      if (Array.isArray(arr)) staff += arr.length
+    }
+  }
+  const flags =
+    countTruthy(save.expansions) +
+    countTruthy(save.branches) +
+    countTruthy(save.ownedTobacco)
+  const cash = Math.max(0, num(save.cash))
+  return (
+    shop * 1_000_000_000 +
+    owned * 10_000_000 +
+    staff * 1_000_000 +
+    flags * 100_000 +
+    tasks * 100 +
+    cash
+  )
 }
 
 function json(data, status, cors) {

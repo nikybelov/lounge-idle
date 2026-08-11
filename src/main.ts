@@ -802,7 +802,12 @@ function beginGame(): void {
   if (isTelegramMiniApp() && state.onboarded) {
     if (isRemoteSyncConfigured()) {
       void pushRemoteSave(state).then((res) => {
-        if (!res.ok && res.reason !== 'remote_richer') {
+        if (
+          !res.ok &&
+          res.reason !== 'remote_ahead' &&
+          res.reason !== 'remote_newer' &&
+          res.reason !== 'remote_richer'
+        ) {
           showToast(root, 'Не удалось отправить сейв на сервер синка')
         }
       })
@@ -989,8 +994,28 @@ window.addEventListener('beforeunload', persistNow)
 window.addEventListener('pagehide', persistNow)
 window.addEventListener('freeze', persistNow)
 document.addEventListener('visibilitychange', () => {
-  if (document.visibilityState === 'hidden') persistNow()
+  if (document.visibilityState === 'hidden') {
+    persistNow()
+    return
+  }
   if (gameStarted) updateHud(root, state, hudCoachContext())
+  // После фона: подтянуть прогресс с другого устройства (Mac ↔ телефон)
+  if (
+    document.visibilityState === 'visible' &&
+    gameStarted &&
+    state.onboarded &&
+    isRemoteSyncConfigured()
+  ) {
+    void mergeRemoteSave(true, state, applySaveRaw).then((remote) => {
+      if (!remote || remote.source !== 'remote') return
+      state = remote.state
+      scheduleSave.flush(state)
+      renderShell(root, state, handlers, menuTab, Date.now(), careerSubTab, storySubTab)
+      updateHud(root, state, hudCoachContext())
+      showToast(root, remote.detail || 'Подтянули прогресс с сервера')
+      showSyncBanner(remote.detail || 'С сервера', 5000)
+    })
+  }
 })
 
 /** Блокирует double-tap zoom и pinch на iOS/Android в игровом режиме. */

@@ -1,8 +1,11 @@
-name: Deploy to GitHub Pages
+name: Deploy Web + Telegram Pages
 
+# Два URL на одном GitHub Pages — ничего не затирается:
+#   /lounge-idle/      → веб (ветка main)
+#   /lounge-idle/tg/   → Telegram Mini App (ветка telegram-miniapp)
 on:
   push:
-    branches: [main]
+    branches: [main, telegram-miniapp]
   workflow_dispatch:
 
 permissions:
@@ -18,20 +21,62 @@ jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout web (main)
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          path: web
+
+      - name: Checkout Telegram (telegram-miniapp)
+        uses: actions/checkout@v4
+        with:
+          ref: telegram-miniapp
+          path: tg
+
       - uses: actions/setup-node@v4
         with:
           node-version: 22
           cache: npm
-      - run: npm ci
-      - run: npm run check
-      - run: npm run build
+          cache-dependency-path: |
+            web/package-lock.json
+            tg/package-lock.json
+
+      - name: Build web
+        working-directory: web
         env:
-          # Для project pages: https://USER.github.io/lounge-idle/
           VITE_BASE: /${{ github.event.repository.name }}/
+        run: |
+          npm ci
+          npm run check
+          npm run build
+
+      - name: Build Telegram Mini App
+        working-directory: tg
+        env:
+          VITE_FLAVOR: telegram
+          VITE_APP_VERSION: 0.2.0
+          VITE_BASE: /${{ github.event.repository.name }}/tg/
+        run: |
+          npm ci
+          npm run check
+          npm run build
+
+      - name: Assemble site (web root + /tg)
+        run: |
+          mkdir -p site/tg
+          cp -R web/dist/. site/
+          cp -R tg/dist/. site/tg/
+          # чтобы /tg без слэша тоже открывался
+          if [ ! -f site/tg/index.html ]; then
+            echo "Telegram build missing index.html" >&2
+            exit 1
+          fi
+          ls -la site
+          ls -la site/tg
+
       - uses: actions/upload-pages-artifact@v3
         with:
-          path: dist
+          path: site
 
   deploy:
     needs: build

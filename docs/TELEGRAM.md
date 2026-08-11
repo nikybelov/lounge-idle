@@ -1,13 +1,26 @@
 # Telegram Mini App — чеклист
 
 Ветка: `telegram-miniapp`  
-Веб остаётся на `main`.
+Веб: `main`
+
+## URL (отдельные, ничего не затирается)
+
+После деплоя GitHub Pages:
+
+| Версия | URL |
+|---|---|
+| Веб | `https://<user>.github.io/lounge-idle/` |
+| Telegram | `https://<user>.github.io/lounge-idle/tg/` |
+
+В BotFather указывай **только** URL с `/tg/`.
+
+Пуш в `main` или `telegram-miniapp` пересобирает **оба** сайта вместе (workflow `Deploy Web + Telegram Pages`).
 
 ## Соответствие правилам Telegram (кратко)
 
 | Требование | Статус в проекте |
 |---|---|
-| HTTPS хостинг | Нужен деплой (GitHub Pages / Cloudflare) |
+| HTTPS хостинг | GitHub Pages `/tg/` |
 | WebApp SDK (`telegram-web-app.js`) | Подключён в `index.html` |
 | `ready()` + `expand()` | `prepareTelegramMiniApp()` |
 | Тема / header / background | Из `themeParams` + бренд-фолбэк |
@@ -19,46 +32,30 @@
 | `initData` на сервер | Не отправляем (пока только локальный сейв) |
 | Имя из Telegram | Только префилл договора, без бэкенда |
 
-**Важно по контенту:** игра — вымышленный idle про лаунж, без инструкций курения. Для Telegram держим 18+ дисклеймер. Платный контент в будущем — только через Telegram Stars (не сторонние кассы в Mini App).
+**Контент:** idle про вымышленный лаунж, без инструкций курения. Платежи в будущем — только Telegram Stars.
 
 ## BotFather (руками)
 
-1. [@BotFather](https://t.me/BotFather) → `/newbot` (или существующий бот)
+1. [@BotFather](https://t.me/BotFather) → `/newbot` (или свой бот)
 2. `/mybots` → бот → **Bot Settings** → **Configure Mini App** → **Enable Mini App**
-3. URL: HTTPS-адрес деплоя этой ветки (см. ниже)
-4. **Configure Splash Screen** — иконка + цвета (тёмный `#0e0b08`, акцент `#c4a574`)
-5. **Menu Button** (`/setmenubutton`) — текст «Играть» + тот же URL  
-   или Main Mini App → кнопка **Open** в профиле бота
-6. Описание бота: что это idle-игра 18+, без реального табака
+3. URL: `https://<user>.github.io/lounge-idle/tg/`
+4. **Configure Splash Screen** — тёмный `#0e0b08`, акцент `#c4a574`
+5. **Menu Button** — «Играть» + тот же URL `/tg/`
+6. Описание: idle-игра 18+, без реального табака
 
-Ссылка вида: `https://t.me/YourBot/app` (после настройки Main Mini App)
-
-## Деплой URL для бота
-
-Вариант A — GitHub Pages с этой ветки (workflow `Deploy Telegram Mini App`):
-
-- Пуш в `telegram-miniapp` → сборка с `VITE_FLAVOR=telegram`
-- URL: `https://<user>.github.io/lounge-idle/`  
-  (если Pages смотрит на артефакт этого workflow; веб с `main` лучше держать отдельно на Cloudflare/другом хосте)
-
-Вариант B — отдельный хост только для TG (рекомендуется, чтобы не затирать веб):
-
-```bash
-git checkout telegram-miniapp
-npm run build:tg
-# залить dist/ на Cloudflare Pages / Vercel / свой HTTPS
-```
+Ссылка: `https://t.me/YourBot/app` (после Main Mini App)
 
 ## Локальный тест
 
 ```bash
+git checkout telegram-miniapp
 npm run dev:tg
 # или http://127.0.0.1:PORT/?tg=1
 ```
 
-Полный тест — только из Telegram по HTTPS URL бота.
+Полный тест — из Telegram по HTTPS `/tg/`.
 
 ## Обновления
 
-Правки → commit в `telegram-miniapp` → push → деплой.  
-Веб (`main`) не меняется, пока не смержите/не задеплоите его отдельно.
+- Правки TG → commit/push в `telegram-miniapp` → Pages обновит `/tg/` (и пересоберёт веб с `main`)
+- Правки веба → commit/push в `main` → Pages обновит корень (и пересоберёт TG с `telegram-miniapp`)

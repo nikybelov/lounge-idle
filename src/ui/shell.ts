@@ -918,7 +918,14 @@ export function updateJobCooldowns(
 }
 
 export function showToast(root: HTMLElement, message: string): void {
-  const el = root.querySelector('[data-toast]') as HTMLElement
+  let el = root.querySelector('[data-toast]') as HTMLElement | null
+  if (!el) {
+    el = document.createElement('div')
+    el.className = 'toast show'
+    el.setAttribute('data-toast', '')
+    el.setAttribute('role', 'status')
+    root.appendChild(el)
+  }
   el.textContent = message
   el.hidden = false
   el.classList.add('show')
@@ -926,7 +933,7 @@ export function showToast(root: HTMLElement, message: string): void {
   toastTimer = setTimeout(() => {
     el.classList.remove('show')
     el.hidden = true
-  }, 2800)
+  }, 3200)
 }
 
 export function syncAchievementFanfareSeen(state: GameState): void {

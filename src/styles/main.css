@@ -578,6 +578,14 @@ body {
   border-top: 1px solid var(--line);
 }
 
+.settings-sync-hint {
+  margin: 10px 0 0;
+  font-size: 0.72rem;
+  line-height: 1.35;
+  color: var(--muted);
+  opacity: 0.85;
+}
+
 .settings-version-btn {
   display: flex;
   align-items: center;

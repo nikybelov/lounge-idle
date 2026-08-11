@@ -93,6 +93,11 @@ function settingsMainHtml(settings: GameSettings): string {
         }v${CURRENT_VERSION} · ${appFlavorLabel()}</span>
         <span class="settings-version-cta">Что нового</span>
       </button>
+      ${
+        detectAppFlavor() === 'telegram'
+          ? `<p class="settings-sync-hint" data-cloud-hint>Синк устройств: через облако Telegram. После игры на телефоне подожди 3 сек, потом открой на Mac.</p>`
+          : ''
+      }
     </footer>
   `
 }

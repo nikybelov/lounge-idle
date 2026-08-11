@@ -80,6 +80,7 @@ import {
 } from './save/storage'
 import {
   flushTelegramCloudSave,
+  isTelegramCloudSaveAvailable,
   mergeTelegramCloudIntoLocal,
   type CloudMergeResult,
 } from './platform/telegramCloudSave'
@@ -166,11 +167,19 @@ function announceCloudMerge(): void {
     return
   }
   if (!m.cloudAvailable) {
-    showToast(root, 'Облако Telegram недоступно — сейв только на этом устройстве')
+    showToast(root, 'Облако Telegram недоступно — сейв только здесь')
     return
   }
-  if (m.cloudHadSave && m.source === 'local') {
-    showToast(root, 'На этом устройстве сейв новее — его оставили')
+  if (!m.cloudHadSave) {
+    showToast(root, 'В облаке пока пусто — поиграй на телефоне 3 сек и открой снова')
+    return
+  }
+  if (m.source === 'local') {
+    showToast(root, 'На Mac сейв новее облака — оставили местный')
+    return
+  }
+  if (m.error) {
+    showToast(root, m.error)
   }
 }
 
@@ -742,7 +751,11 @@ function beginGame(): void {
   }
   announceCloudMerge()
   if (isTelegramMiniApp() && state.onboarded) {
-    void flushTelegramCloudSave(state)
+    void flushTelegramCloudSave(state).then((ok) => {
+      if (ok === false && isTelegramCloudSaveAvailable()) {
+        showToast(root, 'Не удалось записать облако — сверни мини-апп и открой снова')
+      }
+    })
   }
   scheduleSave.flush(state)
   if (admin) {

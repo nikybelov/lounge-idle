@@ -324,6 +324,30 @@ export async function mergeTelegramCloudIntoLocal(
     }
   }
 
+  // Проверка, что set/get реально работают (иначе Mac молча «пустой»)
+  const probeKey = 'li_probe'
+  const probeVal = `p${Date.now()}`
+  const probeOk = await setItem(cs, probeKey, probeVal)
+  if (!probeOk) {
+    return {
+      state: local,
+      source: localHasBlob ? 'local' : 'none',
+      cloudAvailable: false,
+      cloudHadSave: false,
+      error: 'Облако не пишет (клиент Telegram?)',
+    }
+  }
+  const probeRead = await getItem(cs, probeKey)
+  if (probeRead !== probeVal) {
+    return {
+      state: local,
+      source: localHasBlob ? 'local' : 'none',
+      cloudAvailable: false,
+      cloudHadSave: false,
+      error: 'Облако не читает обратно',
+    }
+  }
+
   let cloudRaw: string | null = null
   try {
     cloudRaw = await readTelegramCloudSaveRaw()

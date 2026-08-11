@@ -79,13 +79,21 @@ import {
   resetSave,
   saveState,
 } from './save/storage'
-import { showSyncBanner } from './ui/syncBanner'
 import {
   flushTelegramCloudSave,
   isTelegramCloudSaveAvailable,
   mergeTelegramCloudIntoLocal,
   type CloudMergeResult,
 } from './platform/telegramCloudSave'
+import {
+  isRemoteSyncConfigured,
+  mergeRemoteSave,
+  pushRemoteSave,
+  scheduleRemoteSave,
+  flushRemoteSave,
+  type RemoteSyncResult,
+} from './platform/telegramRemoteSync'
+import { showSyncBanner } from './ui/syncBanner'
 import { applySettings, isCoachEnabled, loadSettings } from './save/settings'
 import { formatMoney } from './game/economy'
 import { pluralRuCount } from './game/ru'
@@ -154,11 +162,24 @@ let state: GameState = loadState()
 let menuTab: MenuTab = 'story'
 let careerSubTab: CareerSubTab = 'track'
 let storySubTab: StorySubTab = 'tasks'
-let scheduleSave = createDebouncedSave(450)
+let scheduleSaveBase = createDebouncedSave(450)
+const scheduleSave = Object.assign(
+  (s: GameState) => {
+    scheduleSaveBase(s)
+    scheduleRemoteSave(s)
+  },
+  {
+    flush: (s: GameState) => {
+      const ok = scheduleSaveBase.flush(s)
+      if (isRemoteSyncConfigured()) void flushRemoteSave(s)
+      return ok
+    },
+  },
+)
 let lastTs = performance.now()
 let gameStarted = false
 const admin = isAdminEnabled()
-let cloudMergeNote: CloudMergeResult | null = null
+let cloudMergeNote: CloudMergeResult | RemoteSyncResult | null = null
 let cloudAnnounced = false
 
 function announceCloudMerge(): void {
@@ -168,25 +189,25 @@ function announceCloudMerge(): void {
   cloudMergeNote = null
   if (!m) {
     if (isTelegramMiniApp()) {
-      showSyncBanner('Проверка облака не запускалась')
+      showSyncBanner('Синк не запускался')
     }
     return
   }
-  let msg = m.detail || m.error || ''
+  const remote = 'available' in m ? m : null
+  const cloud = 'cloudAvailable' in m ? m : null
+  let msg = m.detail || ''
   if (!msg) {
-    if (m.source === 'cloud') {
-      msg = `Прогресс из облака (${m.cloudCash ?? '?'}₽)`
-    } else if (!m.cloudAvailable) {
-      msg = 'Облако Telegram недоступно — сейв только здесь'
-    } else if (!m.cloudHadSave) {
-      msg = `В облаке пусто (местн. ${m.localCash ?? '?'}₽)`
-    } else if (m.source === 'local') {
-      msg = `Местный сейв (${m.localCash ?? '?'}₽), облако ${m.cloudCash ?? '?'}₽`
-    } else {
-      msg = 'Синк проверен'
+    if (remote) {
+      if (m.source === 'remote') msg = `С сервера ${remote.remoteCash ?? '?'}₽`
+      else if (!remote.available) msg = 'Сервер синка недоступен'
+      else msg = `Местн. ${remote.localCash ?? '?'}₽`
+    } else if (cloud) {
+      if (m.source === 'cloud') msg = `Из облака ${cloud.cloudCash ?? '?'}₽`
+      else msg = cloud.detail || 'Локальный сейв'
     }
   }
-  showSyncBanner(msg, 8000)
+  if (!msg) msg = 'Синк проверен'
+  showSyncBanner(msg, 7000)
   try {
     showToast(root, msg)
   } catch {
@@ -578,6 +599,7 @@ const handlers = {
           state = applySaveRaw(raw)
           saveState(state)
           void flushTelegramCloudSave(state)
+          void pushRemoteSave(state)
           showSyncBanner(`Вставлен сейв · ${Math.floor(state.cash)}₽`)
           showToast(root, `Прогресс вставлен · касса ${Math.floor(state.cash)}₽`)
           if (gameStarted) paint()
@@ -778,11 +800,19 @@ function beginGame(): void {
   }
   announceCloudMerge()
   if (isTelegramMiniApp() && state.onboarded) {
-    void flushTelegramCloudSave(state).then((ok) => {
-      if (ok === false && isTelegramCloudSaveAvailable()) {
-        showToast(root, 'Не удалось записать облако — сверни мини-апп и открой снова')
-      }
-    })
+    if (isRemoteSyncConfigured()) {
+      void pushRemoteSave(state).then((res) => {
+        if (!res.ok && res.reason !== 'remote_richer') {
+          showToast(root, 'Не удалось отправить сейв на сервер синка')
+        }
+      })
+    } else {
+      void flushTelegramCloudSave(state).then((ok) => {
+        if (ok === false && isTelegramCloudSaveAvailable()) {
+          showToast(root, 'Облако Telegram на этом устройстве не пишет — нужен сервер синка')
+        }
+      })
+    }
   }
   scheduleSave.flush(state)
   if (admin) {
@@ -897,16 +927,20 @@ async function bootApp(): Promise<void> {
         location.pathname + (clean ? `?${clean}` : '') + location.hash,
       )
     }
-    // Перечитать локальный стейт после возможного clear
     state = loadState()
     const hadLocal = hasLocalSaveBlob()
-    const merged = await mergeTelegramCloudIntoLocal(hadLocal, state, applySaveRaw)
-    state = merged.state
-    cloudMergeNote = merged
+
+    const remote = await mergeRemoteSave(hadLocal, state, applySaveRaw)
+    if (remote) {
+      state = remote.state
+      cloudMergeNote = remote
+    } else {
+      const merged = await mergeTelegramCloudIntoLocal(hadLocal, state, applySaveRaw)
+      state = merged.state
+      cloudMergeNote = merged
+    }
     cloudAnnounced = false
     announceCloudMerge()
-  } else {
-    showSyncBanner('Открыто не как Mini App — облачный синк выключен')
   }
 
   if (shouldShowBrowserGate()) {
@@ -948,6 +982,7 @@ async function bootApp(): Promise<void> {
 function persistNow(): void {
   if (!state.onboarded) return
   scheduleSave.flush(state)
+  if (isRemoteSyncConfigured()) void flushRemoteSave(state)
 }
 
 window.addEventListener('beforeunload', persistNow)

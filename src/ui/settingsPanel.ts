@@ -106,11 +106,11 @@ function settingsMainHtml(settings: GameSettings): string {
       </button>
       ${
         detectAppFlavor() === 'telegram'
-          ? `<p class="settings-sync-hint">Перенос телефон → Mac: через код в Избранном Telegram (облако на Mac не работает).</p>
-      <div class="settings-sync-actions">
-        <button type="button" class="settings-cloud-pull" data-save-copy>1. Показать код прогресса</button>
-        <button type="button" class="settings-cloud-pull" data-save-paste>2. Вставить код прогресса</button>
-      </div>`
+          ? `<p class="settings-sync-hint">${
+              import.meta.env.VITE_TG_SYNC_URL
+                ? 'Прогресс сам синхронизируется между телефоном и Mac.'
+                : 'Автосинк телефон↔Mac подключаем через сервер (облако Telegram на Mac сломано).'
+            }</p>`
           : ''
       }
     </footer>

@@ -1,0 +1,12 @@
+name = "lounge-idle-tg-sync"
+main = "src/index.js"
+compatibility_date = "2024-11-01"
+workers_dev = true
+
+[[kv_namespaces]]
+binding = "SAVES"
+# После создания KV подставь id:
+#   npx wrangler kv namespace create SAVES
+# id = "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+id = "REPLACE_WITH_KV_NAMESPACE_ID"
+preview_id = "REPLACE_WITH_KV_NAMESPACE_ID"

@@ -56,6 +56,7 @@ jobs:
           VITE_FLAVOR: telegram
           VITE_APP_VERSION: 0.2.1
           VITE_BASE: /${{ github.event.repository.name }}/tg/
+          VITE_TG_SYNC_URL: ${{ secrets.VITE_TG_SYNC_URL }}
         run: |
           npm ci
           npm run check

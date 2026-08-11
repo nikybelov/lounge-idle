@@ -42,6 +42,15 @@ export function hasLocalSaveBlob(): boolean {
   }
 }
 
+/** Стереть только локальный сейв (облако не трогаем) — для ?cloud=pull */
+export function clearLocalSaveBlob(): void {
+  try {
+    localStorage.removeItem(saveKey())
+  } catch {
+    /* ignore */
+  }
+}
+
 /** Применить сырой JSON сейва (облако → localStorage → миграции). */
 export function applySaveRaw(raw: string): GameState {
   localStorage.setItem(saveKey(), raw)

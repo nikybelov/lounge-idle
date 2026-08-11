@@ -71,6 +71,7 @@ import { archiveCareerRun, encodeCareerShare, decodeCareerShare } from './save/l
 import { createInitialState, type GameState } from './game/state'
 import {
   applySaveRaw,
+  clearLocalSaveBlob,
   createDebouncedSave,
   hasLocalSaveBlob,
   isSaveStorageAvailable,
@@ -171,21 +172,21 @@ function announceCloudMerge(): void {
     }
     return
   }
-  let msg = ''
-  if (m.source === 'cloud') {
-    msg = 'Прогресс подтянут с другого устройства'
-  } else if (!m.cloudAvailable) {
-    msg = m.error || 'Облако Telegram недоступно — сейв только здесь'
-  } else if (!m.cloudHadSave) {
-    msg = 'В облаке пока пусто — поиграй на телефоне 3 сек и открой снова'
-  } else if (m.source === 'local') {
-    msg = 'На этом устройстве сейв новее облака — оставили местный'
-  } else if (m.error) {
-    msg = m.error
-  } else {
-    msg = 'Синк проверен'
+  let msg = m.detail || m.error || ''
+  if (!msg) {
+    if (m.source === 'cloud') {
+      msg = `Прогресс из облака (${m.cloudCash ?? '?'}₽)`
+    } else if (!m.cloudAvailable) {
+      msg = 'Облако Telegram недоступно — сейв только здесь'
+    } else if (!m.cloudHadSave) {
+      msg = `В облаке пусто (местн. ${m.localCash ?? '?'}₽)`
+    } else if (m.source === 'local') {
+      msg = `Местный сейв (${m.localCash ?? '?'}₽), облако ${m.cloudCash ?? '?'}₽`
+    } else {
+      msg = 'Синк проверен'
+    }
   }
-  showSyncBanner(msg)
+  showSyncBanner(msg, 8000)
   try {
     showToast(root, msg)
   } catch {
@@ -869,11 +870,24 @@ async function bootApp(): Promise<void> {
 
   if (isTelegramMiniApp()) {
     await presentTelegramAgeGate(root)
+    const bootParams = new URLSearchParams(location.search)
+    if (bootParams.get('cloud') === 'pull') {
+      clearLocalSaveBlob()
+      bootParams.delete('cloud')
+      const clean = bootParams.toString()
+      history.replaceState(
+        null,
+        '',
+        location.pathname + (clean ? `?${clean}` : '') + location.hash,
+      )
+    }
+    // Перечитать локальный стейт после возможного clear
+    state = loadState()
     const hadLocal = hasLocalSaveBlob()
     const merged = await mergeTelegramCloudIntoLocal(hadLocal, state, applySaveRaw)
     state = merged.state
     cloudMergeNote = merged
-    // Сразу золотой баннер сверху — до shell, чтобы было видно
+    cloudAnnounced = false
     announceCloudMerge()
   } else {
     showSyncBanner('Открыто не как Mini App — облачный синк выключен')

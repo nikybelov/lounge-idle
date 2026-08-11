@@ -31,6 +31,11 @@ export type CloudMergeResult = {
   cloudAvailable: boolean
   cloudHadSave: boolean
   error?: string
+  /** Для плашки: местная / облачная касса */
+  localCash?: number
+  cloudCash?: number
+  uploaded?: boolean
+  detail?: string
 }
 
 let cloudTimer: ReturnType<typeof setTimeout> | null = null
@@ -301,13 +306,14 @@ export async function clearTelegramCloudSave(): Promise<void> {
 
 /**
  * Свести локальный и облачный сейв.
- * Берём тот, у кого больше прогресс (не только lastActive — иначе пустой Mac побеждает).
+ * Касса решает: больший cash побеждает; lastActive только при равенстве.
  */
 export async function mergeTelegramCloudIntoLocal(
   localHasBlob: boolean,
   local: GameState,
   applyCloudRaw: (raw: string) => GameState,
 ): Promise<CloudMergeResult> {
+  const localCash = Math.max(0, Math.floor(local.cash ?? 0))
   const cs = cloud()
   if (!cs) {
     return {
@@ -315,11 +321,11 @@ export async function mergeTelegramCloudIntoLocal(
       source: localHasBlob ? 'local' : 'none',
       cloudAvailable: false,
       cloudHadSave: false,
+      localCash,
       error: 'CloudStorage недоступен на этом клиенте',
     }
   }
 
-  // Проверка, что set/get реально работают (иначе Mac молча «пустой»)
   const probeKey = 'li_probe'
   const probeVal = `p${Date.now()}`
   const probeOk = await setItem(cs, probeKey, probeVal)
@@ -329,6 +335,7 @@ export async function mergeTelegramCloudIntoLocal(
       source: localHasBlob ? 'local' : 'none',
       cloudAvailable: false,
       cloudHadSave: false,
+      localCash,
       error: 'Облако не пишет (клиент Telegram?)',
     }
   }
@@ -339,6 +346,7 @@ export async function mergeTelegramCloudIntoLocal(
       source: localHasBlob ? 'local' : 'none',
       cloudAvailable: false,
       cloudHadSave: false,
+      localCash,
       error: 'Облако не читает обратно',
     }
   }
@@ -353,19 +361,29 @@ export async function mergeTelegramCloudIntoLocal(
       source: localHasBlob ? 'local' : 'none',
       cloudAvailable: true,
       cloudHadSave: false,
+      localCash,
       error: 'Не удалось прочитать облако',
     }
   }
 
   if (!cloudRaw) {
+    let uploaded = false
     if (localHasBlob && local.onboarded) {
-      void writeTelegramCloudSave(local)
+      uploaded = await writeTelegramCloudSave(local)
     }
     return {
       state: local,
       source: localHasBlob ? 'local' : 'none',
       cloudAvailable: true,
       cloudHadSave: false,
+      localCash,
+      cloudCash: 0,
+      uploaded,
+      detail: uploaded
+        ? `облако было пусто → записали ${localCash}₽`
+        : localHasBlob
+          ? `облако пусто, запись не удалась (местн. ${localCash}₽)`
+          : 'облако пусто, локального сейва нет',
     }
   }
 
@@ -385,6 +403,7 @@ export async function mergeTelegramCloudIntoLocal(
         source: localHasBlob ? 'local' : 'none',
         cloudAvailable: true,
         cloudHadSave: true,
+        localCash,
         error: 'Облачный сейв другой версии',
       }
     }
@@ -394,9 +413,12 @@ export async function mergeTelegramCloudIntoLocal(
       source: localHasBlob ? 'local' : 'none',
       cloudAvailable: true,
       cloudHadSave: true,
+      localCash,
       error: 'Облачный сейв битый',
     }
   }
+
+  const cloudCash = Math.max(0, Math.floor(cloudPeek.cash ?? 0))
 
   if (!localHasBlob) {
     return {
@@ -404,18 +426,24 @@ export async function mergeTelegramCloudIntoLocal(
       source: 'cloud',
       cloudAvailable: true,
       cloudHadSave: true,
+      localCash: 0,
+      cloudCash,
+      detail: `взяли облако ${cloudCash}₽`,
     }
   }
 
   const localScore = saveProgressScore(local)
   const cloudScore = saveProgressScore(cloudPeek)
-
-  // lastActive — только тай-брейкер при одинаковом прогрессе
   const cloudTs = cloudPeek.lastActive ?? 0
   const localTs = local.lastActive ?? 0
+
+  // Жёстко: большая касса всегда побеждает
   const preferCloud =
-    cloudScore > localScore ||
-    (cloudScore === localScore && cloudTs > localTs) ||
+    cloudCash > localCash ||
+    (cloudCash === localCash && cloudScore > localScore) ||
+    (cloudCash === localCash &&
+      cloudScore === localScore &&
+      cloudTs > localTs) ||
     (!local.onboarded && !!cloudPeek.onboarded)
 
   if (preferCloud) {
@@ -424,11 +452,41 @@ export async function mergeTelegramCloudIntoLocal(
       source: 'cloud',
       cloudAvailable: true,
       cloudHadSave: true,
+      localCash,
+      cloudCash,
+      detail: `облако ${cloudCash}₽ > местн. ${localCash}₽`,
     }
   }
 
-  if (local.onboarded && localScore >= cloudScore) {
-    void writeTelegramCloudSave(local)
+  let uploaded = false
+  if (local.onboarded) {
+    uploaded = await writeTelegramCloudSave(local)
+    if (uploaded) {
+      const verifyRaw = await readTelegramCloudSaveRaw()
+      let verified = -1
+      if (verifyRaw) {
+        try {
+          verified = Math.floor(
+            (JSON.parse(verifyRaw) as { cash?: number }).cash ?? -1,
+          )
+        } catch {
+          verified = -1
+        }
+      }
+      uploaded = verified === localCash
+      return {
+        state: local,
+        source: 'local',
+        cloudAvailable: true,
+        cloudHadSave: true,
+        localCash,
+        cloudCash,
+        uploaded,
+        detail: uploaded
+          ? `местн. ${localCash}₽ записали в облако (было ${cloudCash}₽)`
+          : `местн. ${localCash}₽, облако НЕ подтвердило запись (там ${verified}₽)`,
+      }
+    }
   }
 
   return {
@@ -436,6 +494,10 @@ export async function mergeTelegramCloudIntoLocal(
     source: 'local',
     cloudAvailable: true,
     cloudHadSave: true,
+    localCash,
+    cloudCash,
+    uploaded: false,
+    detail: `оставили местн. ${localCash}₽ (облако ${cloudCash}₽), запись не удалась`,
   }
 }
 

@@ -14,10 +14,10 @@ const CASH_KEY = 'li_cash'
 const BLOB_PREFIX = 'li_b'
 const LEGACY_META = 'li_save_meta'
 const CHUNK_SIZE = 3500
-const CLOUD_DEBOUNCE_MS = 500
-/** Desktop часто не вызывает callback — нельзя ждать долго. */
-const CLOUD_OP_TIMEOUT_MS = 2000
-const MERGE_BUDGET_MS = 6000
+const CLOUD_DEBOUNCE_MS = 400
+/** iOS CloudStorage callbacks бывают медленными — не режем на 2с. */
+const CLOUD_OP_TIMEOUT_MS = 5000
+const MERGE_BUDGET_MS = 12000
 
 type CloudMeta = {
   v: 2
@@ -524,14 +524,31 @@ export async function flushTelegramCloudSave(state: GameState): Promise<boolean>
   }
   cloudPending = null
   if (cloudWriting) {
+    // Не теряем последний сейв — допишем после текущей записи
     scheduleTelegramCloudSave(state)
     return false
   }
   cloudWriting = true
   try {
-    const cloudCash = await peekTelegramCloudCash()
-    const localCash = Math.max(0, Math.floor(state.cash ?? 0))
-    if (cloudCash != null && cloudCash > localCash) return false
+    // Раньше блокировали запись если cloudCash > localCash — после покупок
+    // касса падает и сейв навсегда застревал. Сравниваем syncRev.
+    const metaRaw = await getItem(cloud()!, META_KEY)
+    if (metaRaw) {
+      try {
+        const meta = JSON.parse(metaRaw) as CloudMeta
+        const cloudRev =
+          typeof meta.syncRev === 'number' && Number.isFinite(meta.syncRev)
+            ? Math.floor(meta.syncRev)
+            : 0
+        const localRev =
+          typeof state.syncRev === 'number' && Number.isFinite(state.syncRev)
+            ? Math.floor(state.syncRev)
+            : 0
+        if (cloudRev > localRev) return false
+      } catch {
+        /* overwrite corrupt meta */
+      }
+    }
     return await writeTelegramCloudSave(state)
   } finally {
     cloudWriting = false

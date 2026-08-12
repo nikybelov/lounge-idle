@@ -98,6 +98,11 @@ function localBeatsRemote(local: GameState, remote: GameState): boolean {
   return remoteBeatsLocal(local, remote)
 }
 
+/** Какой сейв «сильнее» — для выбора между local / remote / cloud / device. */
+export function preferSave(a: GameState, b: GameState): GameState {
+  return remoteBeatsLocal(a, b) ? a : b
+}
+
 async function fetchJson(
   path: string,
   init: RequestInit,

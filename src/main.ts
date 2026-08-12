@@ -83,11 +83,17 @@ import {
   flushTelegramCloudSave,
   isTelegramCloudSaveAvailable,
   mergeTelegramCloudIntoLocal,
+  readTelegramCloudSaveRaw,
 } from './platform/telegramCloudSave'
+import {
+  flushTelegramDeviceSave,
+  isTelegramDeviceSaveAvailable,
+  readTelegramDeviceSaveRaw,
+} from './platform/telegramDeviceSave'
 import {
   isRemoteSyncConfigured,
   mergeRemoteSave,
-  progressScore,
+  preferSave,
   pushRemoteSave,
   scheduleRemoteSave,
   flushRemoteSave,
@@ -168,9 +174,13 @@ const scheduleSave = Object.assign(
     scheduleRemoteSave(s)
   },
   {
-    flush: (s: GameState, opts?: { keepalive?: boolean }) => {
-      const ok = scheduleSaveBase.flush(s)
-      if (isRemoteSyncConfigured()) void flushRemoteSave(s, opts)
+    flush: (s: GameState, opts?: { keepalive?: boolean; bumpSync?: boolean }) => {
+      const ok = scheduleSaveBase.flush(s, {
+        bumpSync: opts?.bumpSync,
+      })
+      if (isRemoteSyncConfigured()) {
+        void flushRemoteSave(s, { keepalive: opts?.keepalive })
+      }
       return ok
     },
   },
@@ -647,7 +657,9 @@ function afterAction(): void {
     if (!hadCelebration) flushPendingTabIntros()
     if (unlocked.length) onAchievementsUnlocked(unlocked)
     else flushAchievementQueue(root, state, menuTab)
-    scheduleSave(state)
+    // В Telegram localStorage ненадёжен — пишем сразу во все каналы
+    if (isTelegramMiniApp()) scheduleSave.flush(state, { bumpSync: true })
+    else scheduleSave(state)
   } catch (err) {
     console.error(err)
     showFatalError(err, 'действии')
@@ -895,27 +907,36 @@ async function bootApp(): Promise<void> {
     state = loadState()
     const hadLocal = hasLocalSaveBlob()
 
+    // 1) HTTP sync (сервер)
     const remote = await mergeRemoteSave(hadLocal, state, applySaveRaw)
-    if (remote) {
-      state = remote.state
-    }
+    if (remote) state = remote.state
 
-    // CloudStorage — запасной канал (особенно iPhone), если HTTP пуст или ещё нет онбординга
-    if (!remote || !state.onboarded) {
+    // 2) CloudStorage + DeviceStorage — на iOS localStorage часто пустой после закрытия
+    let best = state
+    try {
+      const cloudRaw = await readTelegramCloudSaveRaw()
+      if (cloudRaw) best = preferSave(best, applySaveRaw(cloudRaw))
+    } catch {
+      /* ignore */
+    }
+    try {
+      const deviceRaw = await readTelegramDeviceSaveRaw()
+      if (deviceRaw) best = preferSave(best, applySaveRaw(deviceRaw))
+    } catch {
+      /* ignore */
+    }
+    if (!best.onboarded) {
       const cloud = await mergeTelegramCloudIntoLocal(
         hasLocalSaveBlob(),
-        state,
+        best,
         applySaveRaw,
       )
-      if (!remote) {
-        state = cloud.state
-      } else if (
-        cloud.source === 'cloud' &&
-        cloud.state.onboarded &&
-        progressScore(cloud.state) > progressScore(state)
-      ) {
-        state = cloud.state
-      }
+      best = cloud.state
+    }
+    state = best
+    if (state.onboarded) {
+      saveState(state, { bumpSync: false })
+      if (isRemoteSyncConfigured()) void pushRemoteSave(state)
     }
   }
 
@@ -957,9 +978,10 @@ async function bootApp(): Promise<void> {
 
 function persistNow(): void {
   if (!state.onboarded) return
-  // Синхронно в localStorage; на сервер — keepalive, чтобы Telegram не убил запрос при закрытии
+  // Синхронно localStorage + Cloud/Device; HTTP с keepalive (Telegram убивает обычный fetch)
   scheduleSave.flush(state, { keepalive: true })
   if (isTelegramCloudSaveAvailable()) void flushTelegramCloudSave(state)
+  if (isTelegramDeviceSaveAvailable()) void flushTelegramDeviceSave(state)
 }
 
 window.addEventListener('beforeunload', persistNow)

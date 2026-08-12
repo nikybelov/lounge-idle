@@ -92,6 +92,8 @@ export interface TelegramWebApp {
   contentSafeAreaInset?: TelegramSafeAreaInset
   BackButton?: TelegramBackButton
   CloudStorage?: TelegramCloudStorage
+  /** Bot API 9.0+ — локальное хранилище устройства (не стирается как localStorage в WebView). */
+  DeviceStorage?: TelegramCloudStorage
   ready: () => void
   expand: () => void
   close?: () => void

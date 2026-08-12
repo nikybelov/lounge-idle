@@ -27,6 +27,10 @@ import {
   scheduleTelegramCloudSave,
   flushTelegramCloudSave,
 } from '../platform/telegramCloudSave'
+import {
+  scheduleTelegramDeviceSave,
+  flushTelegramDeviceSave,
+} from '../platform/telegramDeviceSave'
 
 const KEY_BASE = 'lounge-idle-save-v1'
 function saveKey(): string {
@@ -468,6 +472,7 @@ export function saveState(
     persistLifetimeTrophies(state)
     localStorage.setItem(saveKey(), JSON.stringify(state))
     scheduleTelegramCloudSave(state)
+    scheduleTelegramDeviceSave(state)
     return true
   } catch {
     // Safari private / квота / блокировка storage
@@ -512,7 +517,10 @@ export function createDebouncedSave(ms = 400): ((state: GameState) => void) & {
     // Сворот без новых действий — не бампаем syncRev (иначе телефон затирает Mac)
     const bumpSync = opts?.bumpSync ?? hadPending
     const ok = saveState(state, { bumpSync })
-    if (ok) void flushTelegramCloudSave(state)
+    if (ok) {
+      void flushTelegramCloudSave(state)
+      void flushTelegramDeviceSave(state)
+    }
     return ok
   }
   return schedule

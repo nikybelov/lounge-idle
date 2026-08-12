@@ -24,6 +24,9 @@ type CloudMeta = {
   n: number
   t: number
   cash: number
+  /** gz = gzip+base64; b64 = utf8→base64 без сжатия (старый iOS без CompressionStream) */
+  enc?: 'gz' | 'b64'
+  syncRev?: number
 }
 
 export type CloudMergeResult = {
@@ -126,6 +129,41 @@ async function gzipToBase64(text: string): Promise<string | null> {
   }
 }
 
+function utf8ToBase64(text: string): string {
+  const bytes = new TextEncoder().encode(text)
+  let bin = ''
+  const chunk = 0x8000
+  for (let i = 0; i < bytes.length; i += chunk) {
+    bin += String.fromCharCode(...bytes.subarray(i, i + chunk))
+  }
+  return btoa(bin)
+}
+
+function base64ToUtf8(b64: string): string | null {
+  try {
+    const bin = atob(b64)
+    const bytes = new Uint8Array(bin.length)
+    for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i)
+    return new TextDecoder().decode(bytes)
+  } catch {
+    return null
+  }
+}
+
+async function encodeSaveBlob(json: string): Promise<{ b64: string; enc: 'gz' | 'b64' }> {
+  const gz = await gzipToBase64(json)
+  if (gz) return { b64: gz, enc: 'gz' }
+  return { b64: utf8ToBase64(json), enc: 'b64' }
+}
+
+async function decodeSaveBlob(b64: string, enc?: 'gz' | 'b64'): Promise<string | null> {
+  if (enc === 'b64') return base64ToUtf8(b64)
+  const unzipped = await gunzipFromBase64(b64)
+  if (unzipped) return unzipped
+  // Старые записи без enc / клиент без DecompressionStream
+  return base64ToUtf8(b64)
+}
+
 async function gunzipFromBase64(b64: string): Promise<string | null> {
   try {
     if (typeof DecompressionStream === 'undefined') return null
@@ -207,7 +245,7 @@ async function readCloudJson(cs: TelegramCloudStorage): Promise<string | null> {
     b64 += part
   }
 
-  return gunzipFromBase64(b64)
+  return decodeSaveBlob(b64, meta.enc)
 }
 
 export async function readTelegramCloudSaveRaw(): Promise<string | null> {
@@ -222,11 +260,7 @@ export async function writeTelegramCloudSave(state: GameState): Promise<boolean>
   if (!cs) return false
   try {
     const json = JSON.stringify(state)
-    const b64 = await gzipToBase64(json)
-    if (!b64) {
-      lastCloudWriteOk = false
-      return false
-    }
+    const { b64, enc } = await encodeSaveBlob(json)
     const parts = splitBlob(b64)
     const cash = Math.max(0, Math.floor(state.cash ?? 0))
     const meta: CloudMeta = {
@@ -234,6 +268,11 @@ export async function writeTelegramCloudSave(state: GameState): Promise<boolean>
       n: parts.length,
       t: state.lastActive ?? Date.now(),
       cash,
+      enc,
+      syncRev:
+        typeof state.syncRev === 'number' && Number.isFinite(state.syncRev)
+          ? Math.floor(state.syncRev)
+          : 0,
     }
 
     for (let i = 0; i < parts.length; i++) {

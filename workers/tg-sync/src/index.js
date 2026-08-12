@@ -20,6 +20,13 @@ export default {
     const url = new URL(request.url)
 
     try {
+      // Публично безопасно: только ставит вебхук на наш же URL
+      if (url.pathname === '/_setup' && request.method === 'GET') {
+        await ensureWebhook(env, url.origin)
+        const hooked = await env.SAVES.get(WEBHOOK_META)
+        return json({ ok: true, webhook: hooked || null }, 200)
+      }
+
       if (url.pathname === '/telegram' && request.method === 'POST') {
         return handleTelegramWebhook(request, env)
       }
@@ -32,9 +39,7 @@ export default {
 
       if (url.pathname === '/pulse' && request.method === 'POST') {
         await recordPulse(env, userId)
-        if (isAdmin(env, userId)) {
-          await ensureWebhook(env, url.origin)
-        }
+        await ensureWebhook(env, url.origin)
         return json({ ok: true }, 200, cors)
       }
 
@@ -229,7 +234,12 @@ async function ensureWebhook(env, origin) {
       drop_pending_updates: true,
     }),
   })
-  if (res.ok) await env.SAVES.put(WEBHOOK_META, want)
+  const body = await res.text()
+  if (res.ok && body.includes('"ok":true')) {
+    await env.SAVES.put(WEBHOOK_META, want)
+  } else {
+    await env.SAVES.put('meta:webhook_error', body.slice(0, 500))
+  }
 }
 
 async function handleTelegramWebhook(request, env) {

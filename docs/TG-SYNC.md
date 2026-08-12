@@ -54,6 +54,21 @@ VITE_TG_SYNC_URL: ${{ secrets.VITE_TG_SYNC_URL }}
 2. Mac: открой бота  
 3. Плашка: `с сервера …₽`
 
+## Пульс `/stats` (только владелец)
+
+В чате с ботом напиши `/stats` — придёт число открытий Mini App и уникальных игроков.
+
+- Команду **не** добавляй в BotFather `/setcommands` — тогда тестеры её не увидят в меню.
+- Если напишет кто-то другой, бот **молчит**.
+- Секрет Cloudflare: `ADMIN_USER_ID` = твой числовой Telegram id (`@userinfobot`).
+- Вебхук ставится сам, когда ты один раз открываешь Mini App после деплоя.
+
+```bash
+cd workers/tg-sync
+npx wrangler secret put ADMIN_USER_ID
+# вставь свой id и Enter
+```
+
 ## Важно
 
 - Игру открывать **только из бота** (нужен `initData`)  

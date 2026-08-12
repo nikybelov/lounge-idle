@@ -150,6 +150,15 @@ export async function waitForTelegramInitData(ms = 2500): Promise<boolean> {
   return Boolean(initDataHeader())
 }
 
+/** Тихий счётчик открытий Mini App (для /stats у владельца бота). */
+export function pingTelegramPulse(): void {
+  if (!isRemoteSyncConfigured()) return
+  void waitForTelegramInitData(2500).then((ok) => {
+    if (!ok) return
+    void fetchJson('/pulse', { method: 'POST' })
+  })
+}
+
 export async function pullRemoteSave(): Promise<{
   save: GameState | null
   cash: number

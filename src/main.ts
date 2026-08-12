@@ -99,6 +99,7 @@ import {
   scheduleRemoteSave,
   flushRemoteSave,
   waitForTelegramInitData,
+  pingTelegramPulse,
 } from './platform/telegramRemoteSync'
 import { showSyncBanner } from './ui/syncBanner'
 import { applySettings, isCoachEnabled, loadSettings } from './save/settings'
@@ -986,6 +987,7 @@ async function bootApp(): Promise<void> {
       )
     }
     await resolveTelegramBootSave()
+    pingTelegramPulse()
   }
 
   if (shouldShowBrowserGate()) {

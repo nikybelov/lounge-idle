@@ -87,6 +87,7 @@ import {
 import {
   isRemoteSyncConfigured,
   mergeRemoteSave,
+  progressScore,
   pushRemoteSave,
   scheduleRemoteSave,
   flushRemoteSave,
@@ -167,9 +168,9 @@ const scheduleSave = Object.assign(
     scheduleRemoteSave(s)
   },
   {
-    flush: (s: GameState) => {
+    flush: (s: GameState, opts?: { keepalive?: boolean }) => {
       const ok = scheduleSaveBase.flush(s)
-      if (isRemoteSyncConfigured()) void flushRemoteSave(s)
+      if (isRemoteSyncConfigured()) void flushRemoteSave(s, opts)
       return ok
     },
   },
@@ -874,6 +875,11 @@ async function bootApp(): Promise<void> {
   prepareTelegramMiniApp()
 
   if (isTelegramMiniApp()) {
+    try {
+      await navigator.storage?.persist?.()
+    } catch {
+      /* ignore */
+    }
     await presentTelegramAgeGate(root)
     const bootParams = new URLSearchParams(location.search)
     if (bootParams.get('cloud') === 'pull') {
@@ -892,9 +898,24 @@ async function bootApp(): Promise<void> {
     const remote = await mergeRemoteSave(hadLocal, state, applySaveRaw)
     if (remote) {
       state = remote.state
-    } else {
-      const merged = await mergeTelegramCloudIntoLocal(hadLocal, state, applySaveRaw)
-      state = merged.state
+    }
+
+    // CloudStorage — запасной канал (особенно iPhone), если HTTP пуст или ещё нет онбординга
+    if (!remote || !state.onboarded) {
+      const cloud = await mergeTelegramCloudIntoLocal(
+        hasLocalSaveBlob(),
+        state,
+        applySaveRaw,
+      )
+      if (!remote) {
+        state = cloud.state
+      } else if (
+        cloud.source === 'cloud' &&
+        cloud.state.onboarded &&
+        progressScore(cloud.state) > progressScore(state)
+      ) {
+        state = cloud.state
+      }
     }
   }
 
@@ -936,8 +957,9 @@ async function bootApp(): Promise<void> {
 
 function persistNow(): void {
   if (!state.onboarded) return
-  scheduleSave.flush(state)
-  if (isRemoteSyncConfigured()) void flushRemoteSave(state)
+  // Синхронно в localStorage; на сервер — keepalive, чтобы Telegram не убил запрос при закрытии
+  scheduleSave.flush(state, { keepalive: true })
+  if (isTelegramCloudSaveAvailable()) void flushTelegramCloudSave(state)
 }
 
 window.addEventListener('beforeunload', persistNow)

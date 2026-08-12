@@ -101,17 +101,20 @@ function localBeatsRemote(local: GameState, remote: GameState): boolean {
 async function fetchJson(
   path: string,
   init: RequestInit,
+  opts?: { keepalive?: boolean },
 ): Promise<{ ok: boolean; status: number; body: Record<string, unknown> }> {
   const base = syncUrl()
   const initData = initDataHeader()
   if (!base || !initData) return { ok: false, status: 0, body: {} }
 
-  const ctrl = new AbortController()
-  const t = setTimeout(() => ctrl.abort(), TIMEOUT_MS)
+  const keepalive = Boolean(opts?.keepalive)
+  const ctrl = keepalive ? null : new AbortController()
+  const t = ctrl ? setTimeout(() => ctrl.abort(), TIMEOUT_MS) : null
   try {
     const res = await fetch(`${base}${path}`, {
       ...init,
-      signal: ctrl.signal,
+      keepalive,
+      ...(ctrl ? { signal: ctrl.signal } : {}),
       headers: {
         ...(init.headers || {}),
         'X-Telegram-Init-Data': initData,
@@ -127,8 +130,19 @@ async function fetchJson(
   } catch {
     return { ok: false, status: 0, body: {} }
   } finally {
-    clearTimeout(t)
+    if (t) clearTimeout(t)
   }
+}
+
+/** Ждём initData — после холодного старта Mini App иногда пустой первые сотни мс. */
+export async function waitForTelegramInitData(ms = 2500): Promise<boolean> {
+  if (initDataHeader()) return true
+  const start = Date.now()
+  while (Date.now() - start < ms) {
+    await new Promise((r) => setTimeout(r, 50))
+    if (initDataHeader()) return true
+  }
+  return Boolean(initDataHeader())
 }
 
 export async function pullRemoteSave(): Promise<{
@@ -156,7 +170,12 @@ export async function pullRemoteSave(): Promise<{
   return { save, cash, lastActive, syncRev, ok: true }
 }
 
-export async function pushRemoteSave(state: GameState): Promise<{
+const KEEPALIVE_MAX = 60_000
+
+export async function pushRemoteSave(
+  state: GameState,
+  opts?: { keepalive?: boolean },
+): Promise<{
   ok: boolean
   remoteCash?: number
   reason?: string
@@ -166,11 +185,18 @@ export async function pushRemoteSave(state: GameState): Promise<{
   if (typeof state.syncRev !== 'number' || !Number.isFinite(state.syncRev)) {
     state.syncRev = 0
   }
-  const res = await fetchJson('/', {
-    method: 'PUT',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ save: state }),
-  })
+  const body = JSON.stringify({ save: state })
+  // keepalive лимит ~64KB — если сейв больше, шлём обычным fetch
+  const keepalive = Boolean(opts?.keepalive) && body.length <= KEEPALIVE_MAX
+  const res = await fetchJson(
+    '/',
+    {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body,
+    },
+    { keepalive },
+  )
   if (res.status === 409) {
     return {
       ok: false,
@@ -200,16 +226,19 @@ export function scheduleRemoteSave(state: GameState): void {
     const pending = pushPending
     pushPending = null
     if (pending) void pushRemoteSave(pending)
-  }, 500)
+  }, 350)
 }
 
-export async function flushRemoteSave(state: GameState): Promise<boolean> {
+export async function flushRemoteSave(
+  state: GameState,
+  opts?: { keepalive?: boolean },
+): Promise<boolean> {
   if (pushTimer) {
     clearTimeout(pushTimer)
     pushTimer = null
   }
   pushPending = null
-  const res = await pushRemoteSave(state)
+  const res = await pushRemoteSave(state, opts)
   return res.ok
 }
 
@@ -219,6 +248,7 @@ export async function mergeRemoteSave(
   applyCloudRaw: (raw: string) => GameState,
 ): Promise<RemoteSyncResult | null> {
   if (!isRemoteSyncConfigured()) return null
+  await waitForTelegramInitData()
   if (!initDataHeader()) {
     return {
       state: local,

@@ -5463,47 +5463,17 @@ body.achieve-locked {
 .rate-block--day {
   background: rgba(120, 180, 220, 0.08);
   border-color: rgba(120, 180, 220, 0.22);
-  min-width: 6.4rem;
+  min-width: 5.25rem;
   padding: 6px 10px;
-}
-
-.workday-chip-sub {
-  max-width: none;
-}
-
-.weekday-dots {
-  display: flex;
-  justify-content: flex-end;
-  gap: 3px;
-  margin-top: 5px;
-}
-
-.weekday-dots i {
-  display: block;
-  width: 5px;
-  height: 5px;
-  border-radius: 50%;
-  background: rgb(255 255 255 / 18%);
-}
-
-.weekday-dots i.is-peak {
-  background: rgb(224 180 100 / 38%);
-}
-
-.weekday-dots i.is-now {
-  background: rgb(140 190 230 / 90%);
-  box-shadow: 0 0 6px rgb(120 180 220 / 45%);
-  transform: scale(1.25);
-}
-
-.rate-block--day.is-weekend .weekday-dots i.is-now {
-  background: var(--gold);
-  box-shadow: 0 0 6px rgb(224 180 100 / 45%);
 }
 
 .rate-block--day.is-weekend {
   background: rgba(224, 180, 100, 0.1);
   border-color: rgba(224, 180, 100, 0.28);
+}
+
+.rate-block--day.is-weekend .rate-label {
+  color: rgb(224 180 100 / 78%);
 }
 
 .workday-clock-digital {

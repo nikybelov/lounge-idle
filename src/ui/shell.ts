@@ -486,7 +486,6 @@ function paintWeekdayRibbon(root: HTMLElement, state: GameState): void {
 function updateWorkDayHud(root: HTMLElement, state: GameState): void {
   const wrap = root.querySelector('[data-workday-wrap]') as HTMLElement | null
   const dayEl = root.querySelector('[data-workday-num]') as HTMLElement | null
-  const wdEl = root.querySelector('[data-workday-wd]') as HTMLElement | null
   const timeEl = root.querySelector('[data-workday-time]') as HTMLElement | null
   if (!wrap || !timeEl) return
   if (!state.onboarded) {
@@ -501,7 +500,6 @@ function updateWorkDayHud(root: HTMLElement, state: GameState): void {
   const clock = workDayGameClock(state)
   const weekday = weekdayOf(state)
   if (dayEl) dayEl.textContent = String(clock.day)
-  if (wdEl) wdEl.textContent = weekday.short
   timeEl.textContent = inGame ? formatGameClock(clock.hours, clock.minutes) : 'пауза'
   const min = Math.round(SECONDS_PER_WORK_DAY / 60)
   const period = shiftPeriodLabel(shiftPeriodOf(state))
@@ -688,33 +686,35 @@ export function mountShell(root: HTMLElement, handlers: ShellHandlers): void {
   root.innerHTML = `
     <div class="app-shell">
       <header class="topbar">
-        <div class="cash-block">
-          <span class="cash-label" data-cash-label>Выручка</span>
-          <span class="cash-value" data-cash>0</span>
+        <div class="topbar-main">
+          <div class="cash-block">
+            <span class="cash-label" data-cash-label>Выручка</span>
+            <span class="cash-value" data-cash>0</span>
+          </div>
+          <div class="rate-block" data-rate-wrap hidden>
+            <span class="rate-label" data-rate-label>Пассив</span>
+            <span class="rate-value" data-rate>0/с</span>
+            <span class="rate-sub" data-rate-sub hidden></span>
+          </div>
+          <div class="rate-block rate-block--rep" data-reputation-wrap hidden>
+            <span class="rate-label">Пассив</span>
+            <span class="rate-value" data-reputation>0/с</span>
+          </div>
+          <div class="rate-block rate-block--day workday-clock" data-workday-wrap hidden>
+            <span class="rate-label">День <span data-workday-num>1</span></span>
+            <span class="rate-value workday-clock-digital" data-workday-time>08:00</span>
+          </div>
+          <button type="button" class="topbar-settings" data-settings-open aria-label="Настройки">
+            ${icon('settings', 'topbar-settings__icon')}
+          </button>
         </div>
-        <div class="rate-block" data-rate-wrap hidden>
-          <span class="rate-label" data-rate-label>Пассив</span>
-          <span class="rate-value" data-rate>0/с</span>
-          <span class="rate-sub" data-rate-sub hidden></span>
+        <div class="weekday-ribbon" data-weekday-ribbon hidden aria-label="Дни недели">
+          ${WEEKDAYS.map((d) => {
+            const peak = d.traffic > 1 ? ' is-peak' : ''
+            return `<span class="weekday-pill${peak}" data-wd="${d.id}">${d.short}</span>`
+          }).join('')}
         </div>
-        <div class="rate-block rate-block--rep" data-reputation-wrap hidden>
-          <span class="rate-label">Пассив</span>
-          <span class="rate-value" data-reputation>0/с</span>
-        </div>
-        <div class="rate-block rate-block--day workday-clock" data-workday-wrap hidden>
-          <span class="rate-label"><span data-workday-wd>Пн</span> · день <span data-workday-num>1</span></span>
-          <span class="rate-value workday-clock-digital" data-workday-time>08:00</span>
-        </div>
-        <button type="button" class="topbar-settings" data-settings-open aria-label="Настройки">
-          ${icon('settings', 'topbar-settings__icon')}
-        </button>
       </header>
-      <div class="weekday-ribbon" data-weekday-ribbon hidden aria-label="Дни недели">
-        ${WEEKDAYS.map((d) => {
-          const peak = d.traffic > 1 ? ' is-peak' : ''
-          return `<span class="weekday-pill${peak}" data-wd="${d.id}">${d.short}</span>`
-        }).join('')}
-      </div>
       <div class="goal-strip-row">
         <button type="button" class="goal-strip-ogonyok" data-ogonyok-tip hidden aria-label="Подсказка от Огонька">
           <span class="goal-strip-ogonyok__glyph" aria-hidden="true">🔥</span>

@@ -370,31 +370,24 @@ function updateRateHud(
   const net = loungeIncomePerSec(state)
   const payroll = staffPayrollPerSec(state)
   const gross = loungeGrossIncomePerSec(state)
+  const fotPct = payroll > 0 ? Math.round(staffPayrollShare(state) * 100) : 0
   if (rateLabel) {
     rateLabel.textContent = !inGame
       ? 'Пауза'
       : net < 0 && payroll > 0
         ? 'Убыток'
         : payroll > 0
-          ? 'Чистыми'
+          ? `Чистыми · ${fotPct}%`
           : 'Пассив'
   }
   rateEl.textContent = inGame ? `${formatMoney(net)}/с` : '—'
   rateEl.classList.toggle('negative', inGame && net < 0)
-  if (rateSub) {
-    if (payroll > 0) {
-      const fotPct = Math.round(staffPayrollShare(state) * 100)
-      rateSub.hidden = false
-      rateSub.textContent = `выручка ${formatMoney(gross)}/с · ФОТ ${payroll < 10 ? payroll.toFixed(1) : formatMoney(payroll)}/с · ${fotPct}%`
-    } else {
-      rateSub.hidden = true
-    }
-  }
+  if (rateSub) rateSub.hidden = true
   rateWrap.title =
     !inGame
       ? 'Пассив копится только пока игра открыта'
       : payroll > 0
-        ? `Выручка ${formatMoney(gross)}/с минус зарплата · полная смена ≈ 30–36% ФОТ`
+        ? `Выручка ${formatMoney(gross)}/с · ФОТ ${payroll < 10 ? payroll.toFixed(1) : formatMoney(payroll)}/с · ${fotPct}%`
         : 'Пассивный доход лаунжа — только пока ты в игре'
 }
 

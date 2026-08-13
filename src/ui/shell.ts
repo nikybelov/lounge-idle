@@ -448,23 +448,18 @@ function updateTopbarHints(root: HTMLElement, state: GameState): void {
   }
 }
 
-function weekdayRibbonHtml(state: GameState): string {
-  const cur = weekdayOf(state).id
-  return WEEKDAYS.map((d) => {
-    const now = d.id === cur ? ' is-now' : ''
-    const peak = d.traffic > 1 ? ' is-peak' : ''
-    return `<span class="weekday-pill${now}${peak}" data-wd="${d.id}">${d.short}</span>`
-  }).join('')
+function setWeekdayPopOpen(root: HTMLElement, open: boolean): void {
+  const pop = root.querySelector('[data-weekday-pop]') as HTMLElement | null
+  const chip = root.querySelector('[data-workday-wrap]') as HTMLElement | null
+  if (!pop || !chip) return
+  pop.hidden = !open
+  chip.classList.toggle('is-open', open)
+  chip.setAttribute('aria-expanded', open ? 'true' : 'false')
 }
 
 function paintWeekdayRibbon(root: HTMLElement, state: GameState): void {
   const ribbon = root.querySelector('[data-weekday-ribbon]') as HTMLElement | null
   if (!ribbon) return
-  if (!state.onboarded) {
-    ribbon.hidden = true
-    return
-  }
-  ribbon.hidden = false
   const weekday = weekdayOf(state)
   const prev = ribbon.dataset.wd
   ribbon.classList.toggle('is-weekend', isWeekend(state))
@@ -490,7 +485,7 @@ function updateWorkDayHud(root: HTMLElement, state: GameState): void {
   if (!wrap || !timeEl) return
   if (!state.onboarded) {
     wrap.hidden = true
-    paintWeekdayRibbon(root, state)
+    setWeekdayPopOpen(root, false)
     return
   }
   wrap.hidden = false
@@ -705,9 +700,19 @@ export function mountShell(root: HTMLElement, handlers: ShellHandlers): void {
           <span class="rate-label">Пассив</span>
           <span class="rate-value" data-reputation>0/с</span>
         </div>
-        <div class="rate-block rate-block--day workday-clock" data-workday-wrap hidden>
+        <button type="button" class="rate-block rate-block--day workday-clock" data-workday-wrap hidden aria-expanded="false" aria-controls="weekday-pop">
           <span class="rate-label" data-workday-name>Пн · 1</span>
           <span class="rate-value workday-clock-digital" data-workday-time>08:00</span>
+        </button>
+        <div class="weekday-pop" id="weekday-pop" data-weekday-pop hidden>
+          <p class="weekday-pop-kicker">Неделя смены</p>
+          <div class="weekday-ribbon" data-weekday-ribbon>
+            ${WEEKDAYS.map((d) => {
+              const peak = d.traffic > 1 ? ' is-peak' : ''
+              return `<span class="weekday-pill${peak}" data-wd="${d.id}">${d.short}</span>`
+            }).join('')}
+          </div>
+          <p class="weekday-pop-hint">Пт и сб гостей больше. Акции в эти дни жирнее.</p>
         </div>
       </header>
       <div class="goal-strip-row">
@@ -779,6 +784,21 @@ export function mountShell(root: HTMLElement, handlers: ShellHandlers): void {
 
   root.querySelector('[data-settings-open]')!.addEventListener('click', () => {
     handlers.onOpenSettings()
+  })
+
+  const dayChip = root.querySelector('[data-workday-wrap]') as HTMLElement | null
+  dayChip?.addEventListener('click', (e) => {
+    e.stopPropagation()
+    const pop = root.querySelector('[data-weekday-pop]') as HTMLElement | null
+    if (!pop || dayChip.hidden) return
+    setWeekdayPopOpen(root, pop.hidden)
+  })
+  document.addEventListener('click', (e) => {
+    const pop = root.querySelector('[data-weekday-pop]') as HTMLElement | null
+    if (!pop || pop.hidden) return
+    const t = e.target as Node
+    if (pop.contains(t) || dayChip?.contains(t)) return
+    setWeekdayPopOpen(root, false)
   })
 
   root.querySelector('[data-ogonyok-tip]')?.addEventListener('click', () => {
@@ -1658,9 +1678,8 @@ function renderCareerTrackPanel(state: GameState): string {
           <span class="career-day-label">${weekdayOf(state).name} · день ${day}</span>
           <span class="career-day-meta">${dayPct}% смены</span>
         </div>
-        <div class="weekday-ribbon weekday-ribbon--career" aria-hidden="true">${weekdayRibbonHtml(state)}</div>
         <div class="bar career-day-bar"><i style="width:${dayPct}%"></i></div>
-        <p class="row-sub shop-note">1 день = ${Math.round(SECONDS_PER_WORK_DAY / 60)} мин · Пт–Сб люднее · часы в шапке — настроение, не таймер акции · активно ${Math.floor(state.career.totalActiveSec / 60)} мин</p>
+        <p class="row-sub shop-note">1 день = ${Math.round(SECONDS_PER_WORK_DAY / 60)} мин в игре · неделя — по тапу на часы в шапке · активно ${Math.floor(state.career.totalActiveSec / 60)} мин</p>
       </div>
 
       <p class="section-label">Очки карьеры · ${score}</p>

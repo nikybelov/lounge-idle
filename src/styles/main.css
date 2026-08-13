@@ -327,6 +327,8 @@ body {
 }
 
 .topbar {
+  position: relative;
+  z-index: 5;
   display: flex;
   justify-content: space-between;
   align-items: center;
@@ -5563,11 +5565,25 @@ body.achieve-locked {
   border-color: rgba(224, 180, 100, 0.2);
 }
 
+button.rate-block--day {
+  font: inherit;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+
+button.rate-block--day:active {
+  transform: scale(0.98);
+}
+
 .rate-block--day {
   background: rgba(120, 180, 220, 0.08);
   border-color: rgba(120, 180, 220, 0.22);
   min-width: 5.25rem;
   padding: 6px 10px;
+}
+
+.rate-block--day.is-open {
+  border-color: rgb(120 180 220 / 45%);
 }
 
 .rate-block--day.is-weekend {
@@ -5648,8 +5664,45 @@ body.achieve-locked {
   animation: weekday-pill-pop 0.45s cubic-bezier(0.22, 1, 0.36, 1);
 }
 
-.weekday-ribbon--career {
-  margin: 2px 0 10px;
+.weekday-pop[hidden] {
+  display: none !important;
+}
+
+.weekday-pop {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: var(--pad-x);
+  z-index: 20;
+  width: min(17.5rem, calc(100% - 24px));
+  padding: 10px 10px 11px;
+  border-radius: 14px;
+  border: 1px solid rgb(255 255 255 / 10%);
+  background: rgb(12 9 7 / 92%);
+  backdrop-filter: blur(var(--ui-blur));
+  box-shadow:
+    0 14px 36px rgb(0 0 0 / 42%),
+    inset 0 1px 0 rgb(255 255 255 / 6%);
+}
+
+.weekday-pop-kicker,
+.weekday-pop-hint {
+  margin: 0;
+}
+
+.weekday-pop-kicker {
+  padding: 0 4px 8px;
+  font-size: 0.62rem;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.weekday-pop-hint {
+  padding: 8px 4px 0;
+  font-size: 0.72rem;
+  line-height: 1.35;
+  color: var(--muted);
 }
 
 @keyframes weekday-pill-pop {

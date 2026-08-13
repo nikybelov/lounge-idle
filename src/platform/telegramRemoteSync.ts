@@ -185,6 +185,17 @@ export async function pullRemoteSave(): Promise<{
 }
 
 const KEEPALIVE_MAX = 60_000
+/** KV free tier: 1000 writes/day. Local and Telegram CloudStorage stay fast. */
+const REMOTE_SAVE_MS = 45_000
+const REMOTE_DEDUP_MS = 2000
+
+let pushTimer: ReturnType<typeof setTimeout> | null = null
+let pushPending: GameState | null = null
+let lastSentRev = -1
+let lastSentAt = 0
+let sending = false
+let sendAgain: GameState | null = null
+let sendAgainKeepalive = false
 
 export async function pushRemoteSave(
   state: GameState,
@@ -199,48 +210,70 @@ export async function pushRemoteSave(
   if (typeof state.syncRev !== 'number' || !Number.isFinite(state.syncRev)) {
     state.syncRev = 0
   }
+  const r = revOf(state)
+  const now = Date.now()
+  if (r === lastSentRev && now - lastSentAt < REMOTE_DEDUP_MS) {
+    return { ok: true }
+  }
+  if (sending) {
+    sendAgain = state
+    sendAgainKeepalive = sendAgainKeepalive || Boolean(opts?.keepalive)
+    return { ok: true }
+  }
+
+  sending = true
   const body = JSON.stringify({ save: state })
   // keepalive лимит ~64KB — если сейв больше, шлём обычным fetch
   const keepalive = Boolean(opts?.keepalive) && body.length <= KEEPALIVE_MAX
-  const res = await fetchJson(
-    '/',
-    {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body,
-    },
-    { keepalive },
-  )
-  if (res.status === 409) {
+  try {
+    const res = await fetchJson(
+      '/',
+      {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body,
+      },
+      { keepalive },
+    )
+    if (res.status === 409) {
+      return {
+        ok: false,
+        reason:
+          typeof res.body.reason === 'string' ? res.body.reason : 'remote_ahead',
+        remoteCash:
+          typeof res.body.cash === 'number' ? Math.floor(res.body.cash) : undefined,
+      }
+    }
+    if (!res.ok) return { ok: false, reason: 'http' }
+    lastSentRev = r
+    lastSentAt = Date.now()
     return {
-      ok: false,
-      reason:
-        typeof res.body.reason === 'string' ? res.body.reason : 'remote_ahead',
+      ok: true,
       remoteCash:
         typeof res.body.cash === 'number' ? Math.floor(res.body.cash) : undefined,
     }
-  }
-  if (!res.ok) return { ok: false, reason: 'http' }
-  return {
-    ok: true,
-    remoteCash:
-      typeof res.body.cash === 'number' ? Math.floor(res.body.cash) : undefined,
+  } finally {
+    sending = false
+    if (sendAgain) {
+      const next = sendAgain
+      const ka = sendAgainKeepalive
+      sendAgain = null
+      sendAgainKeepalive = false
+      void pushRemoteSave(next, { keepalive: ka })
+    }
   }
 }
-
-let pushTimer: ReturnType<typeof setTimeout> | null = null
-let pushPending: GameState | null = null
 
 export function scheduleRemoteSave(state: GameState): void {
   if (!isRemoteSyncConfigured() || !state.onboarded) return
   pushPending = state
-  if (pushTimer) clearTimeout(pushTimer)
+  if (pushTimer) return
   pushTimer = setTimeout(() => {
     pushTimer = null
     const pending = pushPending
     pushPending = null
     if (pending) void pushRemoteSave(pending)
-  }, 350)
+  }, REMOTE_SAVE_MS)
 }
 
 export async function flushRemoteSave(

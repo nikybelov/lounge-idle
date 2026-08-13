@@ -139,6 +139,8 @@ function isAdmin(env, userId) {
   return Number.isFinite(adminId) && adminId > 0 && userId === adminId
 }
 
+const PULSE_WRITE_MS = 15 * 60 * 1000
+
 async function recordPulse(env, userId) {
   let stats = { opens: 0, unique: 0, lastOpenAt: 0 }
   try {
@@ -147,11 +149,15 @@ async function recordPulse(env, userId) {
   } catch {
     /* keep defaults */
   }
-  stats.opens = num(stats.opens) + 1
-  stats.lastOpenAt = Date.now()
   const seenKey = `pulse:u:${userId}`
   const seen = await env.SAVES.get(seenKey)
-  if (!seen) {
+  const isNew = !seen
+  if (!isNew && Date.now() - num(stats.lastOpenAt) < PULSE_WRITE_MS) {
+    return
+  }
+  stats.opens = num(stats.opens) + 1
+  stats.lastOpenAt = Date.now()
+  if (isNew) {
     await env.SAVES.put(seenKey, '1')
     stats.unique = num(stats.unique) + 1
   }

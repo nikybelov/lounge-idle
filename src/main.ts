@@ -1052,7 +1052,11 @@ async function persistTelegramChannels(
 ): Promise<void> {
   const tasks: Promise<unknown>[] = []
   if (isRemoteSyncConfigured()) {
-    tasks.push(flushRemoteSave(s, { keepalive: opts?.keepalive }))
+    if (opts?.cloud === 'schedule') {
+      scheduleRemoteSave(s)
+    } else {
+      tasks.push(flushRemoteSave(s, { keepalive: opts?.keepalive }))
+    }
   }
   if (isTelegramCloudSaveAvailable()) {
     if (opts?.cloud === 'schedule') {

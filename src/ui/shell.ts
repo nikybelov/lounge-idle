@@ -640,6 +640,8 @@ export function setCareerCompareCard(card: CareerShareCard | null): void {
 }
 
 let toastTimer: ReturnType<typeof setTimeout> | null = null
+let dayTurnTimer: ReturnType<typeof setTimeout> | null = null
+let dayTurnHideTimer: ReturnType<typeof setTimeout> | null = null
 let achieveQueue: AchievementDef[] = []
 const achieveFanfareSeen = new Set<string>()
 let achieveShowing = false
@@ -734,6 +736,10 @@ export function mountShell(root: HTMLElement, handlers: ShellHandlers): void {
           </button>
         </div>
         <p class="toast" data-toast hidden></p>
+        <div class="day-turn" data-day-turn hidden>
+          <span class="day-turn-title" data-day-turn-title></span>
+          <span class="day-turn-sub" data-day-turn-sub></span>
+        </div>
       </main>
 
       <section class="panel">
@@ -967,6 +973,32 @@ export function updateJobCooldowns(
     }
     if (meta) meta.textContent = `+${pay}`
   }
+}
+
+export function showDayTurn(
+  root: HTMLElement,
+  opts: { title: string; sub: string; weekend?: boolean },
+): void {
+  const el = root.querySelector('[data-day-turn]') as HTMLElement | null
+  const titleEl = root.querySelector('[data-day-turn-title]') as HTMLElement | null
+  const subEl = root.querySelector('[data-day-turn-sub]') as HTMLElement | null
+  if (!el || !titleEl || !subEl) return
+  if (dayTurnTimer) clearTimeout(dayTurnTimer)
+  if (dayTurnHideTimer) clearTimeout(dayTurnHideTimer)
+  titleEl.textContent = opts.title
+  subEl.textContent = opts.sub
+  el.hidden = false
+  el.classList.toggle('is-weekend', Boolean(opts.weekend))
+  el.classList.remove('is-in', 'is-out')
+  void el.offsetWidth
+  el.classList.add('is-in')
+  dayTurnTimer = setTimeout(() => {
+    el.classList.add('is-out')
+    dayTurnHideTimer = setTimeout(() => {
+      el.hidden = true
+      el.classList.remove('is-in', 'is-out')
+    }, 320)
+  }, 2400)
 }
 
 export function showToast(root: HTMLElement, message: string): void {

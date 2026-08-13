@@ -123,6 +123,7 @@ import {
   mountShell,
   renderShell,
   showToast,
+  showDayTurn,
   announceAchievements,
   updateHud,
   updateJobCooldowns,
@@ -798,13 +799,14 @@ function frame(ts: number): void {
       tickIncome(state, dt)
       if (tickWorkDays(state, dt)) {
         const day = weekdayOf(state)
+        const title = day.name[0]!.toUpperCase() + day.name.slice(1)
+        const n = displayWorkDay(state.career.workDays)
         if (day.id === 'fri') {
-          showToast(root, 'Пятница — сегодня людно')
+          showDayTurn(root, { title, sub: 'сегодня людно', weekend: true })
         } else if (day.id === 'sat') {
-          showToast(root, 'Суббота — зал гуще обычного')
+          showDayTurn(root, { title, sub: 'зал гуще обычного', weekend: true })
         } else {
-          const title = day.name[0]!.toUpperCase() + day.name.slice(1)
-          showToast(root, `${title} · день ${displayWorkDay(state.career.workDays)}`)
+          showDayTurn(root, { title, sub: `день ${n}` })
         }
       }
     }

@@ -92,9 +92,22 @@ export function loungeClickPower(state: GameState): number {
   )
 }
 
+function groupThousands(whole: number): string {
+  return String(Math.floor(whole)).replace(/\B(?=(\d{3})+(?!\d))/g, '\u00a0')
+}
+
+/** Деньги в UI: без округления вверх. До 100k — точные цифры, дальше короткий k/M. */
 export function formatMoney(n: number): string {
   if (!Number.isFinite(n)) return '0'
-  if (n < 1000) return n < 10 ? n.toFixed(n % 1 ? 1 : 0) : Math.floor(n).toString()
-  if (n < 1_000_000) return `${(n / 1000).toFixed(n < 10_000 ? 1 : 0)}k`
-  return `${(n / 1_000_000).toFixed(2)}M`
+  const sign = n < 0 ? '−' : ''
+  const abs = Math.abs(n)
+  if (abs < 10) return sign + (abs % 1 ? abs.toFixed(1) : String(Math.floor(abs)))
+  if (abs < 100_000) return sign + groupThousands(abs)
+  if (abs < 1_000_000) {
+    const tenths = Math.floor(abs / 100) / 10
+    const label = tenths % 1 ? tenths.toFixed(1) : String(tenths)
+    return `${sign}${label}k`
+  }
+  const hundredths = Math.floor(abs / 10_000) / 100
+  return `${sign}${hundredths.toFixed(2)}M`
 }

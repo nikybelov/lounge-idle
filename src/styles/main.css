@@ -343,25 +343,7 @@ body {
 }
 
 .cash-block {
-  position: relative;
   min-width: 0;
-  padding-left: 28px;
-}
-
-.cash-block::before {
-  content: '';
-  position: absolute;
-  left: 0;
-  top: 50%;
-  transform: translateY(-50%);
-  width: 22px;
-  height: 22px;
-  border-radius: 50%;
-  background:
-    radial-gradient(circle at 35% 30%, #fff5e8, var(--gold) 45%, var(--gold-dim) 100%);
-  box-shadow:
-    0 0 12px rgba(224, 180, 100, 0.35),
-    inset 0 -2px 4px rgba(0, 0, 0, 0.25);
 }
 
 .rate-block {

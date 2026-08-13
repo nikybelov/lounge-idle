@@ -229,6 +229,50 @@ export function mascotConfirmHtml(opts: {
   `
 }
 
+export function showMascotNotice(
+  root: HTMLElement,
+  opts: {
+    title: string
+    body: string
+    cta: string
+    pose?: MascotPose
+  },
+): Promise<void> {
+  return new Promise((resolve) => {
+    const pose = opts.pose ?? 'wave'
+    const overlay = document.createElement('div')
+    overlay.className = 'mascot-confirm-overlay'
+    overlay.setAttribute('role', 'dialog')
+    overlay.setAttribute('aria-modal', 'true')
+    overlay.setAttribute('aria-labelledby', 'mascot-notice-title')
+    overlay.innerHTML = `
+      <div class="mascot-bubble mascot-bubble--confirm">
+        <div class="mascot-figure mascot-figure--${pose}">${mascotSvg(pose)}</div>
+        <div class="mascot-speech">
+          <p class="mascot-speech-kicker">${MASCOT_NAME}</p>
+          <p class="mascot-speech-title" id="mascot-notice-title">${opts.title}</p>
+          <p class="mascot-speech-body">${opts.body}</p>
+          <div class="mascot-speech-actions">
+            <button type="button" class="boot-cta mascot-speech-btn" data-mascot-ok>${opts.cta}</button>
+          </div>
+        </div>
+      </div>
+    `
+    root.appendChild(overlay)
+    requestAnimationFrame(() => overlay.classList.add('visible'))
+
+    const finish = (): void => {
+      overlay.classList.remove('visible')
+      window.setTimeout(() => {
+        overlay.remove()
+        resolve()
+      }, 180)
+    }
+
+    overlay.querySelector('[data-mascot-ok]')!.addEventListener('click', finish)
+  })
+}
+
 export function showMascotConfirm(
   root: HTMLElement,
   opts: {

@@ -177,6 +177,11 @@ import {
 } from '../data/careerTrack'
 import {
   formatGameClock,
+  isWeekend,
+  shiftPeriodLabel,
+  shiftPeriodOf,
+  WEEKDAYS,
+  weekdayOf,
   workDayGameClock,
 } from '../game/workDays'
 import { loadHallOfFame, type CareerShareCard } from '../save/leaderboard'
@@ -443,23 +448,66 @@ function updateTopbarHints(root: HTMLElement, state: GameState): void {
   }
 }
 
+function weekdayRibbonHtml(state: GameState): string {
+  const cur = weekdayOf(state).id
+  return WEEKDAYS.map((d) => {
+    const now = d.id === cur ? ' is-now' : ''
+    const peak = d.traffic > 1 ? ' is-peak' : ''
+    return `<span class="weekday-pill${now}${peak}" data-wd="${d.id}">${d.short}</span>`
+  }).join('')
+}
+
+function paintWeekdayRibbon(root: HTMLElement, state: GameState): void {
+  const ribbon = root.querySelector('[data-weekday-ribbon]') as HTMLElement | null
+  if (!ribbon) return
+  if (!state.onboarded) {
+    ribbon.hidden = true
+    return
+  }
+  ribbon.hidden = false
+  const weekday = weekdayOf(state)
+  const prev = ribbon.dataset.wd
+  ribbon.classList.toggle('is-weekend', isWeekend(state))
+  if (prev === weekday.id) return
+  for (const pill of ribbon.querySelectorAll<HTMLElement>('[data-wd]')) {
+    pill.classList.toggle('is-now', pill.dataset.wd === weekday.id)
+    pill.classList.remove('is-flip')
+  }
+  if (prev) {
+    const nowPill = ribbon.querySelector<HTMLElement>(`[data-wd="${weekday.id}"]`)
+    nowPill?.classList.add('is-flip')
+    ribbon.classList.remove('is-flip')
+    void ribbon.offsetWidth
+    ribbon.classList.add('is-flip')
+  }
+  ribbon.dataset.wd = weekday.id
+}
+
 function updateWorkDayHud(root: HTMLElement, state: GameState): void {
   const wrap = root.querySelector('[data-workday-wrap]') as HTMLElement | null
   const dayEl = root.querySelector('[data-workday-num]') as HTMLElement | null
+  const wdEl = root.querySelector('[data-workday-wd]') as HTMLElement | null
   const timeEl = root.querySelector('[data-workday-time]') as HTMLElement | null
   if (!wrap || !timeEl) return
   if (!state.onboarded) {
     wrap.hidden = true
+    paintWeekdayRibbon(root, state)
     return
   }
   wrap.hidden = false
   const inGame = !document.hidden
   wrap.classList.toggle('is-paused', !inGame)
+  wrap.classList.toggle('is-weekend', isWeekend(state))
   const clock = workDayGameClock(state)
+  const weekday = weekdayOf(state)
   if (dayEl) dayEl.textContent = String(clock.day)
+  if (wdEl) wdEl.textContent = weekday.short
   timeEl.textContent = inGame ? formatGameClock(clock.hours, clock.minutes) : 'пауза'
   const min = Math.round(SECONDS_PER_WORK_DAY / 60)
-  wrap.title = `Смена ${formatGameClock(clock.hours, clock.minutes)} · день ${clock.day}. Полный день = ${min} мин в игре (08:00→20:00). Сравнение — вкладка «Карьера».`
+  const period = shiftPeriodLabel(shiftPeriodOf(state))
+  const crowd = isWeekend(state) ? 'Пт и Сб — больше гостей весь день.' : 'Пт и Сб люднее обычного.'
+  wrap.title = `${weekday.name} · ${period} · день ${clock.day}. ${crowd} Акции жми когда удобно. День = ${min} мин (08:00→20:00).`
+  paintWeekdayRibbon(root, state)
 }
 
 function canPresentAchievements(state: GameState, _menuTab: MenuTab): boolean {
@@ -654,13 +702,19 @@ export function mountShell(root: HTMLElement, handlers: ShellHandlers): void {
           <span class="rate-value" data-reputation>0/с</span>
         </div>
         <div class="rate-block rate-block--day workday-clock" data-workday-wrap hidden>
-          <span class="rate-label">Смена · день <span data-workday-num>1</span></span>
+          <span class="rate-label"><span data-workday-wd>Пн</span> · день <span data-workday-num>1</span></span>
           <span class="rate-value workday-clock-digital" data-workday-time>08:00</span>
         </div>
         <button type="button" class="topbar-settings" data-settings-open aria-label="Настройки">
           ${icon('settings', 'topbar-settings__icon')}
         </button>
       </header>
+      <div class="weekday-ribbon" data-weekday-ribbon hidden aria-label="Дни недели">
+        ${WEEKDAYS.map((d) => {
+          const peak = d.traffic > 1 ? ' is-peak' : ''
+          return `<span class="weekday-pill${peak}" data-wd="${d.id}">${d.short}</span>`
+        }).join('')}
+      </div>
       <div class="goal-strip-row">
         <button type="button" class="goal-strip-ogonyok" data-ogonyok-tip hidden aria-label="Подсказка от Огонька">
           <span class="goal-strip-ogonyok__glyph" aria-hidden="true">🔥</span>
@@ -1119,6 +1173,9 @@ export function renderShell(
     chips.push(
       `<span class="stage-chip stage-chip--traffic">Гости ${escapeHtml(trafficLabel(traffic))}</span>`,
     )
+    chips.push(
+      `<span class="stage-chip ${isWeekend(state) ? 'stage-chip--traffic' : 'stage-chip--soft'}">${escapeHtml(weekdayOf(state).name)}</span>`,
+    )
     chips.push(`<span class="stage-chip">×${traffic.toFixed(2)}</span>`)
     if (state.loungeIncomeMult !== 1 || state.loungeClickMult !== 1) {
       chips.push(
@@ -1568,11 +1625,12 @@ function renderCareerTrackPanel(state: GameState): string {
     <div class="list career-panel">
       <div class="career-day-strip">
         <div class="career-day-head">
-          <span class="career-day-label">День ${day}</span>
+          <span class="career-day-label">${weekdayOf(state).name} · день ${day}</span>
           <span class="career-day-meta">${dayPct}% смены</span>
         </div>
+        <div class="weekday-ribbon weekday-ribbon--career" aria-hidden="true">${weekdayRibbonHtml(state)}</div>
         <div class="bar career-day-bar"><i style="width:${dayPct}%"></i></div>
-        <p class="row-sub shop-note">1 день = ${Math.round(SECONDS_PER_WORK_DAY / 60)} мин в игре · время в шапке · активно ${Math.floor(state.career.totalActiveSec / 60)} мин</p>
+        <p class="row-sub shop-note">1 день = ${Math.round(SECONDS_PER_WORK_DAY / 60)} мин · Пт–Сб люднее · часы в шапке — настроение, не таймер акции · активно ${Math.floor(state.career.totalActiveSec / 60)} мин</p>
       </div>
 
       <p class="section-label">Очки карьеры · ${score}</p>

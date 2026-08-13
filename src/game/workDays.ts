@@ -54,3 +54,53 @@ export function formatGameClock(hours: number, minutes: number): string {
   const pad = (n: number) => String(n).padStart(2, '0')
   return `${pad(hours)}:${pad(minutes)}`
 }
+
+export type WeekdayId = 'mon' | 'tue' | 'wed' | 'thu' | 'fri' | 'sat' | 'sun'
+
+export type ShiftPeriod = 'morning' | 'day' | 'evening'
+
+export interface WeekdayDef {
+  id: WeekdayId
+  short: string
+  name: string
+  /** Множитель потока гостей на весь день */
+  traffic: number
+}
+
+/** День 1 смены = понедельник. Пт–Сб люднее, следить за часами не нужно. */
+export const WEEKDAYS: readonly WeekdayDef[] = [
+  { id: 'mon', short: 'Пн', name: 'понедельник', traffic: 1 },
+  { id: 'tue', short: 'Вт', name: 'вторник', traffic: 1 },
+  { id: 'wed', short: 'Ср', name: 'среда', traffic: 1 },
+  { id: 'thu', short: 'Чт', name: 'четверг', traffic: 1 },
+  { id: 'fri', short: 'Пт', name: 'пятница', traffic: 1.22 },
+  { id: 'sat', short: 'Сб', name: 'суббота', traffic: 1.28 },
+  { id: 'sun', short: 'Вс', name: 'воскресенье', traffic: 1 },
+]
+
+export function weekdayOf(state: GameState): WeekdayDef {
+  const i = ((state.career.workDays % 7) + 7) % 7
+  return WEEKDAYS[i] ?? WEEKDAYS[0]!
+}
+
+export function isWeekend(state: GameState): boolean {
+  const id = weekdayOf(state).id
+  return id === 'fri' || id === 'sat'
+}
+
+export function weekdayTrafficMult(state: GameState): number {
+  return weekdayOf(state).traffic
+}
+
+export function shiftPeriodOf(state: GameState): ShiftPeriod {
+  const hours = workDayGameClock(state).hours
+  if (hours < 12) return 'morning'
+  if (hours < 16) return 'day'
+  return 'evening'
+}
+
+export function shiftPeriodLabel(period: ShiftPeriod): string {
+  if (period === 'morning') return 'утро'
+  if (period === 'evening') return 'вечер'
+  return 'день'
+}

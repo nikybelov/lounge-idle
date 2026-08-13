@@ -5,7 +5,7 @@ import { rankDef, rankIndex } from './ranks'
 import type { GameState } from '../game/state'
 
 /** Активных секунд в игре = один рабочий день (вкладка открыта) */
-export const SECONDS_PER_WORK_DAY = 180
+export const SECONDS_PER_WORK_DAY = 240
 
 export type CareerMilestoneId =
   | 'open_lounge'

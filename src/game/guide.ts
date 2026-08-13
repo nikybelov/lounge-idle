@@ -60,9 +60,21 @@ export type MilestoneHintId =
 
 let lastPlayerInteractionAt = Date.now()
 const IDLE_NUDGE_MS = 120_000
+/** Без тапа/покупки — пауза смены и окно Огонька. */
+export const SHIFT_IDLE_MS = 10 * 60 * 1000
 
 export function touchOgonokInteraction(): void {
   lastPlayerInteractionAt = Date.now()
+}
+
+export function isShiftIdleDue(): boolean {
+  return Date.now() - lastPlayerInteractionAt >= SHIFT_IDLE_MS
+}
+
+/** Фон не считается простоем за стойкой — иначе окно всплывёт сразу после возврата. */
+export function creditHiddenIdleTime(ms: number): void {
+  if (ms <= 0) return
+  lastPlayerInteractionAt += ms
 }
 
 const STEP_ORDER: GuideStep[] = [

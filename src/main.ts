@@ -2,6 +2,8 @@ import './styles/main.css'
 import './styles/lounge-theme.css'
 import {
   syncSessionTime,
+  applyOffline,
+  grantWelcomeTips,
   beginLoungePick,
   buyUpgrade,
   buyShopItem,
@@ -47,7 +49,7 @@ import { canBrowseEmpire, syncEmpireUnlock } from './game/empire'
 import { breakAmbassadorContract, signAmbassador } from './game/ambassador'
 import { difficultyFromVenue } from './data/difficulty'
 import { evaluateAchievements } from './data/achievements'
-import { showMascotConfirm } from './ui/mascot'
+import { showMascotConfirm, showMascotNotice } from './ui/mascot'
 import { loadLifetimeTrophies, persistLifetimeTrophies } from './save/trophies'
 import { syncProgressFlags } from './game/progressFlags'
 import { clampJobRankToProgress, rankDef } from './data/ranks'
@@ -64,9 +66,11 @@ import {
   applyBootGuideToState,
   ackGuideCoach,
   contextualOgonokTip,
+  creditHiddenIdleTime,
+  isShiftIdleDue,
   touchOgonokInteraction,
 } from './game/guide'
-import { tickWorkDays } from './game/workDays'
+import { displayWorkDay, tickWorkDays, weekdayOf } from './game/workDays'
 import { archiveCareerRun, encodeCareerShare, decodeCareerShare } from './save/leaderboard'
 import { createInitialState, type GameState } from './game/state'
 import {
@@ -707,8 +711,76 @@ function maybeQuitToast(): void {
   // milestone quit_ready — через guideCoach
 }
 
+let shiftIdleOpen = false
+let hiddenSince = 0
+let pendingWelcomeTips = 0
+let queuedBootTips = 0
+
+function persistWelcomeTips(): void {
+  if (isTelegramMiniApp()) {
+    scheduleSaveBase.flush(state, { bumpSync: true })
+    void persistTelegramChannels(state, { cloud: 'schedule' })
+  } else {
+    scheduleSave(state)
+  }
+}
+
+function showWelcomeTipsNotice(amount: number): void {
+  void showMascotNotice(root, {
+    title: 'Пока тебя не было',
+    body: `Гости оставили ${formatMoney(amount)} на чай. Не зарплата — просто не ушли с пустыми руками.`,
+    cta: 'Забрать чаевые',
+    pose: 'happy',
+  }).then(() => {
+    touchOgonokInteraction()
+  })
+}
+
+function offerWelcomeTips(amount: number): void {
+  if (amount <= 0) return
+  persistWelcomeTips()
+  if (!gameStarted) {
+    queuedBootTips = amount
+    return
+  }
+  paint()
+  if (shiftIdleOpen) {
+    pendingWelcomeTips = amount
+    return
+  }
+  showWelcomeTipsNotice(amount)
+}
+
+function flushQueuedBootTips(): void {
+  if (queuedBootTips <= 0) return
+  const amount = queuedBootTips
+  queuedBootTips = 0
+  offerWelcomeTips(amount)
+}
+
+function showShiftIdleNotice(): void {
+  if (shiftIdleOpen) return
+  shiftIdleOpen = true
+  syncSessionTime(state, Date.now())
+  scheduleSaveBase.flush(state, { bumpSync: false })
+  void showMascotNotice(root, {
+    title: 'Эй, ты ещё на смене?',
+    body: 'Без тебя зал затих. Пока спишь на стойке — выручка не капает. Вернись, гости ждут.',
+    cta: 'Вернуться на смену',
+    pose: 'wave',
+  }).then(() => {
+    shiftIdleOpen = false
+    touchOgonokInteraction()
+    if (pendingWelcomeTips > 0) {
+      const queued = pendingWelcomeTips
+      pendingWelcomeTips = 0
+      showWelcomeTipsNotice(queued)
+    }
+  })
+}
+
 function passiveAccruesNow(): boolean {
-  return gameStarted && !document.hidden
+  return gameStarted && !document.hidden && !shiftIdleOpen
 }
 
 let lastHudTs = 0
@@ -724,7 +796,20 @@ function frame(ts: number): void {
     lastTs = ts
     if (passiveAccruesNow()) {
       tickIncome(state, dt)
-      tickWorkDays(state, dt)
+      if (tickWorkDays(state, dt)) {
+        const day = weekdayOf(state)
+        if (day.id === 'fri') {
+          showToast(root, 'Пятница — сегодня людно')
+        } else if (day.id === 'sat') {
+          showToast(root, 'Суббота — зал гуще обычного')
+        } else {
+          const title = day.name[0]!.toUpperCase() + day.name.slice(1)
+          showToast(root, `${title} · день ${displayWorkDay(state.career.workDays)}`)
+        }
+      }
+    }
+    if (gameStarted && !document.hidden && !shiftIdleOpen && isShiftIdleDue()) {
+      showShiftIdleNotice()
     }
     const hudDue = ts - lastHudTs >= 125
     if (hudDue) {
@@ -774,6 +859,7 @@ function frame(ts: number): void {
 function beginGame(): void {
   dismissGuideCoach(root)
   gameStarted = true
+  touchOgonokInteraction()
   state.jobRank = clampJobRankToProgress(state.jobRank, state.taskDone)
   syncAchievementFanfareSeen(state)
   mountShell(root, handlers)
@@ -846,6 +932,7 @@ function beginGame(): void {
   if (admin) {
     showToast(root, 'Режим ADMIN · панель справа внизу')
   }
+  flushQueuedBootTips()
 }
 
 async function confirmAndResetCareer(): Promise<void> {
@@ -948,9 +1035,11 @@ async function resolveTelegramBootSave(): Promise<void> {
 
   state = best
   if (state.onboarded) {
-    saveState(state, { bumpSync: false })
+    const tips = applyOffline(state, Date.now())
+    saveState(state, { bumpSync: tips > 0 })
     void persistTelegramChannels(state, { keepalive: false, cloud: 'schedule' })
     applyBootStateToUi()
+    offerWelcomeTips(tips)
   }
 }
 
@@ -1037,8 +1126,9 @@ async function bootApp(): Promise<void> {
   if (!state.onboarded || !state.venueId || !state.playerName) {
     await startFromBoot()
   } else {
-    syncSessionTime(state, Date.now())
+    const webTips = isTelegramMiniApp() ? 0 : applyOffline(state, Date.now())
     beginGame()
+    offerWelcomeTips(webTips)
   }
   requestAnimationFrame(frame)
 }
@@ -1054,10 +1144,22 @@ window.addEventListener('pagehide', persistNow)
 window.addEventListener('freeze', persistNow)
 document.addEventListener('visibilitychange', () => {
   if (document.visibilityState === 'hidden') {
+    hiddenSince = Date.now()
     persistNow()
     return
   }
+  const awayMs = hiddenSince > 0 ? Date.now() - hiddenSince : 0
+  if (hiddenSince > 0 && !shiftIdleOpen) {
+    creditHiddenIdleTime(awayMs)
+  }
+  hiddenSince = 0
   if (gameStarted) updateHud(root, state, hudCoachContext())
+
+  const afterReturn = (playedElsewhere: boolean): void => {
+    if (playedElsewhere || !gameStarted || !state.onboarded) return
+    offerWelcomeTips(grantWelcomeTips(state, awayMs))
+  }
+
   // После фона: подтянуть прогресс с другого устройства (Mac ↔ телефон)
   if (
     document.visibilityState === 'visible' &&
@@ -1066,13 +1168,19 @@ document.addEventListener('visibilitychange', () => {
     isRemoteSyncConfigured()
   ) {
     void mergeRemoteSave(true, state, applySaveRaw).then((remote) => {
-      if (!remote || remote.source !== 'remote') return
-      state = remote.state
-      scheduleSave.flush(state)
-      renderShell(root, state, handlers, menuTab, Date.now(), careerSubTab, storySubTab)
-      updateHud(root, state, hudCoachContext())
+      if (remote?.source === 'remote') {
+        state = remote.state
+        scheduleSave.flush(state)
+        renderShell(root, state, handlers, menuTab, Date.now(), careerSubTab, storySubTab)
+        updateHud(root, state, hudCoachContext())
+        afterReturn(true)
+        return
+      }
+      afterReturn(false)
     })
+    return
   }
+  afterReturn(false)
 })
 
 /** Блокирует double-tap zoom и pinch на iOS/Android в игровом режиме. */

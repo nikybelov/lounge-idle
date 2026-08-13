@@ -6,6 +6,7 @@ import { staffGuestBonus } from './staff'
 import { personalTrafficBonus } from './personal'
 import { promotionTrafficBonus } from './promotions'
 import { serviceStatus, type ServiceStatus } from './service'
+import { weekdayOf, weekdayTrafficMult } from './workDays'
 import type { GameState } from './state'
 
 /** Сколько позиций можно выставить на табачную полку */
@@ -151,11 +152,12 @@ export function guestTraffic(state: GameState, now = Date.now()): number {
   if (!shelfHasService(state)) return 0
   const seated = seatedGuests(state)
   const mult =
-    0.38 +
-    seated * 0.1 +
-    staffGuestBonus(state) +
-    personalTrafficBonus(state, now) +
-    promotionTrafficBonus(state, now)
+    (0.38 +
+      seated * 0.1 +
+      staffGuestBonus(state) +
+      personalTrafficBonus(state, now) +
+      promotionTrafficBonus(state, now)) *
+    weekdayTrafficMult(state)
   return Math.max(0.28, Math.min(3.2, mult))
 }
 
@@ -203,7 +205,9 @@ export function trafficBreakdown(state: GameState): string {
           : 'норм'
   const svc =
     service.mood === 'ok' ? '' : ` · ${service.label.toLowerCase()}`
-  const base = `посадка ${seated}/${capacity} · спрос ${demand} · полка ${active}/${cap} (${moodText})${svc}`
+  const day = weekdayOf(state)
+  const weekend = day.traffic > 1 ? ` · ${day.name}` : ''
+  const base = `посадка ${seated}/${capacity} · спрос ${demand} · полка ${active}/${cap} (${moodText})${svc}${weekend}`
   return full ? `${base} · лаунж полный` : base
 }
 

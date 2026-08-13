@@ -70,6 +70,7 @@ import {
   scaledUpgradeCost,
 } from './difficulty'
 import { syncProgressFlags } from './progressFlags'
+import { welcomeTipsAmount } from './welcomeTips'
 
 export { minOpenLoungeCost, loungeTierCost, quitIncomeThreshold } from './difficulty'
 
@@ -395,15 +396,24 @@ export function tickIncome(state: GameState, dtSec: number): void {
   if (income !== 0) state.cash += income
 }
 
-/** Офлайн-дохода нет — только отметка возвращения в сессию */
+/** Офлайн-пассива нет — только отметка возвращения в сессию */
 export function syncSessionTime(state: GameState, now: number): void {
   state.lastActive = now
 }
 
-/** @deprecated офлайн-пассив отключён — используй syncSessionTime */
-export function applyOffline(state: GameState, now: number): number {
+/** Чаевые за закрытое приложение, не за простой с открытым окном. */
+export function grantWelcomeTips(state: GameState, awayMs: number, now = Date.now()): number {
+  const rate =
+    state.phase === 'employed' ? jobReputationPerSec(state) : loungeIncomePerSec(state)
+  const amount = welcomeTipsAmount(awayMs, rate, state.phase === 'employed')
+  if (amount > 0) state.cash += amount
   syncSessionTime(state, now)
-  return 0
+  return amount
+}
+
+/** Чаевые по lastActive (холодный старт). Фон считает hiddenSince в main. */
+export function applyOffline(state: GameState, now: number): number {
+  return grantWelcomeTips(state, now - state.lastActive, now)
 }
 
 export function maybeBrokeHint(state: GameState): string | null {

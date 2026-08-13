@@ -14,7 +14,7 @@ const CASH_KEY = 'li_cash'
 const BLOB_PREFIX = 'li_b'
 const LEGACY_META = 'li_save_meta'
 const CHUNK_SIZE = 3500
-const CLOUD_DEBOUNCE_MS = 400
+const CLOUD_DEBOUNCE_MS = 3500
 /** iOS CloudStorage callbacks бывают медленными — не режем на 2с. */
 const CLOUD_OP_TIMEOUT_MS = 5000
 const MERGE_BUDGET_MS = 12000

@@ -84,6 +84,7 @@ import {
   isTelegramCloudSaveAvailable,
   mergeTelegramCloudIntoLocal,
   readTelegramCloudSaveRaw,
+  scheduleTelegramCloudSave,
 } from './platform/telegramCloudSave'
 import {
   flushTelegramDeviceSave,
@@ -146,13 +147,7 @@ import { isCelebrationVisible, primeAudio, spawnFloatComplaint } from './ui/juic
 import { initUiPolish } from './ui/atmosphere'
 import { syncAmbientMusic } from './ui/ambientMusic'
 import { loungeClickPower } from './game/economy'
-import {
-  adminForceLounge,
-  adminToJob,
-  adminUnlockAll,
-  isAdminEnabled,
-  mountAdminPanel,
-} from './admin'
+import { isAdminEnabled } from './adminFlag'
 import type { LoungeTierId } from './data/loungeTiers'
 import type { BranchId } from './data/branches'
 import type { StaffId } from './data/staff'
@@ -662,7 +657,7 @@ function afterAction(): void {
     // В Telegram localStorage ненадёжен — сразу пишем server/cloud/device
     if (isTelegramMiniApp()) {
       scheduleSaveBase.flush(state, { bumpSync: true })
-      void persistTelegramChannels(state)
+      void persistTelegramChannels(state, { cloud: 'schedule' })
     } else {
       scheduleSave(state)
     }
@@ -716,6 +711,9 @@ function passiveAccruesNow(): boolean {
   return gameStarted && !document.hidden
 }
 
+let lastHudTs = 0
+let lastAchieveTs = 0
+
 function frame(ts: number): void {
   try {
     if (!gameStarted) {
@@ -728,7 +726,17 @@ function frame(ts: number): void {
       tickIncome(state, dt)
       tickWorkDays(state, dt)
     }
-    updateHud(root, state, hudCoachContext())
+    const hudDue = ts - lastHudTs >= 125
+    if (hudDue) {
+      lastHudTs = ts
+      updateHud(root, state, hudCoachContext())
+      if (menuTab === 'story' && canDoJobTasks(state)) {
+        updateJobCooldowns(root, state, Date.now())
+      }
+      if (menuTab === 'personal' && state.phase !== 'employed') {
+        updatePersonalCooldowns(root, state, Date.now())
+      }
+    }
     if (state.phase !== 'employed' && !isCoachEnabled()) {
       const shelfHint = maybeShelfFeedback(state)
       if (shelfHint) showToast(root, shelfHint)
@@ -746,16 +754,13 @@ function frame(ts: number): void {
         spawnFloatComplaint(root, complaint, from)
       }
     }
-    if (menuTab === 'story' && canDoJobTasks(state)) {
-      updateJobCooldowns(root, state, Date.now())
-    }
-    if (menuTab === 'personal' && state.phase !== 'employed') {
-      updatePersonalCooldowns(root, state, Date.now())
-    }
-    const unlocked = evaluateAchievements(state)
-    if (unlocked.length) {
-      onAchievementsUnlocked(unlocked)
-      if (menuTab === 'career') paint()
+    if (ts - lastAchieveTs >= 400) {
+      lastAchieveTs = ts
+      const unlocked = evaluateAchievements(state)
+      if (unlocked.length) {
+        onAchievementsUnlocked(unlocked)
+        if (menuTab === 'career') paint()
+      }
     }
     scheduleSave(state)
   } catch (err) {
@@ -794,41 +799,45 @@ function beginGame(): void {
   }
   scheduleSave.flush(state)
   if (admin) {
-    mountAdminPanel(document.body, {
-      onCash(amount) {
-        state.cash += amount
-        showToast(root, `Admin +${formatMoney(amount)}`)
-        paint()
-        scheduleSave(state)
+    void import('./admin').then(
+      ({ mountAdminPanel, adminUnlockAll, adminForceLounge, adminToJob }) => {
+        mountAdminPanel(document.body, {
+          onCash(amount) {
+            state.cash += amount
+            showToast(root, `Admin +${formatMoney(amount)}`)
+            paint()
+            scheduleSave(state)
+          },
+          onUnlockAll() {
+            adminUnlockAll(state)
+            showToast(root, 'Admin: всё открыто')
+            paint()
+            scheduleSave(state)
+          },
+          onOpenLounge(tier: LoungeTierId) {
+            adminForceLounge(state, tier)
+            menuTab = 'story'
+            showToast(root, `Admin: лаунж «${tier}»`)
+            paint()
+            scheduleSave(state)
+          },
+          onToJob() {
+            adminToJob(state)
+            menuTab = 'story'
+            showToast(root, 'Admin: сцена смены')
+            paint()
+            scheduleSave(state)
+          },
+          onSetVenue(id: VenueId) {
+            state.venueId = id
+            state.difficulty = difficultyFromVenue(id)
+            showToast(root, 'Admin: сменено заведение')
+            paint()
+            scheduleSave(state)
+          },
+        })
       },
-      onUnlockAll() {
-        adminUnlockAll(state)
-        showToast(root, 'Admin: всё открыто')
-        paint()
-        scheduleSave(state)
-      },
-      onOpenLounge(tier: LoungeTierId) {
-        adminForceLounge(state, tier)
-        menuTab = 'story'
-        showToast(root, `Admin: лаунж «${tier}»`)
-        paint()
-        scheduleSave(state)
-      },
-      onToJob() {
-        adminToJob(state)
-        menuTab = 'story'
-        showToast(root, 'Admin: сцена смены')
-        paint()
-        scheduleSave(state)
-      },
-      onSetVenue(id: VenueId) {
-        state.venueId = id
-        state.difficulty = difficultyFromVenue(id)
-        showToast(root, 'Admin: сменено заведение')
-        paint()
-        scheduleSave(state)
-      },
-    })
+    )
   }
   syncLoungeOfferUnlock(state)
   syncEmpireUnlock(state)
@@ -889,39 +898,39 @@ async function startFromBoot(preservedTrophies?: GameState['achievements']): Pro
   beginGame()
 }
 
+function applyBootStateToUi(): void {
+  if (!gameStarted) return
+  renderShell(root, state, handlers, menuTab, Date.now(), careerSubTab, storySubTab)
+  updateHud(root, state, hudCoachContext())
+}
+
 async function resolveTelegramBootSave(): Promise<void> {
   state = loadState()
-  let hadLocal = hasLocalSaveBlob()
+  const hadLocal = hasLocalSaveBlob()
+  await waitForTelegramInitData(hadLocal && state.onboarded ? 1200 : 2500)
 
-  await waitForTelegramInitData(3000)
+  const [remote, cloudRaw, deviceRaw] = await Promise.all([
+    mergeRemoteSave(hadLocal, state, applySaveRaw),
+    readTelegramCloudSaveRaw().catch(() => null),
+    readTelegramDeviceSaveRaw().catch(() => null),
+  ])
 
-  // Несколько попыток HTTP — на iOS после cold start сеть/initData иногда опаздывают
-  for (let attempt = 0; attempt < 3; attempt++) {
-    const remote = await mergeRemoteSave(hadLocal, state, applySaveRaw)
-    if (remote) {
-      state = remote.state
-      if (remote.source === 'remote' && state.onboarded) break
-      if (remote.available && state.onboarded) break
+  let best = remote?.state ?? state
+  if (cloudRaw) {
+    try {
+      best = preferSave(best, applySaveRaw(cloudRaw))
+    } catch {
+      /* ignore */
     }
-    if (state.onboarded) break
-    await new Promise((r) => setTimeout(r, 400))
-    hadLocal = hasLocalSaveBlob()
+  }
+  if (deviceRaw) {
+    try {
+      best = preferSave(best, applySaveRaw(deviceRaw))
+    } catch {
+      /* ignore */
+    }
   }
 
-  // CloudStorage + DeviceStorage (localStorage на iPhone часто пустой)
-  let best = state
-  try {
-    const cloudRaw = await readTelegramCloudSaveRaw()
-    if (cloudRaw) best = preferSave(best, applySaveRaw(cloudRaw))
-  } catch {
-    /* ignore */
-  }
-  try {
-    const deviceRaw = await readTelegramDeviceSaveRaw()
-    if (deviceRaw) best = preferSave(best, applySaveRaw(deviceRaw))
-  } catch {
-    /* ignore */
-  }
   if (!best.onboarded) {
     const cloud = await mergeTelegramCloudIntoLocal(
       hasLocalSaveBlob(),
@@ -930,10 +939,7 @@ async function resolveTelegramBootSave(): Promise<void> {
     )
     best = cloud.state
   }
-
-  // Ещё один шанс с сервера, если локально/облако пусто
   if (!best.onboarded && isRemoteSyncConfigured()) {
-    await waitForTelegramInitData(1500)
     const pulled = await pullRemoteSave()
     if (pulled.ok && pulled.save?.onboarded) {
       best = applySaveRaw(JSON.stringify(pulled.save))
@@ -943,21 +949,26 @@ async function resolveTelegramBootSave(): Promise<void> {
   state = best
   if (state.onboarded) {
     saveState(state, { bumpSync: false })
-    void persistTelegramChannels(state, { keepalive: false })
+    void persistTelegramChannels(state, { keepalive: false, cloud: 'schedule' })
+    applyBootStateToUi()
   }
 }
 
 /** Пишем во все каналы, от которых зависит iPhone после закрытия. */
 async function persistTelegramChannels(
   s: GameState,
-  opts?: { keepalive?: boolean },
+  opts?: { keepalive?: boolean; cloud?: 'flush' | 'schedule' },
 ): Promise<void> {
   const tasks: Promise<unknown>[] = []
   if (isRemoteSyncConfigured()) {
     tasks.push(flushRemoteSave(s, { keepalive: opts?.keepalive }))
   }
   if (isTelegramCloudSaveAvailable()) {
-    tasks.push(flushTelegramCloudSave(s))
+    if (opts?.cloud === 'schedule') {
+      scheduleTelegramCloudSave(s)
+    } else {
+      tasks.push(flushTelegramCloudSave(s))
+    }
   }
   if (isTelegramDeviceSaveAvailable()) {
     tasks.push(flushTelegramDeviceSave(s))
@@ -986,7 +997,13 @@ async function bootApp(): Promise<void> {
         location.pathname + (clean ? `?${clean}` : '') + location.hash,
       )
     }
-    await resolveTelegramBootSave()
+    state = loadState()
+    const canPlayNow = Boolean(state.onboarded && state.venueId && state.playerName)
+    if (canPlayNow) {
+      void resolveTelegramBootSave()
+    } else {
+      await resolveTelegramBootSave()
+    }
     pingTelegramPulse()
   }
 

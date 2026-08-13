@@ -9,34 +9,7 @@ import { VENUES, type VenueId } from './data/venues'
 import { shelfCapacity } from './game/appeal'
 import type { GameState } from './game/state'
 
-const FLAG = 'lounge-idle-admin'
-
-export function isAdminEnabled(): boolean {
-  const params = new URLSearchParams(window.location.search)
-  const raw = window.location.search.toLowerCase()
-  const wantOn =
-    params.get('admin') === '1' ||
-    params.get('admin') === 'true' ||
-    params.get('admin') === '' ||
-    params.has('admin=1') ||
-    raw.includes('admin%3d1') ||
-    raw.includes('admin=1')
-
-  if (params.get('admin') === '0') {
-    sessionStorage.setItem(FLAG, '0')
-    return false
-  }
-  if (wantOn) {
-    sessionStorage.setItem(FLAG, '1')
-    return true
-  }
-
-  const stored = sessionStorage.getItem(FLAG)
-  if (stored === '0') return false
-  if (stored === '1') return true
-  // Только явно: ?admin=1 (выключить: ?admin=0)
-  return false
-}
+export { isAdminEnabled } from './adminFlag'
 
 /** Полный доступ для просмотра контента и тестов */
 export function adminUnlockAll(state: GameState): void {

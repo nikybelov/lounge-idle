@@ -14,15 +14,17 @@ let intersectionObserver: IntersectionObserver | null = null
 let lastSceneKey = ''
 
 import { prefersReducedMotion } from '../save/settings'
+import { isTelegramMiniApp } from '../platform/runtime'
 
 function reducedMotion(): boolean {
   return prefersReducedMotion()
 }
 
 function particleCount(stage: HTMLElement): number {
-  if (stage.dataset.scene === 'lounge') return 18
-  if (stage.dataset.scene === 'job') return 6
-  return 10
+  const tg = isTelegramMiniApp()
+  if (stage.dataset.scene === 'lounge') return tg ? 10 : 18
+  if (stage.dataset.scene === 'job') return tg ? 4 : 6
+  return tg ? 6 : 10
 }
 
 function seedParticles(stage: HTMLElement): void {
@@ -53,29 +55,40 @@ function resizeCanvas(stage: HTMLElement): void {
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0)
 }
 
+let ditherCanvas: HTMLCanvasElement | null = null
+let ditherKey = ''
+
 function drawDither(): void {
   if (!ctx) return
-  const cx = w * 0.68
-  const cy = h * 0.38
-  const g = ctx.createRadialGradient(cx, cy, 0, w * 0.5, h * 0.55, Math.max(w, h) * 0.75)
-  g.addColorStop(0, 'rgba(224,122,58,0.07)')
-  g.addColorStop(0.45, 'rgba(80,55,40,0.04)')
-  g.addColorStop(1, 'transparent')
-  ctx.fillStyle = g
-  ctx.fillRect(0, 0, w, h)
-
-  // sparse ordered dither dots
-  const step = 5
-  for (let y = 0; y < h; y += step) {
-    for (let x = (y / step) % 2; x < w; x += step) {
-      const dx = (x - cx) / w
-      const dy = (y - cy) / h
-      const falloff = Math.max(0, 1 - Math.hypot(dx, dy) * 1.35)
-      if (falloff < 0.08) continue
-      ctx.fillStyle = `rgba(180,170,160,${0.025 * falloff})`
-      ctx.fillRect(x, y, 1, 1)
+  const key = `${w}x${h}`
+  if (!ditherCanvas || ditherKey !== key) {
+    ditherCanvas = document.createElement('canvas')
+    ditherCanvas.width = w
+    ditherCanvas.height = h
+    const dctx = ditherCanvas.getContext('2d')
+    if (!dctx) return
+    const cx = w * 0.68
+    const cy = h * 0.38
+    const g = dctx.createRadialGradient(cx, cy, 0, w * 0.5, h * 0.55, Math.max(w, h) * 0.75)
+    g.addColorStop(0, 'rgba(224,122,58,0.07)')
+    g.addColorStop(0.45, 'rgba(80,55,40,0.04)')
+    g.addColorStop(1, 'transparent')
+    dctx.fillStyle = g
+    dctx.fillRect(0, 0, w, h)
+    const step = 5
+    for (let y = 0; y < h; y += step) {
+      for (let x = (y / step) % 2; x < w; x += step) {
+        const dx = (x - cx) / w
+        const dy = (y - cy) / h
+        const falloff = Math.max(0, 1 - Math.hypot(dx, dy) * 1.35)
+        if (falloff < 0.08) continue
+        dctx.fillStyle = `rgba(180,170,160,${0.025 * falloff})`
+        dctx.fillRect(x, y, 1, 1)
+      }
     }
+    ditherKey = key
   }
+  ctx.drawImage(ditherCanvas, 0, 0)
 }
 
 function setAnimationActive(active: boolean): void {

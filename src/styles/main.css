@@ -329,11 +329,11 @@ body {
 .topbar {
   position: relative;
   z-index: 5;
-  display: flex;
-  justify-content: space-between;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
   align-items: center;
   padding: calc(12px + var(--safe-t)) var(--pad-x) 12px;
-  gap: 12px;
+  gap: 10px;
   flex-shrink: 0;
   background:
     linear-gradient(180deg, rgba(14, 11, 8, 0.98) 0%, rgba(14, 11, 8, 0.88) 100%);
@@ -344,6 +344,7 @@ body {
 
 .cash-block {
   position: relative;
+  min-width: 0;
   padding-left: 28px;
 }
 
@@ -383,6 +384,8 @@ body {
 }
 
 .cash-value {
+  display: block;
+  overflow: hidden;
   font-family: var(--font-display);
   font-size: 1.65rem;
   font-weight: 700;
@@ -390,6 +393,8 @@ body {
   letter-spacing: -0.02em;
   color: var(--text);
   font-variant-numeric: tabular-nums;
+  font-feature-settings: 'tnum' 1;
+  white-space: nowrap;
   text-shadow: 0 2px 16px rgba(224, 122, 58, 0.2);
 }
 
@@ -427,6 +432,7 @@ body {
   font-size: 0.95rem;
   text-align: right;
   font-variant-numeric: tabular-nums;
+  font-feature-settings: 'tnum' 1;
 }
 
 .rate-value.negative,
@@ -5578,7 +5584,7 @@ button.rate-block--day:active {
 .rate-block--day {
   background: rgba(120, 180, 220, 0.08);
   border-color: rgba(120, 180, 220, 0.22);
-  min-width: 5.25rem;
+  min-width: 5.6rem;
   padding: 6px 10px;
 }
 

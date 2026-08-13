@@ -182,6 +182,7 @@ export interface GameState {
       first_hire: boolean
       rank_up: boolean
       idle_nudge: boolean
+      weekdays: boolean
     }
     tabHints: {
       shop: boolean
@@ -321,6 +322,7 @@ export function createInitialState(now = Date.now()): GameState {
         first_hire: false,
         rank_up: false,
         idle_nudge: false,
+        weekdays: false,
       },
       tabHints: {
         shop: false,

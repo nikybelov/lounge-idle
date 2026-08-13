@@ -328,23 +328,16 @@ body {
 
 .topbar {
   display: flex;
-  flex-direction: column;
-  gap: 8px;
-  padding: calc(12px + var(--safe-t)) var(--pad-x) 10px;
+  justify-content: space-between;
+  align-items: center;
+  padding: calc(12px + var(--safe-t)) var(--pad-x) 12px;
+  gap: 12px;
   flex-shrink: 0;
   background:
     linear-gradient(180deg, rgba(14, 11, 8, 0.98) 0%, rgba(14, 11, 8, 0.88) 100%);
   border-bottom: 1px solid var(--line);
   backdrop-filter: blur(var(--ui-blur));
   box-shadow: inset 0 -1px 0 rgba(224, 122, 58, 0.08);
-}
-
-.topbar-main {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  gap: 10px;
-  min-width: 0;
 }
 
 .cash-block {
@@ -1769,6 +1762,41 @@ body {
   gap: 4px;
   margin-bottom: 4px;
   flex-shrink: 0;
+}
+
+.menu-toolbar {
+  display: flex;
+  align-items: stretch;
+  gap: 6px;
+  min-width: 0;
+}
+
+.menu-toolbar .menu-nav--primary {
+  flex: 1;
+  min-width: 0;
+}
+
+.menu-settings {
+  flex-shrink: 0;
+  display: grid;
+  place-items: center;
+  width: 38px;
+  padding: 0;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: rgba(0, 0, 0, 0.4);
+  color: var(--muted);
+  cursor: pointer;
+}
+
+.menu-settings:active {
+  transform: scale(0.96);
+}
+
+.menu-settings .topbar-settings__icon,
+.menu-settings svg {
+  width: 18px;
+  height: 18px;
 }
 
 .menu-nav--secondary[hidden] {
@@ -5435,8 +5463,42 @@ body.achieve-locked {
 .rate-block--day {
   background: rgba(120, 180, 220, 0.08);
   border-color: rgba(120, 180, 220, 0.22);
-  min-width: 5.5rem;
+  min-width: 6.4rem;
   padding: 6px 10px;
+}
+
+.workday-chip-sub {
+  max-width: none;
+}
+
+.weekday-dots {
+  display: flex;
+  justify-content: flex-end;
+  gap: 3px;
+  margin-top: 5px;
+}
+
+.weekday-dots i {
+  display: block;
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: rgb(255 255 255 / 18%);
+}
+
+.weekday-dots i.is-peak {
+  background: rgb(224 180 100 / 38%);
+}
+
+.weekday-dots i.is-now {
+  background: rgb(140 190 230 / 90%);
+  box-shadow: 0 0 6px rgb(120 180 220 / 45%);
+  transform: scale(1.25);
+}
+
+.rate-block--day.is-weekend .weekday-dots i.is-now {
+  background: var(--gold);
+  box-shadow: 0 0 6px rgb(224 180 100 / 45%);
 }
 
 .rate-block--day.is-weekend {

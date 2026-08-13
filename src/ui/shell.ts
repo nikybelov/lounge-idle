@@ -485,8 +485,10 @@ function paintWeekdayRibbon(root: HTMLElement, state: GameState): void {
 
 function updateWorkDayHud(root: HTMLElement, state: GameState): void {
   const wrap = root.querySelector('[data-workday-wrap]') as HTMLElement | null
-  const dayEl = root.querySelector('[data-workday-num]') as HTMLElement | null
+  const nameEl = root.querySelector('[data-workday-name]') as HTMLElement | null
+  const subEl = root.querySelector('[data-workday-sub]') as HTMLElement | null
   const timeEl = root.querySelector('[data-workday-time]') as HTMLElement | null
+  const dots = root.querySelector('[data-weekday-dots]') as HTMLElement | null
   if (!wrap || !timeEl) return
   if (!state.onboarded) {
     wrap.hidden = true
@@ -499,8 +501,17 @@ function updateWorkDayHud(root: HTMLElement, state: GameState): void {
   wrap.classList.toggle('is-weekend', isWeekend(state))
   const clock = workDayGameClock(state)
   const weekday = weekdayOf(state)
-  if (dayEl) dayEl.textContent = String(clock.day)
+  const title = weekday.name[0]!.toUpperCase() + weekday.name.slice(1)
+  if (nameEl) nameEl.textContent = title
+  if (subEl) {
+    subEl.textContent = `день ${clock.day} · ${isWeekend(state) ? 'людно' : 'обычно'}`
+  }
   timeEl.textContent = inGame ? formatGameClock(clock.hours, clock.minutes) : 'пауза'
+  if (dots) {
+    for (const dot of dots.querySelectorAll<HTMLElement>('[data-wd]')) {
+      dot.classList.toggle('is-now', dot.dataset.wd === weekday.id)
+    }
+  }
   const min = Math.round(SECONDS_PER_WORK_DAY / 60)
   const period = shiftPeriodLabel(shiftPeriodOf(state))
   const crowd = isWeekend(state) ? 'Пт и Сб — больше гостей весь день.' : 'Пт и Сб люднее обычного.'
@@ -686,33 +697,29 @@ export function mountShell(root: HTMLElement, handlers: ShellHandlers): void {
   root.innerHTML = `
     <div class="app-shell">
       <header class="topbar">
-        <div class="topbar-main">
-          <div class="cash-block">
-            <span class="cash-label" data-cash-label>Выручка</span>
-            <span class="cash-value" data-cash>0</span>
-          </div>
-          <div class="rate-block" data-rate-wrap hidden>
-            <span class="rate-label" data-rate-label>Пассив</span>
-            <span class="rate-value" data-rate>0/с</span>
-            <span class="rate-sub" data-rate-sub hidden></span>
-          </div>
-          <div class="rate-block rate-block--rep" data-reputation-wrap hidden>
-            <span class="rate-label">Пассив</span>
-            <span class="rate-value" data-reputation>0/с</span>
-          </div>
-          <div class="rate-block rate-block--day workday-clock" data-workday-wrap hidden>
-            <span class="rate-label">День <span data-workday-num>1</span></span>
-            <span class="rate-value workday-clock-digital" data-workday-time>08:00</span>
-          </div>
-          <button type="button" class="topbar-settings" data-settings-open aria-label="Настройки">
-            ${icon('settings', 'topbar-settings__icon')}
-          </button>
+        <div class="cash-block">
+          <span class="cash-label" data-cash-label>Выручка</span>
+          <span class="cash-value" data-cash>0</span>
         </div>
-        <div class="weekday-ribbon" data-weekday-ribbon hidden aria-label="Дни недели">
-          ${WEEKDAYS.map((d) => {
-            const peak = d.traffic > 1 ? ' is-peak' : ''
-            return `<span class="weekday-pill${peak}" data-wd="${d.id}">${d.short}</span>`
-          }).join('')}
+        <div class="rate-block" data-rate-wrap hidden>
+          <span class="rate-label" data-rate-label>Пассив</span>
+          <span class="rate-value" data-rate>0/с</span>
+          <span class="rate-sub" data-rate-sub hidden></span>
+        </div>
+        <div class="rate-block rate-block--rep" data-reputation-wrap hidden>
+          <span class="rate-label">Пассив</span>
+          <span class="rate-value" data-reputation>0/с</span>
+        </div>
+        <div class="rate-block rate-block--day workday-clock" data-workday-wrap hidden>
+          <span class="rate-label" data-workday-name>Понедельник</span>
+          <span class="rate-value workday-clock-digital" data-workday-time>08:00</span>
+          <span class="rate-sub workday-chip-sub" data-workday-sub>день 1 · обычно</span>
+          <span class="weekday-dots" data-weekday-dots aria-hidden="true">
+            ${WEEKDAYS.map((d) => {
+              const peak = d.traffic > 1 ? ' is-peak' : ''
+              return `<i data-wd="${d.id}" class="${peak}"></i>`
+            }).join('')}
+          </span>
         </div>
       </header>
       <div class="goal-strip-row">
@@ -745,7 +752,12 @@ export function mountShell(root: HTMLElement, handlers: ShellHandlers): void {
 
       <section class="panel">
         <div class="menu-shell" data-menu-shell aria-label="Меню">
-          <nav class="menu-nav menu-nav--primary" data-menu-primary></nav>
+          <div class="menu-toolbar">
+            <nav class="menu-nav menu-nav--primary" data-menu-primary></nav>
+            <button type="button" class="menu-settings" data-settings-open aria-label="Настройки">
+              ${icon('settings', 'topbar-settings__icon')}
+            </button>
+          </div>
           <nav class="menu-nav menu-nav--secondary" data-menu-secondary hidden></nav>
         </div>
         <nav class="scene-nav subnav subnav-stack" data-nav aria-label="Подраздел"></nav>

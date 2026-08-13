@@ -400,6 +400,7 @@ export function loadState(): GameState {
           first_hire: parsed.flags?.milestoneHints?.first_hire ?? false,
           rank_up: parsed.flags?.milestoneHints?.rank_up ?? false,
           idle_nudge: parsed.flags?.milestoneHints?.idle_nudge ?? false,
+          weekdays: parsed.flags?.milestoneHints?.weekdays ?? false,
         },
         tabHints: {
           shop: parsed.flags?.tabHints?.shop ?? hasProgress,

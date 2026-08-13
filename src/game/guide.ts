@@ -19,6 +19,7 @@ import {
   promotionGrade,
 } from './promotions'
 import { hireStaffCheck, staffHeadcount } from './staff'
+import { isWeekend } from './workDays'
 import { isCoachEnabled } from '../save/settings'
 import { isCelebrationVisible } from '../ui/juice'
 import type { GameState, GuideStep, Scene } from './state'
@@ -57,6 +58,7 @@ export type MilestoneHintId =
   | 'first_hire'
   | 'rank_up'
   | 'idle_nudge'
+  | 'weekdays'
 
 let lastPlayerInteractionAt = Date.now()
 const IDLE_NUDGE_MS = 120_000
@@ -462,6 +464,21 @@ export function milestoneCoach(
       body: `«${promo.name}» доступна — прокачай грейд и запускай всплеск гостей. Блок «Акции» в обзоре лаунжа.`,
       target: '[data-promotions]',
       cta: 'К акциям',
+    })
+  }
+
+  if (!m.weekdays && state.career.workDays >= 4) {
+    const ownLounge = state.phase !== 'employed'
+    return milestoneCoachDef('weekdays', {
+      stepNum: 0,
+      icon: '📅',
+      kicker: 'Огонёк · неделя',
+      title: isWeekend(state) ? 'Выходные — люднее' : 'Дни тоже работают',
+      body: ownLounge
+        ? 'Пн–чт зал обычный, пт и сб приходит больше гостей. Акции в выходные жирнее: народ и так есть.'
+        : 'В шапке крутится неделя. Пт и сб в зале будет людно — когда откроешь лаунж, акции лучше жать в эти дни.',
+      target: '[data-workday-wrap]',
+      cta: 'Понял',
     })
   }
 

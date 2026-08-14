@@ -7,6 +7,7 @@ export interface GameSettings {
   music: boolean
   reducedMotion: ReducedMotionPref
   coachHints: boolean
+  goalStrip: boolean
 }
 
 const KEY_BASE = 'lounge-idle-settings-v1'
@@ -19,6 +20,7 @@ const DEFAULTS: GameSettings = {
   music: true,
   reducedMotion: 'system',
   coachHints: true,
+  goalStrip: true,
 }
 
 let cached: GameSettings = { ...DEFAULTS }
@@ -40,6 +42,7 @@ export function loadSettings(): GameSettings {
       music: parsed.music ?? DEFAULTS.music,
       reducedMotion: parsed.reducedMotion ?? DEFAULTS.reducedMotion,
       coachHints: parsed.coachHints ?? DEFAULTS.coachHints,
+      goalStrip: parsed.goalStrip ?? DEFAULTS.goalStrip,
     }
   } catch {
     cached = { ...DEFAULTS }
@@ -68,6 +71,10 @@ export function isMusicEnabled(): boolean {
 
 export function isCoachEnabled(): boolean {
   return cached.coachHints
+}
+
+export function isGoalStripExpanded(): boolean {
+  return cached.goalStrip
 }
 
 export function prefersReducedMotion(): boolean {

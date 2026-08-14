@@ -185,6 +185,7 @@ import {
   workDayGameClock,
 } from '../game/workDays'
 import { loadHallOfFame, type CareerShareCard } from '../save/leaderboard'
+import { isGoalStripExpanded, patchSettings } from '../save/settings'
 import { UPGRADES } from '../data/upgrades'
 import type { TaskId } from '../data/tasks'
 import type { UpgradeId } from '../data/upgrades'
@@ -404,18 +405,34 @@ function updateGoalStrip(root: HTMLElement, state: GameState, ctx: CoachContext)
   const el = root.querySelector('[data-goal]') as HTMLElement | null
   const chip = root.querySelector('[data-ogonyok-tip]') as HTMLButtonElement | null
   const text = goalLine(state)
+  const coachOnGoal =
+    Boolean(el?.classList.contains('guide-highlight')) ||
+    Boolean(el?.classList.contains('guide-pulse'))
+  const collapsed = Boolean(text) && !isGoalStripExpanded() && !coachOnGoal
+  const showGoal = Boolean(text)
 
   if (el) {
-    el.textContent = text
-    el.hidden = !text
-    if (text) el.title = text
+    el.hidden = !showGoal
+    el.classList.toggle('is-collapsed', collapsed)
+    if (showGoal) {
+      el.textContent = collapsed ? 'Цель' : text
+      el.title = collapsed ? 'Развернуть цель' : `${text} · свернуть`
+      el.setAttribute(
+        'aria-label',
+        collapsed ? 'Развернуть цель' : `Цель: ${text}. Свернуть`,
+      )
+      el.setAttribute('aria-expanded', collapsed ? 'false' : 'true')
+    }
   }
 
-  if (row) row.hidden = !text && !ogonyokChipVisible(state)
+  const showChip = ogonyokChipVisible(state)
+  if (row) {
+    row.hidden = !showGoal && !showChip
+    row.classList.toggle('is-collapsed', collapsed)
+  }
 
   if (chip) {
-    const show = ogonyokChipVisible(state)
-    chip.hidden = !show
+    chip.hidden = !showChip
     chip.classList.toggle('goal-strip-ogonyok--pulse', ogonyokChipPulse(state, ctx))
     chip.title = 'Подсказка от Огонька'
   }
@@ -712,7 +729,7 @@ export function mountShell(root: HTMLElement, handlers: ShellHandlers): void {
         <button type="button" class="goal-strip-ogonyok" data-ogonyok-tip hidden aria-label="Подсказка от Огонька">
           <span class="goal-strip-ogonyok__glyph" aria-hidden="true">🔥</span>
         </button>
-        <p class="goal-strip" data-goal hidden></p>
+        <button type="button" class="goal-strip" data-goal hidden></button>
       </div>
 
       <main class="stage">
@@ -796,6 +813,13 @@ export function mountShell(root: HTMLElement, handlers: ShellHandlers): void {
 
   root.querySelector('[data-ogonyok-tip]')?.addEventListener('click', () => {
     handlers.onOgonokTip()
+  })
+
+  root.querySelector('[data-goal]')?.addEventListener('click', () => {
+    const el = root.querySelector('[data-goal]') as HTMLElement | null
+    if (!el || el.hidden) return
+    if (el.classList.contains('guide-highlight') || isGuideCoachVisible()) return
+    patchSettings({ goalStrip: !isGoalStripExpanded() })
   })
 
   const panelBody = root.querySelector('[data-panel]') as HTMLElement | null

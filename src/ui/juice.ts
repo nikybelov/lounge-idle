@@ -316,13 +316,24 @@ function spawnDiplomaCheers(wrap: HTMLElement): void {
   })
 }
 
+/** В D сцена static — absolute FX нужно класть в .hero-band, иначе цифры уезжают вверх. */
+function juiceFxLayer(stage: HTMLElement): HTMLElement {
+  const shell = stage.closest('.app-shell') as HTMLElement | null
+  if (shell?.dataset.ui === 'd') {
+    const band = stage.closest('.hero-band') as HTMLElement | null
+    if (band) return band
+  }
+  return stage
+}
+
 export function spawnTapSparks(stage: HTMLElement, fromEl?: HTMLElement | null): void {
   if (prefersReducedMotion()) return
+  const layer = juiceFxLayer(stage)
   const anchor = fromEl ?? stage
   const rect = anchor.getBoundingClientRect()
-  const stageRect = stage.getBoundingClientRect()
-  const cx = rect.left - stageRect.left + rect.width * 0.5
-  const cy = rect.top - stageRect.top + rect.height * 0.45
+  const layerRect = layer.getBoundingClientRect()
+  const cx = rect.left - layerRect.left + rect.width * 0.5
+  const cy = rect.top - layerRect.top + rect.height * 0.45
   const n = 7
   for (let i = 0; i < n; i++) {
     const el = document.createElement('span')
@@ -332,7 +343,7 @@ export function spawnTapSparks(stage: HTMLElement, fromEl?: HTMLElement | null):
     el.style.setProperty('--dx', `${(Math.random() - 0.5) * 56}px`)
     el.style.setProperty('--dy', `${-18 - Math.random() * 36}px`)
     el.style.setProperty('--delay', `${i * 28}ms`)
-    stage.appendChild(el)
+    layer.appendChild(el)
     window.setTimeout(() => el.remove(), 720)
   }
 }
@@ -344,16 +355,17 @@ export function spawnFloatCash(
 ): void {
   const stage = root.querySelector('.stage') as HTMLElement | null
   if (!stage) return
+  const layer = juiceFxLayer(stage)
   const el = document.createElement('span')
   el.className = 'float-cash'
   el.textContent = `+${formatMoney(amount)}`
   const rect = (fromEl ?? stage).getBoundingClientRect()
-  const stageRect = stage.getBoundingClientRect()
+  const layerRect = layer.getBoundingClientRect()
   const jitter = (Math.random() - 0.5) * 24
-  el.style.left = `${rect.left - stageRect.left + rect.width * 0.55 + jitter}px`
-  el.style.top = `${rect.top - stageRect.top + 8}px`
+  el.style.left = `${rect.left - layerRect.left + rect.width * 0.55 + jitter}px`
+  el.style.top = `${rect.top - layerRect.top + 8}px`
   el.style.setProperty('--drift', `${jitter * 0.6}px`)
-  stage.appendChild(el)
+  layer.appendChild(el)
   window.setTimeout(() => el.remove(), 900)
 }
 
@@ -366,16 +378,17 @@ export function spawnFloatComplaint(
   if (!text) return
   const stage = root.querySelector('.stage') as HTMLElement | null
   if (!stage) return
+  const layer = juiceFxLayer(stage)
   const el = document.createElement('span')
   el.className = 'float-complaint'
   el.textContent = text
   const rect = (fromEl ?? stage).getBoundingClientRect()
-  const stageRect = stage.getBoundingClientRect()
+  const layerRect = layer.getBoundingClientRect()
   const jitter = (Math.random() - 0.5) * 48
-  el.style.left = `${rect.left - stageRect.left + rect.width * 0.4 + jitter}px`
-  el.style.top = `${rect.top - stageRect.top + rect.height * 0.35}px`
+  el.style.left = `${rect.left - layerRect.left + rect.width * 0.4 + jitter}px`
+  el.style.top = `${rect.top - layerRect.top + rect.height * 0.35}px`
   el.style.setProperty('--drift', `${jitter * 0.5}px`)
-  stage.appendChild(el)
+  layer.appendChild(el)
   window.setTimeout(() => el.remove(), 1400)
 }
 

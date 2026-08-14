@@ -107,6 +107,16 @@ import {
   pingTelegramPulse,
 } from './platform/telegramRemoteSync'
 import { showSyncBanner } from './ui/syncBanner'
+import {
+  mountLayoutLabSwitcher,
+  ensureLabLounge,
+  isLayoutLabHost,
+  onLayoutLabApplied,
+  forceLabLounge,
+  setLabStoryDockOpen,
+  syncLabStoryMenu,
+  usesLayoutD,
+} from './ui/layoutLab'
 import { applySettings, isCoachEnabled, loadSettings } from './save/settings'
 import { formatMoney } from './game/economy'
 import { pluralRuCount } from './game/ru'
@@ -479,6 +489,10 @@ const handlers = {
       }
     }
     menuTab = tab
+    if (usesLayoutD()) {
+      if (tab === 'story') setLabStoryDockOpen(true)
+      else if (tab === 'career' || tab === 'own') setLabStoryDockOpen(false)
+    }
     if (tab !== 'story') storySubTab = 'tasks'
     if (state.phase === 'dual' && isLoungeOnlyMenuTab(tab)) {
       state.scene = 'lounge'
@@ -586,6 +600,11 @@ const handlers = {
       },
     )
   },
+  onStoryMenuBack() {
+    setLabStoryDockOpen(false)
+    menuTab = 'story'
+    paint()
+  },
 }
 
 function onAchievementsUnlocked(unlocked: ReturnType<typeof evaluateAchievements>): void {
@@ -597,6 +616,7 @@ function onAchievementsUnlocked(unlocked: ReturnType<typeof evaluateAchievements
 function paint(): void {
   if (!gameStarted) return
   try {
+    syncLabStoryMenu(root, menuTab)
     renderShell(root, state, handlers, menuTab, Date.now(), careerSubTab, storySubTab)
   } catch (err) {
     console.error(err)
@@ -816,6 +836,11 @@ function frame(ts: number): void {
     const hudDue = ts - lastHudTs >= 125
     if (hudDue) {
       lastHudTs = ts
+      if (isLayoutLabHost() && ensureLabLounge(state)) {
+        saveState(state, { bumpSync: false })
+        menuTab = 'story'
+        paint()
+      }
       updateHud(root, state, hudCoachContext())
       if (menuTab === 'story' && canDoJobTasks(state)) {
         updateJobCooldowns(root, state, Date.now())
@@ -861,10 +886,21 @@ function frame(ts: number): void {
 function beginGame(): void {
   dismissGuideCoach(root)
   gameStarted = true
+  if (ensureLabLounge(state)) {
+    saveState(state, { bumpSync: false })
+  }
   touchOgonokInteraction()
   state.jobRank = clampJobRankToProgress(state.jobRank, state.taskDone)
   syncAchievementFanfareSeen(state)
   mountShell(root, handlers)
+  onLayoutLabApplied(() => {
+    forceLabLounge(state)
+    dismissGuideCoach(root)
+    menuTab = 'story'
+    saveState(state, { bumpSync: false })
+    paint()
+  })
+  mountLayoutLabSwitcher(root)
   applySettings(root)
   initUiPolish(root)
   primeAudio()
@@ -1125,6 +1161,13 @@ async function bootApp(): Promise<void> {
     resetSave()
     gameStarted = false
     await startFromBoot(loadLifetimeTrophies())
+    requestAnimationFrame(frame)
+    return
+  }
+
+  if (isLayoutLabHost()) {
+    if (ensureLabLounge(state)) saveState(state, { bumpSync: false })
+    beginGame()
     requestAnimationFrame(frame)
     return
   }

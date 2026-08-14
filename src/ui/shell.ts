@@ -185,6 +185,7 @@ import {
   workDayGameClock,
 } from '../game/workDays'
 import { loadHallOfFame, type CareerShareCard } from '../save/leaderboard'
+import { applyLayoutLab, usesLayoutD } from './layoutLab'
 import { isGoalStripExpanded, patchSettings } from '../save/settings'
 import { UPGRADES } from '../data/upgrades'
 import type { TaskId } from '../data/tasks'
@@ -275,9 +276,24 @@ function clearSignClasses(brand: HTMLElement): void {
   brand.classList.remove('sign', ...VENUE_SIGN_CLASSES, ...LOUNGE_SIGN_CLASSES)
 }
 
+/** В макете D меньше серого «учебника» — оставляем то, что влияет на решение. */
+function quietUiCopy(): boolean {
+  return usesLayoutD()
+}
+
 /** Одна строка «зачем» под заголовком секции — только если секция неочевидна */
 function sectionPurpose(text: string): string {
+  if (quietUiCopy()) return ''
   return `<p class="section-purpose">${text}</p>`
+}
+
+function taskReadySub(hint: string, speedNote: string, cooldownMs: number): string {
+  if (quietUiCopy()) {
+    return speedNote.trim()
+      ? speedNote.replace(/^ · /, '')
+      : `${(cooldownMs / 1000).toFixed(1)}с`
+  }
+  return `${hint}${speedNote}`
 }
 
 function menuTabButton(
@@ -635,6 +651,7 @@ export interface ShellHandlers {
   onImportCareer: (code: string) => void
   onClearCareerCompare: () => void
   onOpenSettings: () => void
+  onStoryMenuBack?: () => void
   onOgonokTip: () => void
 }
 
@@ -696,8 +713,10 @@ function ensureAchieveFanfare(): HTMLElement {
 export function mountShell(root: HTMLElement, handlers: ShellHandlers): void {
   root.innerHTML = `
     <div class="app-shell">
+      <div class="hero-band">
       <header class="topbar">
         <div class="cash-block">
+          <p class="lounge-name" data-lounge-name hidden></p>
           <span class="cash-label" data-cash-label>Выручка</span>
           <span class="cash-value" data-cash>0</span>
         </div>
@@ -756,13 +775,19 @@ export function mountShell(root: HTMLElement, handlers: ShellHandlers): void {
           <span class="day-turn-sub" data-day-turn-sub></span>
         </div>
       </main>
+      </div>
 
       <section class="panel">
         <div class="menu-shell" data-menu-shell aria-label="Меню">
           <div class="menu-toolbar">
+            <button type="button" class="menu-back" data-story-menu-back hidden aria-label="К сюжету">
+              <span class="menu-back__chevron" aria-hidden="true">‹</span>
+              <span class="menu-back__label">Сюжет</span>
+            </button>
             <nav class="menu-nav menu-nav--primary" data-menu-primary></nav>
             <button type="button" class="menu-settings" data-settings-open aria-label="Настройки">
               ${icon('settings', 'topbar-settings__icon')}
+              <span class="menu-settings__label">Настройки</span>
             </button>
           </div>
           <nav class="menu-nav menu-nav--secondary" data-menu-secondary hidden></nav>
@@ -794,6 +819,9 @@ export function mountShell(root: HTMLElement, handlers: ShellHandlers): void {
 
   root.querySelector('[data-settings-open]')!.addEventListener('click', () => {
     handlers.onOpenSettings()
+  })
+  root.querySelector('[data-story-menu-back]')?.addEventListener('click', () => {
+    handlers.onStoryMenuBack?.()
   })
 
   const dayChip = root.querySelector('[data-workday-wrap]') as HTMLElement | null
@@ -828,6 +856,7 @@ export function mountShell(root: HTMLElement, handlers: ShellHandlers): void {
   })
   syncPanelScrollFades(root)
 
+  applyLayoutLab(root)
   ensureAchieveFanfare()
 }
 
@@ -867,7 +896,7 @@ export function updateHud(
   if (ctx) updateGoalStrip(root, state, ctx)
   updateWorkDayHud(root, state)
   updateTopbarHints(root, state)
-  if (cta && state.scene === 'lounge' && !cta.hidden) {
+  if (cta && !cta.hidden) {
     syncOrderCta(root, state)
   }
 
@@ -1006,7 +1035,7 @@ export function updateJobCooldowns(
     const sub = btn.querySelector('.row-sub')
     const meta = btn.querySelector('.row-meta')
     if (sub) {
-      sub.textContent = ready ? `${t.hint}${speedNote}` : `ещё ${(left / 1000).toFixed(1)}с`
+      sub.textContent = ready ? taskReadySub(t.hint, speedNote, cd) : `ещё ${(left / 1000).toFixed(1)}с`
     }
     if (meta) meta.textContent = `+${pay}`
   }
@@ -1227,8 +1256,6 @@ export function renderShell(
     }
     tagline.classList.add('tagline--chips')
     tagline.innerHTML = `<span class="stage-chips">${chips.join('')}</span>`
-    cta.hidden = true
-    delete stage.dataset.hasCta
   } else {
     const tier = state.loungeTier ?? 'nook'
     clearSignClasses(brand)
@@ -1256,15 +1283,25 @@ export function renderShell(
     }
     tagline.classList.add('tagline--chips')
     tagline.innerHTML = `<span class="stage-chips">${chips.join('')}</span>`
+  }
 
-    const showOrder = showLoungeOrderCta(state, menuTab, storySubTab)
-    cta.hidden = !showOrder
-    if (showOrder) {
-      stage.dataset.hasCta = '1'
-      syncOrderCta(root, state)
-    } else {
-      delete stage.dataset.hasCta
-    }
+  const loungeNameEl = root.querySelector('[data-lounge-name]') as HTMLElement | null
+  if (loungeNameEl) {
+    // В D название живёт у CTA; в шапке оставляем «Выручка»
+    loungeNameEl.hidden = true
+    loungeNameEl.textContent = ''
+  }
+
+  const labD = shell?.dataset.ui === 'd'
+  const showOrder = labD
+    ? state.scene === 'lounge' && Boolean(state.loungeTier)
+    : showLoungeOrderCta(state, menuTab, storySubTab)
+  cta.hidden = !showOrder
+  if (showOrder) {
+    stage.dataset.hasCta = '1'
+    syncOrderCta(root, state)
+  } else {
+    delete stage.dataset.hasCta
   }
 
   const ownReady = canBrowseLoungeOffer(state)
@@ -1289,8 +1326,12 @@ export function renderShell(
     .filter(Boolean)
     .join('')
 
+  const storyMenuOpen = shell?.dataset.storyMenu === 'open'
+  const backBtn = root.querySelector<HTMLButtonElement>('[data-story-menu-back]')
+  if (backBtn) backBtn.hidden = !storyMenuOpen
+
   if (state.phase !== 'employed') {
-    menuSecondary.hidden = false
+    menuSecondary.hidden = shell?.dataset.ui === 'd' ? !storyMenuOpen : false
     menuSecondary.innerHTML = [
       menuTabButton('tobacco', 'Табак', menuTab === 'tobacco', {
         chip: true,
@@ -1479,7 +1520,7 @@ function renderJobTasksBlock(state: GameState, now: number): string {
         ${taskIcon(t.id)}
         <span class="row-main">
           <span class="row-title">${t.label}</span>
-          <span class="row-sub">${ready ? `${t.hint}${speedNote}` : `ещё ${(left / 1000).toFixed(1)}с`}</span>
+          <span class="row-sub">${ready ? taskReadySub(t.hint, speedNote, cd) : `ещё ${(left / 1000).toFixed(1)}с`}</span>
         </span>
         <span class="row-meta row-meta--pay">+${pay}</span>
       </button>
@@ -1696,12 +1737,19 @@ function renderCareerTrackPanel(state: GameState): string {
           <span class="career-day-meta">${dayPct}% смены</span>
         </div>
         <div class="bar career-day-bar"><i style="width:${dayPct}%"></i></div>
-        <p class="row-sub shop-note">1 день = ${Math.round(SECONDS_PER_WORK_DAY / 60)} мин в игре · неделя — по тапу на часы в шапке · активно ${Math.floor(state.career.totalActiveSec / 60)} мин</p>
+        ${
+          quietUiCopy()
+            ? ''
+            : `<p class="row-sub shop-note">1 день = ${Math.round(SECONDS_PER_WORK_DAY / 60)} мин в игре · неделя — по тапу на часы в шапке · активно ${Math.floor(state.career.totalActiveSec / 60)} мин</p>`
+        }
       </div>
 
       <p class="section-label">Очки карьеры · ${score}</p>
       <div class="career-score-box">
-        <p class="row-sub shop-note">Рейтинг прокачки для зала славы и сравнения с друзьями. <strong>Дни на очки не влияют</strong> — только достижения и прогресс.</p>
+        ${
+          quietUiCopy()
+            ? ''
+            : `<p class="row-sub shop-note">Рейтинг прокачки для зала славы и сравнения с друзьями. <strong>Дни на очки не влияют</strong> — только достижения и прогресс.</p>
         <ul class="career-score-rules">
           <li><span>Трофеи</span><span>+8 / +20 / +50 / +150 по тиру</span></li>
           <li><span>Смена + лаунж / только свой</span><span>+40 / +70</span></li>
@@ -1710,7 +1758,8 @@ function renderCareerTrackPanel(state: GameState): string {
           <li><span>Узнаваемость</span><span>до +40</span></li>
           <li><span>Грейд роликов</span><span>+5 за грейд</span></li>
           <li><span>Должность на смене</span><span>+12 / +24</span></li>
-        </ul>
+        </ul>`
+        }
         <p class="career-score-now">Сейчас у тебя · ${score}</p>
         <ul class="career-score-breakdown">${scoreBreakdownRows}</ul>
       </div>
@@ -1735,7 +1784,7 @@ function renderCareerTrackPanel(state: GameState): string {
       ${compareBlock}
 
       <p class="section-label">Зал славы</p>
-      <p class="row-sub shop-note">Лучшие прогоны на этом устройстве (после сброса карьеры).</p>
+      ${quietUiCopy() ? '' : `<p class="row-sub shop-note">Лучшие прогоны на этом устройстве (после сброса карьеры).</p>`}
       <div class="career-hall">${hallRows}</div>
     </div>
   `
@@ -1766,7 +1815,11 @@ function renderCareerTrophiesPanel(state: GameState): string {
         <p class="achieve-summary-count">${done} из ${total}${platinum ? ' · платина' : ''} · очки зависят от тира</p>
         <div class="bar"><i style="width:${total ? (done / total) * 100 : 0}%"></i></div>
       </div>
-      <p class="row-sub shop-note">Бронза — старт. Серебро — отказ и системы. Золото — дорогие развилки. Секреты молчат, пока не откроешь. Платина — собрать всё.</p>
+      ${
+        quietUiCopy()
+          ? ''
+          : `<p class="row-sub shop-note">Бронза — старт. Серебро — отказ и системы. Золото — дорогие развилки. Секреты молчат, пока не откроешь. Платина — собрать всё.</p>`
+      }
       ${sections}
     </div>
   `
@@ -1778,7 +1831,13 @@ function renderTrophyRow(state: GameState, a: AchievementDef, tier: TrophyTier):
   const title = secretLocked ? '???' : a.title
   const progress = secretLocked ? null : achievementProgressLabel(a, state)
   const hint = secretLocked ? '' : a.hint
-  const sub = secretLocked ? '' : progress ? `${hint} · ${progress}` : hint
+  const sub = secretLocked
+    ? ''
+    : quietUiCopy()
+      ? progress || ''
+      : progress
+        ? `${hint} · ${progress}`
+        : hint
   const meta = unlocked ? 'получено' : secretLocked ? '' : `+${formatMoney(a.reward)}`
   const iconName = unlocked ? 'trophy' : 'lock'
   return `
@@ -1850,7 +1909,11 @@ function renderAmbassadorBlock(state: GameState): string {
           <span>${p.fame}/${AMBASSADOR_UNLOCK_FAME} узн. · ${p.media}/${AMBASSADOR_UNLOCK_MEDIA} мед. · рейт. ${rep}/${AMBASSADOR_UNLOCK_REP}</span>
         </div>
         <div class="bar"><i style="width:${prog}%"></i></div>
-        <p class="row-sub shop-note">Узн. и мед. вместе, рейтинг (узн.+мед.×0.55), лауреат «Гайд Мастерс» или 2 филиала — откроют контракты раньше</p>
+        ${
+          quietUiCopy()
+            ? ''
+            : `<p class="row-sub shop-note">Узн. и мед. вместе, рейтинг (узн.+мед.×0.55), лауреат «Гайд Мастерс» или 2 филиала — откроют контракты раньше</p>`
+        }
       </div>
     `
   }
@@ -1986,7 +2049,9 @@ function renderTobaccoPanel(state: GameState): string {
         ${tobaccoIcon(t.id)}
         <span class="row-main">
           <span class="row-title">${t.name}</span>
-          <span class="row-sub">${t.blurb} · ${tobaccoBonusLabel(t)}</span>
+          <span class="row-sub">${
+            quietUiCopy() ? tobaccoBonusLabel(t) : `${t.blurb} · ${tobaccoBonusLabel(t)}`
+          }</span>
         </span>
         <span class="row-meta">${formatMoney(t.cost)}</span>
       </button>
@@ -2120,7 +2185,9 @@ function renderStaffPanel(state: GameState): string {
               <span class="staff-role-name">${role.name}</span>
               <span class="staff-role-count">${members.length}/${max}</span>
             </div>
-            <span class="staff-role-blurb">${role.blurb} · ${rolePayroll.toFixed(1)}/с</span>
+            <span class="staff-role-blurb">${
+              quietUiCopy() ? `${rolePayroll.toFixed(1)}/с` : `${role.blurb} · ${rolePayroll.toFixed(1)}/с`
+            }</span>
           </div>
         </div>
         <div class="staff-roster">${roster}</div>
@@ -3076,12 +3143,16 @@ function renderLoungePanel(state: GameState, now: number): string {
               cap.service.incomeMult < 1
                 ? ` · чек −${Math.round((1 - cap.service.incomeMult) * 100)}%`
                 : ''
-            } · ${cap.service.hint}</p>`
-          : `<p class="row-sub shop-note">Сервис ок · смена тянет ~${servicePower} · можно растить зал, но без команды будут жалобы</p>`
+            }${quietUiCopy() ? '' : ` · ${cap.service.hint}`}</p>`
+          : quietUiCopy()
+            ? `<p class="row-sub shop-note">Сервис ок · ~${servicePower}</p>`
+            : `<p class="row-sub shop-note">Сервис ок · смена тянет ~${servicePower} · можно растить зал, но без команды будут жалобы</p>`
       }
       ${
         shelfNote
-          ? `<p class="row-sub shop-note">Полка ${shelfN}/${shelfCap}${shelfNote} · вкладка «Табак»</p>`
+          ? `<p class="row-sub shop-note">Полка ${shelfN}/${shelfCap}${shelfNote}${
+              quietUiCopy() ? '' : ' · вкладка «Табак»'
+            }</p>`
           : ''
       }
       ${
@@ -3113,9 +3184,13 @@ function renderLoungePanel(state: GameState, now: number): string {
     const warn = unlocked ? seatingPurchaseWarns(state, seatsNow, def.seats) : null
     const sub = !unlocked
       ? `Нужен прогресс мебели ${def.needFurniture}+ ур. (сейчас ${furn})`
-      : warn
-        ? `${def.blurb} · +${def.seats} · ${warn}`
-        : `${def.blurb} · +${def.seats} мест`
+      : quietUiCopy()
+        ? warn
+          ? `+${def.seats} · ${warn}`
+          : `+${def.seats} мест`
+        : warn
+          ? `${def.blurb} · +${def.seats} · ${warn}`
+          : `${def.blurb} · +${def.seats} мест`
     return `
       <button type="button" class="row-btn shop ${can ? 'afford' : ''} ${unlocked ? '' : 'locked'}${warn ? ' upgrade-risk' : ''}" data-expansion="${def.id}" ${can ? '' : 'disabled'}>
         ${icon('tier_hall')}
@@ -3138,11 +3213,13 @@ function renderLoungePanel(state: GameState, now: number): string {
     const warn = unlocked && !maxed ? seatingPurchaseWarns(state, seatsNow, addSeats) : null
     const subText = !unlocked
       ? upgradeUnlockHint(def, state.owned)
-      : maxed
-        ? def.blurb
-        : warn
-          ? `${def.blurb} · ${warn}`
-          : def.blurb
+      : quietUiCopy()
+        ? warn || ''
+        : maxed
+          ? def.blurb
+          : warn
+            ? `${def.blurb} · ${warn}`
+            : def.blurb
     const ui = renderUpgradeGradeRow(def.id, level, subText)
     if (maxed) {
       return `
@@ -3150,7 +3227,9 @@ function renderLoungePanel(state: GameState, now: number): string {
           ${upgradeIcon(def.id)}
           <span class="row-main">
             <span class="row-title">${def.name}</span>
-            <span class="row-sub row-sub--grade">${ui.dots}<span>${subText} · ур.${level}/${def.maxLevel}</span></span>
+            <span class="row-sub row-sub--grade">${ui.dots}<span>${
+              quietUiCopy() ? `ур.${level}/${def.maxLevel}` : `${subText} · ур.${level}/${def.maxLevel}`
+            }</span></span>
           </span>
           <span class="row-meta">★ макс.</span>
         </div>
@@ -3161,8 +3240,10 @@ function renderLoungePanel(state: GameState, now: number): string {
         ${upgradeIcon(def.id)}
         <span class="row-main">
           <span class="row-title">${def.name}</span>
-          <span class="row-sub row-sub--grade">${ui.dots}<span>${subText}${
-            level > 0 ? ` · ур.${level}/${def.maxLevel}` : ` · ур. 0/${def.maxLevel}`
+          <span class="row-sub row-sub--grade">${ui.dots}<span>${
+            quietUiCopy()
+              ? `${subText ? `${subText} · ` : ''}ур.${level}/${def.maxLevel}`
+              : `${subText}${level > 0 ? ` · ур.${level}/${def.maxLevel}` : ` · ур. 0/${def.maxLevel}`}`
           }</span></span>
         </span>
         <span class="row-meta">
@@ -3184,7 +3265,7 @@ function renderLoungePanel(state: GameState, now: number): string {
         <button type="button" class="row-btn accent row-btn--solo" data-quit ${ready ? '' : 'disabled'}>
           <span class="row-main">
             <span class="row-title">Уволиться из «${getVenue(state.venueId).name}»</span>
-            <span class="row-sub">Необязательно — ачивка «Трудяга» за смену и свой лаунж</span>
+            ${quietUiCopy() ? '' : `<span class="row-sub">Необязательно — ачивка «Трудяга» за смену и свой лаунж</span>`}
           </span>
         </button>
       </div>

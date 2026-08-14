@@ -42,9 +42,18 @@ function seedParticles(stage: HTMLElement): void {
   }
 }
 
+function atmosphereHost(stage: HTMLElement): HTMLElement {
+  const shell = stage.closest('.app-shell') as HTMLElement | null
+  if (shell?.dataset.ui === 'd') {
+    const band = stage.closest('.hero-band') as HTMLElement | null
+    if (band) return band
+  }
+  return stage
+}
+
 function resizeCanvas(stage: HTMLElement): void {
   if (!stageCanvas || !ctx) return
-  const rect = stage.getBoundingClientRect()
+  const rect = atmosphereHost(stage).getBoundingClientRect()
   w = Math.max(1, Math.floor(rect.width))
   h = Math.max(1, Math.floor(rect.height))
   const dpr = Math.min(2, window.devicePixelRatio || 1)
@@ -183,11 +192,12 @@ export function initStageAtmosphere(stage: HTMLElement): void {
   if (!ctx) return
   lastSceneKey = ''
 
+  const host = atmosphereHost(stage)
   resizeObserver = new ResizeObserver(() => {
     resizeCanvas(stage)
     seedParticles(stage)
   })
-  resizeObserver.observe(stage)
+  resizeObserver.observe(host)
 
   intersectionObserver = new IntersectionObserver(
     (entries) => {
@@ -197,7 +207,7 @@ export function initStageAtmosphere(stage: HTMLElement): void {
     },
     { threshold: [0, 0.05, 0.2] },
   )
-  intersectionObserver.observe(stage)
+  intersectionObserver.observe(host)
 
   resizeCanvas(stage)
   seedParticles(stage)

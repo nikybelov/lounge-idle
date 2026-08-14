@@ -123,6 +123,8 @@ npm run dev:tg
 
 CloudStorage работает **только внутри Telegram** (не в обычном браузере с `?tg=1`).
 
+UI Telegram — макет **D** (hero-band, нижний dock Сюжет/Карьера, тихие списки). На вебе (`main`) остаётся классическая оболочка; в DEV лаб (`?ui=d`) можно сравнить.
+
 ## Обновления
 
 - Правки TG → commit/push в `telegram-miniapp` → Pages обновит `/tg/` (и пересоберёт веб с `main`)

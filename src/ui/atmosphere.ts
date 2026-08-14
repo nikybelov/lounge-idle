@@ -44,10 +44,7 @@ function seedParticles(stage: HTMLElement): void {
 
 function atmosphereHost(stage: HTMLElement): HTMLElement {
   const shell = stage.closest('.app-shell') as HTMLElement | null
-  if (shell?.dataset.ui === 'd') {
-    const band = stage.closest('.hero-band') as HTMLElement | null
-    if (band) return band
-  }
+  if (shell?.dataset.ui === 'd') return shell
   return stage
 }
 

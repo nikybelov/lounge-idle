@@ -316,13 +316,10 @@ function spawnDiplomaCheers(wrap: HTMLElement): void {
   })
 }
 
-/** В D сцена static — absolute FX нужно класть в .hero-band, иначе цифры уезжают вверх. */
+/** В D арт full-bleed на .app-shell — FX тоже якорим к shell. */
 function juiceFxLayer(stage: HTMLElement): HTMLElement {
   const shell = stage.closest('.app-shell') as HTMLElement | null
-  if (shell?.dataset.ui === 'd') {
-    const band = stage.closest('.hero-band') as HTMLElement | null
-    if (band) return band
-  }
+  if (shell?.dataset.ui === 'd') return shell
   return stage
 }
 

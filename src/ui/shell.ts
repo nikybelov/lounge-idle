@@ -81,6 +81,14 @@ import {
 import { getVenue } from '../data/venues'
 import { LOUNGE_TIERS, tierShopBonusLabel, type LoungeTierId } from '../data/loungeTiers'
 import { BRANCHES, type BranchId } from '../data/branches'
+import type { CityMapPinId } from '../data/cityMap'
+import {
+  cityMapArtUrl,
+  normalizeNetworkMapSelection,
+  renderCityMapSvg,
+  renderNetworkMapDetail,
+  setNetworkMapSelection,
+} from './networkMap'
 import { TOBACCOS, getTobacco, tobaccoBonusLabel, type TobaccoId } from '../data/tobacco'
 import {
   CHANNEL_GEAR,
@@ -185,7 +193,7 @@ import {
   workDayGameClock,
 } from '../game/workDays'
 import { loadHallOfFame, type CareerShareCard } from '../save/leaderboard'
-import { applyLayoutLab, usesLayoutD } from './layoutLab'
+import { applyLayoutLab, isLayoutLabHost, usesLayoutD } from './layoutLab'
 import { isGoalStripExpanded, patchSettings } from '../save/settings'
 import { UPGRADES } from '../data/upgrades'
 import type { TaskId } from '../data/tasks'
@@ -2289,6 +2297,25 @@ function renderNetworkPanel(state: GameState): string {
     `
   }
 
+  /* Карта города — только локальный лаб; в Telegram пока список */
+  if (isLayoutLabHost()) {
+    const selected = normalizeNetworkMapSelection()
+    return `
+      <div class="list network-map-panel">
+        <div class="network-map-panel__meta">
+          <span>${networkLabel(state)}</span>
+          <span>${count}/5 · ×${incMult.toFixed(2)}</span>
+        </div>
+        <div class="city-map" data-city-map style="--city-map-art: url('${cityMapArtUrl()}')">
+          <div class="city-map__bloom" aria-hidden="true"></div>
+          <div class="city-map__focus" aria-hidden="true"></div>
+          ${renderCityMapSvg(state, selected)}
+          ${renderNetworkMapDetail(state, selected)}
+        </div>
+      </div>
+    `
+  }
+
   const rows = BRANCHES.map((def) => {
     const owned = isBranchOwned(state, def.id)
     if (owned) {
@@ -2351,6 +2378,13 @@ function renderNetworkPanel(state: GameState): string {
 }
 
 function wireNetworkPanel(panel: HTMLElement, handlers: ShellHandlers): void {
+  panel.querySelector('[data-city-map]')?.addEventListener('click', (e) => {
+    const pin = (e.target as Element).closest('[data-map-pin]')
+    const id = pin?.getAttribute('data-map-pin') as CityMapPinId | null
+    if (!id) return
+    setNetworkMapSelection(id)
+    handlers.onMenuTab('network')
+  })
   panel.querySelectorAll('[data-branch]').forEach((btn) => {
     btn.addEventListener('click', () => {
       handlers.onOpenBranch((btn as HTMLElement).dataset.branch as BranchId)
@@ -3259,9 +3293,11 @@ function renderLoungePanel(state: GameState, now: number): string {
   if (state.phase === 'dual') {
     const ready = canQuitJob(state)
     const quitNeed = quitIncomeThreshold(state)
+    const nowIncome = formatMoney(loungeIncomePerSec(state)).replace(/\s/g, '\u00a0')
+    const needLabel = String(quitNeed).replace(/\s/g, '\u00a0')
     quit = `
       <div class="milestone">
-        <p class="row-sub">Уволиться можно, когда свой лаунж даёт от ${quitNeed}/сек. Сейчас: ${formatMoney(loungeIncomePerSec(state))}/с</p>
+        <p class="row-sub row-sub--oneline">Уволиться от ${needLabel}/с · сейчас ${nowIncome}/с</p>
         <button type="button" class="row-btn accent row-btn--solo" data-quit ${ready ? '' : 'disabled'}>
           <span class="row-main">
             <span class="row-title">Уволиться из «${getVenue(state.venueId).name}»</span>

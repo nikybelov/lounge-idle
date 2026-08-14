@@ -145,35 +145,42 @@ function basementSvg(): string {
   `
 }
 
-/** Первая тяга — крупный уголь, первая струя */
+/** Первая тяга — крупный уголь и первая струя (читается в hero full-bleed) */
 function firstPullSvg(): string {
   return `
-    <svg class="stage-svg stage-svg--lounge-tier stage-svg--lounge-nook" viewBox="0 0 360 188" preserveAspectRatio="xMidYMid slice" fill="none">
+    <svg class="stage-svg stage-svg--lounge-tier stage-svg--lounge-nook" viewBox="0 0 360 400" preserveAspectRatio="xMidYMin slice" fill="none">
       <defs>
-        <radialGradient id="loungeCoalBloom" cx="50%" cy="50%" r="50%">
-          <stop offset="0%" stop-color="rgba(255,170,90,0.55)"/>
-          <stop offset="55%" stop-color="rgba(224,122,58,0.18)"/>
-          <stop offset="100%" stop-color="rgba(224,122,58,0)"/>
+        <radialGradient id="nookCoalBloom" cx="50%" cy="50%" r="50%">
+          <stop offset="0%" stop-color="rgba(200,120,70,0.22)"/>
+          <stop offset="45%" stop-color="rgba(160,90,50,0.12)"/>
+          <stop offset="100%" stop-color="rgba(160,90,50,0)"/>
+        </radialGradient>
+        <radialGradient id="nookRoomWarm" cx="70%" cy="35%" r="55%">
+          <stop offset="0%" stop-color="rgba(180,110,70,0.1)"/>
+          <stop offset="100%" stop-color="rgba(180,110,70,0)"/>
         </radialGradient>
       </defs>
-      <rect width="360" height="188" fill="#0c0a08"/>
-      <ellipse cx="248" cy="120" rx="120" ry="90" fill="url(#loungeCoalBloom)" opacity="0.9"/>
-      <path d="M0 0 Q40 90 0 188" stroke="rgba(255,200,140,0.05)" stroke-width="40" fill="none"/>
-      <path d="M48 0 Q88 100 48 188" stroke="rgba(255,180,120,0.04)" stroke-width="34" fill="none"/>
-      <ellipse cx="248" cy="148" rx="78" ry="14" fill="rgba(0,0,0,0.45)"/>
-      <path d="M188 132 Q198 108 248 106 Q298 108 308 132 L300 148 Q248 156 196 148 Z" fill="#2a2018" stroke="rgba(180,140,100,0.4)"/>
-      <ellipse cx="248" cy="124" rx="46" ry="10" fill="#1a1410"/>
-      <circle class="stage-ember" cx="236" cy="120" r="9" fill="#3a281c" stroke="rgba(224,122,58,0.5)"/>
-      <circle class="stage-ember" cx="252" cy="116" r="11" fill="#422c1e" stroke="rgba(224,140,70,0.55)"/>
-      <circle class="stage-ember" cx="266" cy="122" r="8" fill="#3a281c" stroke="rgba(224,122,58,0.45)"/>
-      <circle class="stage-ember" cx="252" cy="114" r="3.2" fill="#ffb060"/>
-      <circle class="stage-ember" cx="238" cy="118" r="2.2" fill="#e07a3a"/>
-      <circle cx="252" cy="114" r="28" fill="url(#loungeCoalBloom)"/>
-      <path class="stage-haze" d="M252 104 Q246 78 258 58 Q268 42 262 28" stroke="rgba(230,220,210,0.42)" stroke-width="3.2" stroke-linecap="round" fill="none"/>
-      <path class="stage-haze" d="M246 100 Q232 74 238 48" stroke="rgba(220,210,200,0.22)" stroke-width="2.2" stroke-linecap="round" fill="none"/>
-      <ellipse class="stage-haze" cx="256" cy="40" rx="34" ry="14" fill="rgba(220,210,200,0.1)"/>
-      <path d="M188 136 Q150 148 120 160" stroke="rgba(150,120,90,0.45)" stroke-width="3.5" fill="none" stroke-linecap="round"/>
-      <circle cx="118" cy="162" r="5" fill="#2a2018" stroke="rgba(180,140,100,0.35)"/>
+      <rect width="360" height="400" fill="#100c09"/>
+      <ellipse cx="250" cy="140" rx="150" ry="110" fill="url(#nookRoomWarm)"/>
+      <ellipse cx="210" cy="170" rx="130" ry="100" fill="url(#nookCoalBloom)" opacity="0.85"/>
+      <!-- боковые стенки без потолочной балки — иначе полоска режет выручку -->
+      <path d="M0 0 H52 L68 110 V400 H0 Z" fill="rgba(40,28,20,0.42)"/>
+      <path d="M360 0 H308 L292 110 V400 H360 Z" fill="rgba(28,20,14,0.38)"/>
+      <ellipse cx="210" cy="230" rx="96" ry="18" fill="rgba(0,0,0,0.5)"/>
+      <path d="M120 208 Q132 178 210 174 Q288 178 300 208 L290 230 Q210 244 130 230 Z" fill="#3a2a1e" stroke="rgba(200,160,120,0.35)" stroke-width="1.5"/>
+      <ellipse cx="210" cy="196" rx="58" ry="12" fill="#1c1410"/>
+      <circle cx="190" cy="190" r="14" fill="#3a281c" stroke="rgba(150,105,70,0.32)" stroke-width="1.2"/>
+      <circle cx="214" cy="184" r="17" fill="#422c20" stroke="rgba(150,105,70,0.35)" stroke-width="1.2"/>
+      <circle cx="236" cy="192" r="12" fill="#3a281c" stroke="rgba(140,95,65,0.3)" stroke-width="1.2"/>
+      <circle cx="214" cy="183" r="5" fill="#5a3a28"/>
+      <circle cx="196" cy="189" r="3.5" fill="#4a3224"/>
+      <ellipse class="stage-coal-glow" cx="214" cy="178" rx="48" ry="36" fill="url(#nookCoalBloom)"/>
+      <path class="stage-haze" d="M214 168 Q204 130 220 92 Q232 62 218 32" stroke="rgba(220,200,180,0.28)" stroke-width="4.2" stroke-linecap="round" fill="none"/>
+      <path class="stage-haze" d="M204 170 Q184 128 192 84 Q198 52 186 28" stroke="rgba(210,190,170,0.18)" stroke-width="3" stroke-linecap="round" fill="none"/>
+      <path class="stage-haze" d="M226 172 Q242 132 236 90" stroke="rgba(210,190,170,0.14)" stroke-width="2.4" stroke-linecap="round" fill="none"/>
+      <ellipse class="stage-haze" cx="214" cy="56" rx="48" ry="20" fill="rgba(220,200,180,0.08)"/>
+      <path d="M120 216 Q70 250 48 300" stroke="rgba(200,150,100,0.55)" stroke-width="4.5" fill="none" stroke-linecap="round"/>
+      <circle cx="46" cy="304" r="7" fill="#3a2a1e" stroke="rgba(224,180,120,0.45)"/>
     </svg>
   `
 }
@@ -181,10 +188,10 @@ function firstPullSvg(): string {
 /** Сладкий пар — облака пара, мёд */
 function sweetSteamSvg(): string {
   return `
-    <svg class="stage-svg stage-svg--lounge-tier stage-svg--lounge-hall" viewBox="0 0 360 188" preserveAspectRatio="xMidYMid slice" fill="none">
+    <svg class="stage-svg stage-svg--lounge-tier stage-svg--lounge-hall" viewBox="0 0 360 400" preserveAspectRatio="xMidYMin slice" fill="none">
       <defs>
         <radialGradient id="loungeSweetGlow" cx="50%" cy="50%" r="50%">
-          <stop offset="0%" stop-color="rgba(255,190,160,0.45)"/>
+          <stop offset="0%" stop-color="rgba(255,180,150,0.28)"/>
           <stop offset="100%" stop-color="rgba(255,160,120,0)"/>
         </radialGradient>
         <radialGradient id="loungeBerry" cx="50%" cy="50%" r="50%">
@@ -192,67 +199,79 @@ function sweetSteamSvg(): string {
           <stop offset="100%" stop-color="rgba(220,120,140,0)"/>
         </radialGradient>
       </defs>
-      <rect width="360" height="188" fill="#140e0c"/>
-      <ellipse cx="90" cy="50" rx="90" ry="50" fill="url(#loungeBerry)"/>
-      <ellipse cx="280" cy="120" rx="110" ry="70" fill="url(#loungeSweetGlow)"/>
-      <path d="M70 0 V28" stroke="rgba(230,180,140,0.35)" stroke-width="1.5"/>
-      <path d="M70 28 L58 42 H82 Z" fill="#3a2820" stroke="rgba(240,170,140,0.4)"/>
-      <circle class="stage-ember" cx="70" cy="48" r="10" fill="rgba(255,180,140,0.25)"/>
-      <path d="M290 0 V22" stroke="rgba(230,180,140,0.3)" stroke-width="1.5"/>
-      <path d="M290 22 L280 34 H300 Z" fill="#3a2820" stroke="rgba(240,170,140,0.35)"/>
-      <circle class="stage-ember" cx="290" cy="40" r="8" fill="rgba(255,170,130,0.22)"/>
-      <ellipse class="stage-haze" cx="150" cy="78" rx="70" ry="28" fill="rgba(255,220,200,0.12)"/>
-      <ellipse class="stage-haze" cx="210" cy="62" rx="86" ry="34" fill="rgba(255,200,180,0.14)"/>
-      <ellipse class="stage-haze" cx="250" cy="92" rx="64" ry="26" fill="rgba(255,210,190,0.1)"/>
-      <path class="stage-haze" d="M176 120 Q168 88 186 62 Q198 42 190 24" stroke="rgba(255,220,200,0.4)" stroke-width="4" stroke-linecap="round" fill="none"/>
-      <path class="stage-haze" d="M196 118 Q210 86 204 54 Q198 30 212 14" stroke="rgba(255,190,170,0.28)" stroke-width="3" stroke-linecap="round" fill="none"/>
-      <path class="stage-haze" d="M160 122 Q148 96 156 70" stroke="rgba(255,200,180,0.22)" stroke-width="2.4" stroke-linecap="round" fill="none"/>
-      <path d="M96 138 Q108 118 150 116 L230 116 Q268 118 278 138 L270 154 L104 154 Z" fill="#2a1c18" stroke="rgba(240,170,140,0.28)"/>
-      <ellipse cx="186" cy="126" rx="18" ry="5" fill="#1a1210"/>
-      <rect x="182" y="96" width="8" height="30" rx="2" fill="#4a3228"/>
-      <circle class="stage-ember" cx="186" cy="88" r="12" fill="rgba(255,160,120,0.28)"/>
-      <circle class="stage-ember" cx="186" cy="88" r="3.4" fill="#f08a5a"/>
-      <rect x="300" y="48" width="10" height="18" rx="2" fill="rgba(240,150,120,0.35)"/>
-      <rect x="314" y="44" width="10" height="22" rx="2" fill="rgba(220,120,140,0.32)"/>
-      <rect x="328" y="50" width="10" height="16" rx="2" fill="rgba(230,180,100,0.32)"/>
+      <rect width="360" height="400" fill="#140e0c"/>
+      <ellipse cx="90" cy="70" rx="100" ry="70" fill="url(#loungeBerry)"/>
+      <ellipse cx="280" cy="140" rx="120" ry="90" fill="url(#loungeSweetGlow)"/>
+      <path d="M70 0 V40" stroke="rgba(230,180,140,0.4)" stroke-width="1.8"/>
+      <path d="M70 40 L56 58 H84 Z" fill="#3a2820" stroke="rgba(240,170,140,0.5)"/>
+      <circle class="stage-ember" cx="70" cy="66" r="12" fill="rgba(200,140,110,0.16)"/>
+      <path d="M290 0 V32" stroke="rgba(230,180,140,0.35)" stroke-width="1.8"/>
+      <path d="M290 32 L278 48 H302 Z" fill="#3a2820" stroke="rgba(240,170,140,0.4)"/>
+      <circle class="stage-ember" cx="290" cy="56" r="10" fill="rgba(200,130,100,0.14)"/>
+      <ellipse class="stage-haze" cx="150" cy="100" rx="80" ry="34" fill="rgba(255,220,200,0.14)"/>
+      <ellipse class="stage-haze" cx="210" cy="78" rx="96" ry="40" fill="rgba(255,200,180,0.16)"/>
+      <ellipse class="stage-haze" cx="250" cy="118" rx="70" ry="30" fill="rgba(255,210,190,0.12)"/>
+      <path class="stage-haze" d="M176 160 Q168 110 186 72 Q198 44 190 18" stroke="rgba(255,220,200,0.32)" stroke-width="4.5" stroke-linecap="round" fill="none"/>
+      <path class="stage-haze" d="M196 158 Q214 112 204 68 Q196 36 216 12" stroke="rgba(255,190,170,0.22)" stroke-width="3.2" stroke-linecap="round" fill="none"/>
+      <path class="stage-haze" d="M160 162 Q146 122 156 86" stroke="rgba(255,200,180,0.18)" stroke-width="2.6" stroke-linecap="round" fill="none"/>
+      <path d="M90 188 Q104 162 150 158 L240 158 Q284 162 296 188 L286 210 L100 210 Z" fill="#2a1c18" stroke="rgba(240,170,140,0.35)"/>
+      <ellipse cx="186" cy="172" rx="20" ry="6" fill="#1a1210"/>
+      <rect x="182" y="128" width="9" height="44" rx="2" fill="#4a3228"/>
+      <circle cx="186" cy="118" r="13" fill="rgba(120,75,50,0.35)"/>
+      <circle cx="186" cy="118" r="4" fill="#5a3a28"/>
+      <ellipse class="stage-coal-glow" cx="186" cy="118" rx="28" ry="22" fill="rgba(180,100,60,0.12)"/>
+      <rect x="298" y="64" width="12" height="22" rx="2" fill="rgba(240,150,120,0.4)"/>
+      <rect x="314" y="58" width="12" height="28" rx="2" fill="rgba(220,120,140,0.38)"/>
+      <rect x="330" y="66" width="12" height="20" rx="2" fill="rgba(230,180,100,0.38)"/>
     </svg>
   `
 }
 
-/** Дымный мир — горизонт сквозь дым */
+/** Дымный мир — горизонт и небо сквозь дым */
 function smokeWorldSvg(): string {
   return `
-    <svg class="stage-svg stage-svg--lounge-tier stage-svg--lounge-signature" viewBox="0 0 360 188" preserveAspectRatio="xMidYMid slice" fill="none">
+    <svg class="stage-svg stage-svg--lounge-tier stage-svg--lounge-signature" viewBox="0 0 360 400" preserveAspectRatio="xMidYMin slice" fill="none">
       <defs>
-        <linearGradient id="loungeSkySmoke" x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0%" stop-color="#1a1e28"/>
-          <stop offset="100%" stop-color="#0a0b10"/>
+        <linearGradient id="sigSky" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stop-color="#2a3344"/>
+          <stop offset="55%" stop-color="#141820"/>
+          <stop offset="100%" stop-color="#080a10"/>
         </linearGradient>
-        <radialGradient id="loungeWorldEmber" cx="50%" cy="50%" r="50%">
-          <stop offset="0%" stop-color="rgba(224,122,58,0.4)"/>
+        <radialGradient id="sigMoon" cx="50%" cy="50%" r="50%">
+          <stop offset="0%" stop-color="rgba(200,220,240,0.35)"/>
+          <stop offset="100%" stop-color="rgba(200,220,240,0)"/>
+        </radialGradient>
+        <radialGradient id="sigEmber" cx="50%" cy="50%" r="50%">
+          <stop offset="0%" stop-color="rgba(224,122,58,0.55)"/>
           <stop offset="100%" stop-color="rgba(224,122,58,0)"/>
         </radialGradient>
       </defs>
-      <rect width="360" height="188" fill="url(#loungeSkySmoke)"/>
-      <path d="M0 88 L24 70 L40 84 L62 58 L88 80 L120 52 L150 78 L180 48 L210 76 L240 54 L270 82 L300 60 L330 78 L360 64 V100 H0 Z" fill="#12151c"/>
-      <path d="M0 96 L40 78 L70 94 L110 68 L150 92 L190 70 L230 96 L270 74 L310 94 L360 80 V108 H0 Z" fill="#161a22" opacity="0.9"/>
-      <ellipse class="stage-haze" cx="120" cy="70" rx="100" ry="28" fill="rgba(180,200,220,0.1)"/>
-      <ellipse class="stage-haze" cx="240" cy="58" rx="120" ry="34" fill="rgba(170,190,210,0.12)"/>
-      <ellipse class="stage-haze" cx="180" cy="92" rx="140" ry="26" fill="rgba(160,180,200,0.08)"/>
-      <path class="stage-haze" d="M40 100 Q120 84 200 98 Q280 112 340 88" stroke="rgba(190,210,230,0.22)" stroke-width="6" fill="none"/>
-      <path class="stage-haze" d="M20 118 Q140 104 240 120 Q300 128 350 110" stroke="rgba(170,190,210,0.14)" stroke-width="5" fill="none"/>
-      <path d="M0 128 H360 V188 H0 Z" fill="#141018"/>
-      <path d="M0 128 H360" stroke="rgba(200,190,170,0.35)" stroke-width="2"/>
-      <path d="M24 128 V148 M72 128 V148 M120 128 V148 M168 128 V148 M216 128 V148 M264 128 V148 M312 128 V148" stroke="rgba(160,150,140,0.25)" stroke-width="2"/>
-      <ellipse cx="300" cy="128" rx="36" ry="8" fill="rgba(0,0,0,0.4)"/>
-      <path d="M278 128 Q276 104 284 88 L316 88 Q324 104 322 128 Z" fill="#2a2430" stroke="rgba(200,190,170,0.35)"/>
-      <rect x="294" y="62" width="12" height="28" rx="2" fill="#3a3444"/>
-      <circle class="stage-ember" cx="300" cy="48" r="16" fill="url(#loungeWorldEmber)"/>
-      <circle class="stage-ember" cx="300" cy="48" r="4" fill="#e07a3a"/>
-      <circle cx="300" cy="48" r="28" fill="rgba(140,160,180,0.08)"/>
-      <path class="stage-haze" d="M300 40 Q290 18 308 4" stroke="rgba(200,220,235,0.4)" stroke-width="3" stroke-linecap="round" fill="none"/>
-      <path class="stage-haze" d="M308 38 Q320 16 314 2" stroke="rgba(180,200,220,0.25)" stroke-width="2.2" stroke-linecap="round" fill="none"/>
-      <path d="M40 128 H320" stroke="rgba(230,196,154,0.2)" stroke-width="1"/>
+      <rect width="360" height="400" fill="url(#sigSky)"/>
+      <circle cx="72" cy="56" r="54" fill="url(#sigMoon)"/>
+      <path d="M0 150 L20 128 L36 146 L54 112 L78 140 L104 96 L130 136 L158 88 L184 132 L210 100 L236 138 L262 92 L290 134 L318 108 L360 128 V170 H0 Z" fill="#0e1218"/>
+      <path d="M0 162 L28 142 L52 160 L84 124 L118 156 L152 118 L188 158 L224 126 L260 160 L296 130 L330 154 L360 140 V182 H0 Z" fill="#151a24"/>
+      <g fill="rgba(255,200,120,0.55)">
+        <rect x="60" y="128" width="3" height="4" rx="0.5"/><rect x="68" y="128" width="3" height="4" rx="0.5"/>
+        <rect x="60" y="138" width="3" height="4" rx="0.5"/><rect x="68" y="138" width="3" height="4" rx="0.5"/>
+        <rect x="168" y="108" width="3" height="4" rx="0.5"/><rect x="176" y="108" width="3" height="4" rx="0.5"/>
+        <rect x="168" y="118" width="3" height="4" rx="0.5"/><rect x="176" y="118" width="3" height="4" rx="0.5"/>
+        <rect x="268" y="112" width="3" height="4" rx="0.5"/><rect x="276" y="112" width="3" height="4" rx="0.5"/>
+        <rect x="268" y="122" width="3" height="4" rx="0.5"/><rect x="276" y="122" width="3" height="4" rx="0.5"/>
+      </g>
+      <ellipse class="stage-haze" cx="120" cy="118" rx="110" ry="32" fill="rgba(180,210,235,0.16)"/>
+      <ellipse class="stage-haze" cx="250" cy="100" rx="130" ry="40" fill="rgba(170,200,230,0.18)"/>
+      <path class="stage-haze" d="M20 168 Q110 148 200 166 Q280 182 350 152" stroke="rgba(190,215,240,0.32)" stroke-width="7" fill="none"/>
+      <path class="stage-haze" d="M10 188 Q130 168 240 190 Q310 202 355 178" stroke="rgba(160,190,220,0.2)" stroke-width="5" fill="none"/>
+      <path d="M0 200 H360 V400 H0 Z" fill="#121018"/>
+      <path d="M0 200 H360" stroke="rgba(230,210,170,0.55)" stroke-width="2.5"/>
+      <path d="M28 200 V228 M72 200 V228 M116 200 V228 M160 200 V228 M204 200 V228 M248 200 V228 M292 200 V228 M336 200 V228" stroke="rgba(200,190,160,0.35)" stroke-width="2.5"/>
+      <ellipse cx="286" cy="200" rx="42" ry="10" fill="rgba(0,0,0,0.45)"/>
+      <path d="M258 200 Q254 168 266 142 L306 142 Q318 168 314 200 Z" fill="#2e2838" stroke="rgba(210,200,180,0.5)" stroke-width="1.5"/>
+      <rect x="278" y="108" width="16" height="36" rx="3" fill="#454058"/>
+      <circle class="stage-ember" cx="286" cy="92" r="22" fill="url(#sigEmber)"/>
+      <circle class="stage-ember" cx="286" cy="92" r="5.5" fill="#e07a3a"/>
+      <path class="stage-haze" d="M286 80 Q270 48 292 18 Q304 4 298 -6" stroke="rgba(200,225,245,0.5)" stroke-width="4" stroke-linecap="round" fill="none"/>
+      <path class="stage-haze" d="M296 82 Q318 46 308 14" stroke="rgba(180,210,235,0.32)" stroke-width="2.8" stroke-linecap="round" fill="none"/>
     </svg>
   `
 }

@@ -2,19 +2,28 @@
 
 import { adminForceLounge } from '../admin'
 import { difficultyFromVenue } from '../data/difficulty'
+import { LOUNGE_TIERS, type LoungeTierId } from '../data/loungeTiers'
 import type { GameState } from '../game/state'
 import { isTelegramMiniApp } from '../platform/runtime'
 
 export type LayoutLabId = 'now' | 'a' | 'b' | 'c' | 'd'
+export type LabLoungeId = LoungeTierId
 
 const KEY = 'lounge-idle-ui-lab'
 const PHONE_KEY = 'lounge-idle-ui-phone'
+const LOUNGE_KEY = 'lounge-idle-ui-lounge'
 const LABELS: Record<LayoutLabId, string> = {
   now: 'Сейчас',
   a: 'A',
   b: 'B',
   c: 'C',
   d: 'D',
+}
+
+const LOUNGE_SHORT: Record<LabLoungeId, string> = {
+  nook: 'Тяга',
+  hall: 'Пар',
+  signature: 'Мир',
 }
 
 export type LabPhoneId = 'fill' | '15pm' | '15' | '16pm' | 'se' | 'tg'
@@ -65,13 +74,18 @@ function seedLabLounge(state: GameState): void {
   if (!state.venueId) state.venueId = 'smoke_river'
   state.difficulty = state.difficulty ?? difficultyFromVenue(state.venueId)
   state.onboarded = true
-  adminForceLounge(state, 'hall')
+  adminForceLounge(state, getLabLounge())
   quietLabCoach(state)
   state.scene = 'lounge'
 }
 
 function labLoungeReady(state: GameState): boolean {
-  return state.onboarded && Boolean(state.loungeTier) && state.phase !== 'employed'
+  return (
+    state.onboarded &&
+    Boolean(state.loungeTier) &&
+    state.phase !== 'employed' &&
+    state.loungeTier === getLabLounge()
+  )
 }
 
 /** На localhost сразу свой лаунж — чтобы крутить вкладки Табак / Команда / Личное. Боевой сейв TG не трогает. */
@@ -91,7 +105,7 @@ export function ensureLabLounge(state: GameState): boolean {
   }
 }
 
-/** Всегда заново открыть Сладкий пар — кнопка «Зал» и смена макета. */
+/** Открыть выбранный в лабе тариф (Тяга / Пар / Мир). */
 export function forceLabLounge(state: GameState): void {
   if (!isLayoutLabHost()) return
   try {
@@ -141,6 +155,43 @@ function readQuery(): LayoutLabId | null {
   const q = new URLSearchParams(location.search).get('ui')
   if (q === 'a' || q === 'b' || q === 'c' || q === 'd' || q === 'now') return q
   return null
+}
+
+function isLabLoungeId(id: string | null | undefined): id is LabLoungeId {
+  return id === 'nook' || id === 'hall' || id === 'signature'
+}
+
+function readLoungeQuery(): LabLoungeId | null {
+  const q = new URLSearchParams(location.search).get('lounge')
+  return isLabLoungeId(q) ? q : null
+}
+
+export function getLabLounge(): LabLoungeId {
+  if (!isLayoutLabHost()) return 'hall'
+  const fromQuery = readLoungeQuery()
+  if (fromQuery) return fromQuery
+  try {
+    const stored = sessionStorage.getItem(LOUNGE_KEY)
+    if (isLabLoungeId(stored)) return stored
+  } catch {
+    /* private mode */
+  }
+  return 'hall'
+}
+
+export function setLabLounge(id: LabLoungeId): void {
+  if (!isLayoutLabHost() || !isLabLoungeId(id)) return
+  try {
+    sessionStorage.setItem(LOUNGE_KEY, id)
+  } catch {
+    /* ignore */
+  }
+  const url = new URL(location.href)
+  if (id === 'hall') url.searchParams.delete('lounge')
+  else url.searchParams.set('lounge', id)
+  history.replaceState(null, '', `${url.pathname}${url.search}${url.hash}`)
+  syncLoungeButtons(id)
+  labApplied?.()
 }
 
 export function getLayoutLab(): LayoutLabId {
@@ -311,6 +362,7 @@ export function applyLayoutLab(root: HTMLElement): void {
   }
   if (isLayoutLabHost()) {
     syncLabButtons(getLayoutLab())
+    syncLoungeButtons(getLabLounge())
     applyDeviceFrame()
   }
 }
@@ -333,6 +385,12 @@ export function setLayoutLab(id: LayoutLabId, root: HTMLElement): void {
 function syncLabButtons(id: LayoutLabId): void {
   document.querySelectorAll<HTMLButtonElement>('[data-layout-lab]').forEach((btn) => {
     btn.setAttribute('aria-pressed', btn.dataset.layoutLab === id ? 'true' : 'false')
+  })
+}
+
+function syncLoungeButtons(id: LabLoungeId): void {
+  document.querySelectorAll<HTMLButtonElement>('[data-layout-lounge]').forEach((btn) => {
+    btn.setAttribute('aria-pressed', btn.dataset.layoutLounge === id ? 'true' : 'false')
   })
 }
 
@@ -359,16 +417,21 @@ export function mountLayoutLabSwitcher(root: HTMLElement): void {
   const bar = document.createElement('div')
   bar.className = 'layout-lab'
   bar.setAttribute('role', 'toolbar')
-  bar.setAttribute('aria-label', 'Макеты для теста')
+  bar.setAttribute('aria-label', 'Макеты и залы для теста')
   bar.innerHTML = `
     <span class="layout-lab__kicker">Макет</span>
     ${(Object.keys(LABELS) as LayoutLabId[])
       .map(
         (id) =>
-        `<button type="button" class="layout-lab__btn" data-layout-lab="${id}"${id === 'd' ? ' title="Рабочий макет"' : ''}>${LABELS[id]}</button>`,
+          `<button type="button" class="layout-lab__btn" data-layout-lab="${id}"${id === 'd' ? ' title="Рабочий макет"' : ''}>${LABELS[id]}</button>`,
       )
       .join('')}
-    <button type="button" class="layout-lab__btn layout-lab__btn--lounge" data-layout-lab-lounge>Зал</button>
+    <span class="layout-lab__rule" aria-hidden="true"></span>
+    <span class="layout-lab__kicker">Зал</span>
+    ${LOUNGE_TIERS.map((t) => {
+      const short = LOUNGE_SHORT[t.id]
+      return `<button type="button" class="layout-lab__btn layout-lab__btn--venue" data-layout-lounge="${t.id}" title="${t.name} · ${t.vibe}">${short}</button>`
+    }).join('')}
     <span class="layout-lab__rule" aria-hidden="true"></span>
     <span class="layout-lab__kicker">Экран</span>
     ${PHONES.map(
@@ -379,10 +442,11 @@ export function mountLayoutLabSwitcher(root: HTMLElement): void {
   document.body.appendChild(bar)
   bar.addEventListener('click', (e) => {
     const loungeBtn = (e.target as HTMLElement).closest<HTMLButtonElement>(
-      '[data-layout-lab-lounge]',
+      '[data-layout-lounge]',
     )
-    if (loungeBtn) {
-      labApplied?.()
+    const loungeId = loungeBtn?.dataset.layoutLounge
+    if (isLabLoungeId(loungeId)) {
+      setLabLounge(loungeId)
       return
     }
     const phoneBtn = (e.target as HTMLElement).closest<HTMLButtonElement>('[data-layout-phone]')

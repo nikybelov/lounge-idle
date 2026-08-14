@@ -1029,8 +1029,8 @@ body {
 
 .stage[data-scene='lounge'][data-tier='nook'] .stage-bg {
   background:
-    radial-gradient(50% 55% at 72% 68%, rgba(224, 122, 58, 0.28), transparent 60%),
-    linear-gradient(165deg, #14100e 0%, #080605 100%);
+    radial-gradient(55% 50% at 58% 38%, rgba(224, 122, 58, 0.38), transparent 62%),
+    linear-gradient(165deg, #1a120e 0%, #080605 100%);
 }
 
 .stage[data-scene='lounge'][data-tier='hall'] .stage-bg {
@@ -1042,9 +1042,9 @@ body {
 
 .stage[data-scene='lounge'][data-tier='signature'] .stage-bg {
   background:
-    radial-gradient(70% 80% at 50% 20%, rgba(150, 170, 190, 0.14), transparent 55%),
-    radial-gradient(50% 55% at 78% 78%, rgba(224, 122, 58, 0.2), transparent 58%),
-    linear-gradient(165deg, #12141a 0%, #07080c 100%);
+    radial-gradient(70% 55% at 22% 18%, rgba(170, 200, 230, 0.22), transparent 58%),
+    radial-gradient(50% 45% at 78% 42%, rgba(224, 122, 58, 0.22), transparent 58%),
+    linear-gradient(165deg, #1a2230 0%, #07080c 100%);
 }
 
 .stage-art {
@@ -1099,9 +1099,21 @@ body {
   animation: lounge-stage-breathe 4.5s ease-in-out infinite;
 }
 
+/* Тяга / Пар — спокойнее дыхание, без яркого ореола */
+.stage[data-scene='lounge'][data-lounge-live='1'][data-tier='nook'] .stage-art,
+.stage[data-scene='lounge'][data-lounge-live='1'][data-tier='hall'] .stage-art {
+  filter: drop-shadow(0 8px 18px rgba(224, 122, 58, 0.05));
+  animation: lounge-stage-breathe-soft 7s ease-in-out infinite;
+}
+
 @keyframes lounge-stage-breathe {
   0%, 100% { transform: translateY(0); }
   50% { transform: translateY(-2px); }
+}
+
+@keyframes lounge-stage-breathe-soft {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-1px); }
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -1471,6 +1483,32 @@ body {
   animation: stage-ripple 4.5s ease-in-out infinite;
 }
 
+/* Тяга / Пар — без пульса на углях; только мягкое дыхание дыма */
+.stage[data-tier='nook'] .stage-ember,
+.stage[data-tier='hall'] .stage-ember {
+  animation: none;
+}
+
+.stage[data-tier='nook'] .stage-coal-glow,
+.stage[data-tier='hall'] .stage-coal-glow {
+  transform-origin: center;
+  transform-box: fill-box;
+  animation: stage-coal-breathe 7s ease-in-out infinite alternate;
+}
+
+.stage[data-tier='nook'] .stage-haze,
+.stage[data-tier='hall'] .stage-haze {
+  animation: stage-haze-soft 12s ease-in-out infinite alternate;
+}
+
+.stage[data-tier='nook'] .embers,
+.stage[data-tier='hall'] .embers {
+  animation: lounge-glow-soft 7s ease-in-out infinite alternate;
+  opacity: 0.2;
+  filter: blur(18px);
+  background: radial-gradient(circle, rgba(160, 100, 60, 0.14), transparent 72%);
+}
+
 @keyframes stage-neon-flicker {
   0%, 92%, 100% { opacity: 1; filter: brightness(1); }
   94% { opacity: 0.82; filter: brightness(0.85); }
@@ -1482,9 +1520,30 @@ body {
   100% { opacity: 1; }
 }
 
+@keyframes stage-coal-breathe {
+  0% { opacity: 0.55; }
+  100% { opacity: 0.85; }
+}
+
 @keyframes stage-haze-drift {
   0% { opacity: 0.25; transform: translateX(-4px); }
   100% { opacity: 0.5; transform: translateX(6px); }
+}
+
+@keyframes stage-haze-soft {
+  0% { opacity: 0.38; transform: translateX(-2px); }
+  100% { opacity: 0.5; transform: translateX(3px); }
+}
+
+@keyframes lounge-glow-soft {
+  from {
+    opacity: 0.14;
+    transform: scale(0.98);
+  }
+  to {
+    opacity: 0.26;
+    transform: scale(1.02);
+  }
 }
 
 @keyframes stage-ripple {
@@ -1496,7 +1555,10 @@ body {
   .stage[data-scene='job'] .brand.sign--neon_haze,
   .stage-ember,
   .stage-haze,
-  .stage-ripple {
+  .stage-ripple,
+  .stage-coal-glow,
+  .stage[data-tier='nook'] .embers,
+  .stage[data-tier='hall'] .embers {
     animation: none !important;
   }
 }
@@ -1504,7 +1566,10 @@ body {
 .settings-motion-reduce .stage[data-scene='job'] .brand.sign--neon_haze,
 .settings-motion-reduce .stage-ember,
 .settings-motion-reduce .stage-haze,
-.settings-motion-reduce .stage-ripple {
+.settings-motion-reduce .stage-ripple,
+.settings-motion-reduce .stage-coal-glow,
+.settings-motion-reduce .stage[data-tier='nook'] .embers,
+.settings-motion-reduce .stage[data-tier='hall'] .embers {
   animation: none !important;
 }
 
@@ -3367,6 +3432,14 @@ body.achieve-locked {
   font-size: 0.7rem;
   line-height: 1.35;
   overflow-wrap: anywhere;
+}
+
+.row-sub--oneline {
+  overflow-wrap: normal;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 100%;
 }
 
 .row-meta {
@@ -5459,6 +5532,331 @@ body.achieve-locked {
   opacity: 1;
 }
 
+/* —— City network map (warm lounge topography, soft edges) —— */
+.network-map-panel {
+  gap: 0;
+  padding: 0 !important;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  min-height: min(62vh, 520px);
+  background: transparent;
+}
+
+.network-map-panel__meta {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 8px;
+  padding: 8px 12px 6px;
+  font-size: 12px;
+  color: rgba(232, 200, 160, 0.72);
+  background: linear-gradient(180deg, rgba(14, 11, 8, 0.88), rgba(14, 11, 8, 0));
+  position: relative;
+  z-index: 2;
+}
+
+.city-map {
+  position: relative;
+  flex: 1;
+  min-height: 280px;
+  margin: 0;
+  border: none;
+  border-radius: 0;
+  overflow: visible;
+  background: transparent;
+  box-shadow: none;
+  transform: none;
+  isolation: isolate;
+}
+
+.city-map__bloom,
+.city-map__focus {
+  position: absolute;
+  inset: -14%;
+  pointer-events: none;
+  background-image: var(--city-map-art);
+  background-size: cover;
+  background-position: 50% 42%;
+  background-repeat: no-repeat;
+}
+
+/* Размытый ореол по краям */
+.city-map__bloom {
+  z-index: 0;
+  inset: -28%;
+  filter:
+    sepia(1)
+    saturate(1.5)
+    hue-rotate(-18deg)
+    brightness(0.8)
+    contrast(1.1)
+    blur(42px);
+  opacity: 1;
+  -webkit-mask-image: radial-gradient(
+    ellipse 92% 88% at 50% 46%,
+    transparent 0%,
+    transparent 8%,
+    rgba(0, 0, 0, 0.55) 28%,
+    #000 48%,
+    #000 72%,
+    rgba(0, 0, 0, 0.4) 88%,
+    transparent 100%
+  );
+  mask-image: radial-gradient(
+    ellipse 92% 88% at 50% 46%,
+    transparent 0%,
+    transparent 8%,
+    rgba(0, 0, 0, 0.55) 28%,
+    #000 48%,
+    #000 72%,
+    rgba(0, 0, 0, 0.4) 88%,
+    transparent 100%
+  );
+}
+
+/* Чёткая середина карты */
+.city-map__focus {
+  z-index: 1;
+  filter:
+    sepia(1)
+    saturate(1.55)
+    hue-rotate(-18deg)
+    brightness(0.84)
+    contrast(1.18);
+  -webkit-mask-image: radial-gradient(
+    ellipse 48% 44% at 50% 46%,
+    #000 0%,
+    #000 42%,
+    rgba(0, 0, 0, 0.45) 68%,
+    transparent 92%
+  );
+  mask-image: radial-gradient(
+    ellipse 48% 44% at 50% 46%,
+    #000 0%,
+    #000 42%,
+    rgba(0, 0, 0, 0.45) 68%,
+    transparent 92%
+  );
+}
+
+/* лёгкий ember в центре */
+.city-map::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  pointer-events: none;
+  background: radial-gradient(
+    ellipse 52% 46% at 50% 46%,
+    rgba(224, 122, 58, 0.14) 0%,
+    transparent 72%
+  );
+}
+
+.city-map__svg {
+  position: relative;
+  z-index: 2;
+  display: block;
+  width: 100%;
+  height: 100%;
+  min-height: 320px;
+  max-height: none;
+  background: transparent;
+}
+
+.city-map__pin {
+  cursor: pointer;
+  outline: none;
+}
+
+.city-map__pin-hit {
+  fill: transparent;
+  pointer-events: all;
+}
+
+.city-map__pin-ring {
+  fill: none;
+  stroke: rgba(255, 220, 160, 0.45);
+  stroke-width: 1.5;
+  opacity: 0;
+  transition: opacity 0.2s ease;
+}
+
+.city-map__pin.is-selected .city-map__pin-ring,
+.city-map__pin:hover .city-map__pin-ring {
+  opacity: 1;
+}
+
+.city-map__pin-dot {
+  fill: #2a2018;
+  stroke: rgba(232, 196, 154, 0.55);
+  stroke-width: 1.6;
+  transition: fill 0.2s ease, stroke 0.2s ease, filter 0.2s ease;
+}
+
+.city-map__pin--hq .city-map__pin-dot {
+  fill: #f0c87a;
+  stroke: #fff3c8;
+  filter: drop-shadow(0 0 6px rgba(224, 122, 58, 0.75));
+}
+
+.city-map__pin--owned .city-map__pin-dot {
+  fill: var(--ember);
+  stroke: #ffd7a8;
+  filter: drop-shadow(0 0 5px rgba(224, 122, 58, 0.55));
+}
+
+.city-map__pin--afford .city-map__pin-dot {
+  fill: #4a3020;
+  stroke: rgba(240, 180, 100, 0.9);
+  animation: city-pin-pulse 2.2s ease-in-out infinite;
+}
+
+.city-map__pin--open .city-map__pin-dot {
+  fill: #3a2820;
+  stroke: rgba(232, 196, 154, 0.65);
+}
+
+.city-map__pin--locked .city-map__pin-dot {
+  fill: #1a1410;
+  stroke: rgba(154, 136, 120, 0.35);
+  opacity: 0.85;
+}
+
+.city-map__pin.is-selected .city-map__pin-dot {
+  stroke-width: 2.4;
+  stroke: #fff0c0;
+}
+
+.city-map__pin-label {
+  fill: rgba(248, 242, 234, 0.94);
+  font-size: 9px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  pointer-events: none;
+  user-select: none;
+  paint-order: stroke fill;
+  stroke: rgba(14, 11, 8, 0.78);
+  stroke-width: 2.5px;
+}
+
+.city-map__pin--locked .city-map__pin-label {
+  fill: rgba(154, 136, 120, 0.5);
+}
+
+@keyframes city-pin-pulse {
+  0%,
+  100% {
+    filter: drop-shadow(0 0 2px rgba(224, 122, 58, 0.25));
+  }
+  50% {
+    filter: drop-shadow(0 0 8px rgba(224, 122, 58, 0.7));
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .city-map__pin--afford .city-map__pin-dot {
+    animation: none;
+  }
+
+  .city-map__bloom {
+    filter:
+      sepia(1)
+      saturate(1.5)
+      hue-rotate(-18deg)
+      brightness(0.78)
+      contrast(1.12);
+    opacity: 0.55;
+  }
+}
+
+.city-map__detail {
+  position: absolute;
+  left: 10px;
+  right: 10px;
+  bottom: 10px;
+  z-index: 3;
+  display: grid;
+  gap: 4px;
+  padding: 12px 14px;
+  border-radius: 14px;
+  border: 1px solid rgba(224, 122, 58, 0.22);
+  background: rgba(18, 14, 11, 0.88);
+  backdrop-filter: blur(10px);
+  box-shadow: 0 10px 28px rgba(0, 0, 0, 0.4);
+}
+
+.city-map__detail-kicker {
+  margin: 0;
+  font-size: 11px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: rgba(232, 196, 154, 0.6);
+}
+
+.city-map__detail-title {
+  margin: 0;
+  font-family: var(--font-display, Georgia, serif);
+  font-size: 1.1rem;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.city-map__detail-sub {
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.4;
+  color: var(--muted);
+}
+
+.city-map__detail-status {
+  margin-top: 2px;
+  font-size: 12px;
+  color: rgba(224, 184, 122, 0.85);
+}
+
+.city-map__detail-status.is-locked {
+  color: rgba(154, 136, 120, 0.75);
+}
+
+.city-map__buy {
+  margin-top: 4px;
+  justify-self: start;
+  border: 1px solid rgba(224, 122, 58, 0.4);
+  border-radius: 999px;
+  background: rgba(42, 32, 24, 0.95);
+  color: var(--text);
+  font: inherit;
+  font-size: 13px;
+  padding: 8px 14px;
+  cursor: pointer;
+}
+
+.city-map__buy:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.city-map__buy.is-afford {
+  border-color: rgba(240, 200, 120, 0.7);
+  background: linear-gradient(180deg, rgba(90, 55, 28, 0.95), rgba(48, 32, 18, 0.95));
+  color: #fff3c8;
+}
+
+[data-ui='d'] .network-map-panel {
+  margin: 0 -2px;
+  overflow: visible;
+}
+
+[data-ui='d'] .city-map {
+  border-radius: 0;
+}
+
+.app-shell[data-ui='d'] .panel-scroll:has(.network-map-panel) {
+  overflow-x: hidden;
+}
+
 /* —— Personal —— */
 .personal-bars {
   display: flex;
@@ -7190,10 +7588,16 @@ body.celebrate-locked {
   border-color: rgba(255, 255, 255, 0.12);
 }
 
-.layout-lab__btn--lounge {
+.layout-lab__btn--venue {
   min-width: 0;
-  color: var(--gold);
-  border-color: rgba(224, 180, 100, 0.35);
+  color: rgba(243, 232, 216, 0.82);
+  border-color: rgba(224, 180, 100, 0.28);
+}
+
+.layout-lab__btn--venue[aria-pressed='true'] {
+  color: var(--bg0);
+  background: var(--gold);
+  border-color: rgba(255, 255, 255, 0.12);
 }
 
 .layout-lab__rule {
@@ -7629,23 +8033,31 @@ html.layout-lab-device .boot {
 }
 
 .app-shell[data-ui='d'] {
+  position: relative;
+  isolation: isolate;
   grid-template-rows: auto minmax(0, 1fr);
+  background: #0c0a08;
+}
+
+/* Hero не клипит арт — absolute-слои якорятся к shell */
+.app-shell[data-ui='d'] > .hero-band {
+  position: static;
+  z-index: auto;
 }
 
 .app-shell[data-ui='d'] .hero-band {
   display: grid;
   grid-template-columns: minmax(0, 1fr);
   grid-template-rows: auto auto auto;
-  position: relative;
-  z-index: 1;
   overflow: visible;
   min-height: 0;
-  border-bottom: 1px solid rgba(224, 122, 58, 0.18);
-  box-shadow: inset 0 -1px 0 rgba(255, 255, 255, 0.04);
+  border-bottom: none;
+  box-shadow: none;
 }
 
 .app-shell[data-ui='d'] .hero-band > .topbar {
   grid-area: 1 / 1;
+  position: relative;
   z-index: 3;
   background: transparent;
   border-bottom: none;
@@ -7655,13 +8067,14 @@ html.layout-lab-device .boot {
 
 .app-shell[data-ui='d'] .hero-band > .goal-strip-row {
   grid-area: 2 / 1;
+  position: relative;
   z-index: 3;
 }
 
 .app-shell[data-ui='d'] .hero-band > .stage {
   grid-area: 3 / 1;
-  z-index: 2;
   position: static;
+  z-index: 2;
   display: block;
   overflow: visible;
   pointer-events: auto;
@@ -7690,6 +8103,12 @@ html.layout-lab-device .boot {
   display: none;
 }
 
+.app-shell[data-ui='d'] .stage-copy {
+  position: relative;
+  z-index: 3;
+}
+
+/* Full-bleed атмосфера на весь экран (под панелью и dock) */
 .app-shell[data-ui='d'] .stage-bg,
 .app-shell[data-ui='d'] .haze,
 .app-shell[data-ui='d'] .embers,
@@ -7709,20 +8128,25 @@ html.layout-lab-device .boot {
 .app-shell[data-ui='d'] .haze,
 .app-shell[data-ui='d'] .embers {
   display: block;
-  opacity: 0.45;
-  z-index: 1;
+  opacity: 0.5;
+  z-index: 0;
 }
 
 .app-shell[data-ui='d'] .stage-art {
   display: block;
-  opacity: 0.42;
-  z-index: 1;
+  opacity: 0.72;
+  z-index: 0;
+}
+
+.app-shell[data-ui='d'] .stage[data-tier='nook'] .stage-art,
+.app-shell[data-ui='d'] .stage[data-tier='signature'] .stage-art {
+  opacity: 0.82;
 }
 
 .app-shell[data-ui='d'] .stage-fx {
   display: block;
-  opacity: 0.7;
-  z-index: 1;
+  opacity: 0.75;
+  z-index: 0;
 }
 
 .app-shell[data-ui='d'] .stage::after,
@@ -7730,11 +8154,17 @@ html.layout-lab-device .boot {
 .app-shell[data-ui='d'] .stage[data-has-cta='1']::after,
 .app-shell[data-ui='d'] .stage[data-scene='lounge'][data-lounge-live='1']::after {
   display: block;
-  z-index: 2;
+  z-index: 1;
   content: '';
+  /* Лёгкий скрам только у CTA; низ почти открыт — арт виден через список */
   background:
-    linear-gradient(180deg, rgba(12, 9, 7, 0.28) 0%, transparent 34%),
-    linear-gradient(0deg, rgba(12, 9, 7, 0.72) 0%, transparent 46%);
+    linear-gradient(180deg, rgba(12, 9, 7, 0.18) 0%, transparent 22%),
+    linear-gradient(
+      0deg,
+      rgba(12, 9, 7, 0.42) 0%,
+      rgba(12, 9, 7, 0.18) 28%,
+      transparent 55%
+    );
 }
 
 #app .app-shell[data-ui='d'] .goal-strip,
@@ -7891,10 +8321,33 @@ html.layout-lab-device .boot {
   font-size: 0.92rem;
 }
 
+.app-shell[data-ui='d'] > .panel {
+  position: relative;
+  z-index: 2;
+}
+
 .app-shell[data-ui='d'] .panel {
   border-top: none;
   background:
-    linear-gradient(180deg, rgba(14, 11, 8, 0.92) 0%, rgba(12, 9, 7, 0.98) 18%, var(--panel) 100%);
+    linear-gradient(
+      180deg,
+      rgba(12, 9, 7, 0.08) 0%,
+      rgba(12, 9, 7, 0.22) 40%,
+      rgba(12, 9, 7, 0.4) 100%
+    );
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+}
+
+.app-shell[data-ui='d'] .scene-nav {
+  background: rgba(12, 9, 7, 0.28);
+  border-color: rgba(224, 180, 100, 0.14);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+}
+
+.app-shell[data-ui='d'] .menu-shell {
+  background: transparent;
 }
 
 /* D: мягче список под залом — меньше «карточек», тише обводки */
@@ -7920,8 +8373,10 @@ html.layout-lab-device .boot {
 #app .app-shell[data-ui='d'] .row-btn {
   border-radius: 12px;
   border: none;
-  background: rgba(255, 255, 255, 0.03);
+  background: rgba(8, 6, 5, 0.52);
   box-shadow: none;
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
 }
 
 #app .app-shell[data-ui='d'] .row-btn.locked:not(.achievement):not(:disabled),
@@ -8014,8 +8469,10 @@ html.layout-lab-device .boot {
   gap: 3px;
   padding: 2px;
   border-radius: 12px;
-  border: 1px solid rgba(224, 180, 100, 0.2);
-  background: rgba(0, 0, 0, 0.28);
+  border: 1px solid rgba(224, 180, 100, 0.22);
+  background: rgba(0, 0, 0, 0.42);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
 }
 
 .app-shell[data-ui='d'][data-story-menu='closed'] .menu-nav--primary .menu-btn {
@@ -8057,8 +8514,10 @@ html.layout-lab-device .boot {
   place-items: center;
   padding: 0;
   border-radius: 12px;
-  border: 1px solid rgba(224, 180, 100, 0.2);
-  background: rgba(0, 0, 0, 0.28);
+  border: 1px solid rgba(224, 180, 100, 0.22);
+  background: rgba(0, 0, 0, 0.42);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
   box-shadow: none;
   color: var(--muted);
 }

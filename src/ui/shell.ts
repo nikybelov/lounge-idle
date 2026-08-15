@@ -689,6 +689,8 @@ export interface ShellHandlers {
 }
 
 let careerCompareCard: CareerShareCard | null = null
+/** Чтобы после покупки/апгрейда панель не прыгала наверх */
+let panelScrollKey = ''
 
 export function setCareerCompareCard(card: CareerShareCard | null): void {
   careerCompareCard = card
@@ -900,6 +902,41 @@ function syncPanelScrollFades(root: HTMLElement): void {
 
   fadeTop.classList.toggle('is-visible', canScroll && !atTop)
   fadeBottom.classList.toggle('is-visible', canScroll && !atBottom)
+}
+
+function panelContentScrollKey(
+  menuTab: MenuTab,
+  storySubTab: StorySubTab,
+  careerSubTab: CareerSubTab,
+  state: GameState,
+): string {
+  return [
+    menuTab,
+    storySubTab,
+    careerSubTab,
+    state.scene,
+    state.phase,
+    state.flags.pickingLounge ? 'pick' : '',
+  ].join('|')
+}
+
+function restorePanelScroll(
+  root: HTMLElement,
+  panel: HTMLElement,
+  keepScroll: boolean,
+  savedTop: number,
+): void {
+  const apply = (): void => {
+    if (keepScroll) {
+      const max = Math.max(0, panel.scrollHeight - panel.clientHeight)
+      panel.scrollTop = Math.min(savedTop, max)
+    } else {
+      panel.scrollTop = 0
+    }
+    syncPanelScrollFades(root)
+  }
+  apply()
+  requestAnimationFrame(apply)
 }
 
 export function updateHud(
@@ -1455,45 +1492,59 @@ export function renderShell(
     flushAchievementQueue(root, state, menuTab)
   }
 
+  const nextScrollKey = panelContentScrollKey(
+    menuTab,
+    storySubTab,
+    careerSubTab,
+    state,
+  )
+  const savedScrollTop = panel.scrollTop
+  const keepScroll = nextScrollKey === panelScrollKey
+  panelScrollKey = nextScrollKey
+  const finishPanel = (): void => {
+    syncGuide()
+    restorePanelScroll(root, panel, keepScroll, savedScrollTop)
+  }
+
   if (menuTab === 'own' && state.phase === 'employed' && ownReady) {
     panel.innerHTML = renderOwnLoungePanel(state)
     wireOwnLoungePanel(panel, handlers)
-    syncGuide()
+    finishPanel()
     return
   }
 
   if (menuTab === 'tobacco' && state.phase !== 'employed') {
     panel.innerHTML = renderTobaccoPanel(state)
     wireTobaccoPanel(panel, handlers)
-    syncGuide()
+    finishPanel()
     return
   }
 
   if (menuTab === 'staff' && state.phase !== 'employed') {
     panel.innerHTML = renderStaffPanel(state)
     wireStaffPanel(panel, handlers)
-    syncGuide()
+    finishPanel()
     return
   }
 
   if (menuTab === 'personal' && state.phase !== 'employed') {
     panel.innerHTML = renderPersonalPanel(state, now)
     wirePersonalPanel(panel, handlers)
-    syncGuide()
+    finishPanel()
     return
   }
 
   if (menuTab === 'network' && state.phase !== 'employed') {
     panel.innerHTML = renderNetworkPanel(state)
     wireNetworkPanel(panel, handlers, root, state)
-    syncGuide()
+    finishPanel()
     return
   }
 
   if (menuTab === 'career') {
     panel.innerHTML = renderCareerPanel(state, careerSubTab)
     wireCareerPanel(panel, handlers)
-    syncGuide()
+    finishPanel()
     return
   }
 
@@ -1508,8 +1559,7 @@ export function renderShell(
     wireLoungePanel(panel, handlers)
   }
 
-  syncGuide()
-  requestAnimationFrame(() => syncPanelScrollFades(root))
+  finishPanel()
 }
 
 function renderJobTasksBlock(state: GameState, now: number): string {

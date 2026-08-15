@@ -72,6 +72,7 @@ import {
 import {
   LOUNGE_SHOP_LINES,
   getLoungeShopGrade,
+  getLoungeShopLine,
   loungeShopLevel,
   loungeShopMaxLevel,
   nextLoungeShopGrade,
@@ -977,9 +978,13 @@ export function updateHud(
     const level = shopLevel(state.shopOwned, id)
     const next = nextShopGrade(item, level)
     if (!next) return
-    const available =
-      state.phase !== 'ownOnly' &&
-      canUpgradeShopItem(item, level, state.taskDone, state.jobRank)
+    // ownOnly тоже качает инструменты («Сам на смене») — как в renderShopPanel
+    const available = canUpgradeShopItem(
+      item,
+      level,
+      state.taskDone,
+      state.jobRank,
+    )
     const cost = shopItemCost(state, next.cost)
     const canBuy = available && state.cash >= cost
     btn.disabled = !canBuy
@@ -987,6 +992,19 @@ export function updateHud(
     btn.classList.toggle('locked', !available)
     const meta = btn.querySelector('.row-meta')
     if (meta) meta.textContent = formatMoney(cost)
+  })
+
+  root.querySelectorAll<HTMLButtonElement>('[data-lounge-shop]').forEach((btn) => {
+    const id = btn.dataset.loungeShop as LoungeShopId
+    const line = getLoungeShopLine(id)
+    if (!line) return
+    const level = loungeShopLevel(state.loungeShop, id)
+    const next = nextLoungeShopGrade(line, level)
+    if (!next) return
+    const cost = shopItemCost(state, next.cost)
+    const canBuy = state.phase !== 'employed' && state.cash >= cost
+    btn.disabled = !canBuy
+    btn.classList.toggle('afford', canBuy)
   })
 
   const openBtn = root.querySelector<HTMLButtonElement>('[data-open]')

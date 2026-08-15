@@ -1114,6 +1114,7 @@ export function updateJobCooldowns(
     const speedNote = cd < t.cooldownMs ? ` · ${(cd / 1000).toFixed(1)}с` : ''
     btn.disabled = !ready
     btn.classList.toggle('busy', !ready)
+    btn.classList.toggle('task-ready', ready)
     const sub = btn.querySelector('.row-sub')
     const meta = btn.querySelector('.row-meta')
     if (sub) {

@@ -5693,6 +5693,14 @@ body.achieve-locked {
   box-shadow: none;
   transform: none;
   isolation: isolate;
+  --map-scale: 1.28;
+  --map-tx: 0px;
+  --map-ty: 0px;
+  /* none — иначе браузер съедает pinch; тапы по пинам остаются */
+  touch-action: none;
+  overscroll-behavior: none;
+  user-select: none;
+  -webkit-user-select: none;
   /* Очень тонкое растворение края — карта почти на весь экран */
   -webkit-mask-image:
     linear-gradient(to right, transparent 0%, #000 4%, #000 96%, transparent 100%),
@@ -5708,9 +5716,10 @@ body.achieve-locked {
   position: absolute;
   inset: 0;
   z-index: 1;
-  transform: scale(1.28);
+  transform: translate(var(--map-tx), var(--map-ty)) scale(var(--map-scale));
   transform-origin: 50% 44%;
   pointer-events: none;
+  will-change: transform;
 }
 
 .city-map__world .city-map__svg {
@@ -5739,8 +5748,9 @@ body.achieve-locked {
   background-size: cover;
   background-position: 50% 44%;
   background-repeat: no-repeat;
-  transform: scale(1.28);
+  transform: translate(var(--map-tx), var(--map-ty)) scale(var(--map-scale));
   transform-origin: 50% 44%;
+  will-change: transform;
   filter:
     sepia(1)
     saturate(1.4)
@@ -5813,6 +5823,8 @@ body.achieve-locked {
   min-height: min(34dvh, 280px);
   max-height: none;
   background: transparent;
+  touch-action: none;
+  -webkit-user-drag: none;
 }
 
 .city-map__pin {
@@ -6198,11 +6210,18 @@ body.achieve-locked {
   min-height: min(34dvh, 300px);
 }
 
-/* Не режем карту жёстким прямоугольником панели */
+/* Карта на весь блок: без горизонтального pan/scroll панели */
 .app-shell[data-ui='d'] .panel-scroll:has(.network-map-panel) {
   overflow: hidden;
   flex: 1;
   min-height: 0;
+}
+
+.app-shell[data-ui='d'] .panel-scroll:has(.network-map-panel) .panel-body,
+.panel-body:has(.network-map-panel) {
+  overflow: hidden;
+  overscroll-behavior: none;
+  touch-action: manipulation;
 }
 
 .app-shell[data-ui='d'] .panel-scroll:has(.network-map-panel) .panel-scroll-fade {

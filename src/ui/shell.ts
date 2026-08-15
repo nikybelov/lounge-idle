@@ -192,6 +192,7 @@ import {
 } from '../game/workDays'
 import { loadHallOfFame, type CareerShareCard } from '../save/leaderboard'
 import { applyLayoutLab, usesLayoutD } from './layoutLab'
+import { wireCityMapGestures } from './cityMapGestures'
 import { isGoalStripExpanded, patchSettings } from '../save/settings'
 import { UPGRADES } from '../data/upgrades'
 import type { TaskId } from '../data/tasks'
@@ -205,6 +206,7 @@ import {
   ogonyokChipPulse,
   ogonyokChipVisible,
   rankUpCoach,
+  touchOgonokInteraction,
   type CoachContext,
 } from '../game/guide'
 import { initStageAtmosphere, syncStageAtmosphere } from './atmosphere'
@@ -1435,7 +1437,7 @@ export function renderShell(
 
   if (menuTab === 'network' && state.phase !== 'employed') {
     panel.innerHTML = renderNetworkPanel(state)
-    wireNetworkPanel(panel, handlers)
+    wireNetworkPanel(panel, handlers, root, state)
     syncGuide()
     return
   }
@@ -2274,21 +2276,78 @@ function renderNetworkPanel(state: GameState): string {
         </div>
         <div class="city-map__dissolve" aria-hidden="true"></div>
       </div>
-      ${renderNetworkMapDetail(state, selected)}
+      <div data-map-detail-slot>${renderNetworkMapDetail(state, selected)}</div>
     </div>
   `
 }
 
-function wireNetworkPanel(panel: HTMLElement, handlers: ShellHandlers): void {
+/** Быстрое переключение точки: карточка + selected, без пересборки карты/шелла. */
+export function patchNetworkMapSelection(
+  root: HTMLElement,
+  state: GameState,
+  handlers: ShellHandlers,
+): void {
+  const panel = root.querySelector('.network-map-panel') as HTMLElement | null
+  if (!panel?.querySelector('[data-city-map]')) {
+    handlers.onMenuTab('network')
+    return
+  }
+
+  const selected = normalizeNetworkMapSelection()
+  panel.classList.toggle('has-detail', selected != null)
+  panel.querySelectorAll<SVGGElement>('.city-map__pin').forEach((pin) => {
+    pin.classList.toggle('is-selected', pin.getAttribute('data-map-pin') === selected)
+  })
+
+  const slot = panel.querySelector('[data-map-detail-slot]') as HTMLElement | null
+  if (!slot) {
+    handlers.onMenuTab('network')
+    return
+  }
+
+  slot.innerHTML = renderNetworkMapDetail(state, selected)
+  wireNetworkMapDetailSlot(slot, root, state, handlers)
+}
+
+function wireNetworkMapDetailSlot(
+  slot: HTMLElement,
+  root: HTMLElement,
+  state: GameState,
+  handlers: ShellHandlers,
+): void {
+  slot.querySelector('[data-map-clear]')?.addEventListener('click', (e) => {
+    e.stopPropagation()
+    touchOgonokInteraction()
+    clearNetworkMapSelection()
+    patchNetworkMapSelection(root, state, handlers)
+  })
+  slot.querySelectorAll('[data-branch]').forEach((btn) => {
+    btn.addEventListener('click', (e) => {
+      e.stopPropagation()
+      handlers.onOpenBranch((btn as HTMLElement).dataset.branch as BranchId)
+    })
+  })
+}
+
+function wireNetworkPanel(
+  panel: HTMLElement,
+  handlers: ShellHandlers,
+  root: HTMLElement,
+  state: GameState,
+): void {
   fitCityMapPinChips(panel)
   requestAnimationFrame(() => fitCityMapPinChips(panel))
 
-  panel.querySelector('[data-city-map]')?.addEventListener('click', (e) => {
+  const map = panel.querySelector('[data-city-map]') as HTMLElement | null
+  if (map) wireCityMapGestures(map)
+
+  map?.addEventListener('click', (e) => {
     const pin = (e.target as Element).closest('[data-map-pin]')
     const id = pin?.getAttribute('data-map-pin') as CityMapPinId | null
+    touchOgonokInteraction()
     if (!id) {
       clearNetworkMapSelection()
-      handlers.onMenuTab('network')
+      patchNetworkMapSelection(root, state, handlers)
       return
     }
     /* повторный тап по той же точке — закрыть карточку */
@@ -2297,19 +2356,14 @@ function wireNetworkPanel(panel: HTMLElement, handlers: ShellHandlers): void {
     } else {
       setNetworkMapSelection(id)
     }
-    handlers.onMenuTab('network')
+    patchNetworkMapSelection(root, state, handlers)
   })
-  panel.querySelector('[data-map-clear]')?.addEventListener('click', (e) => {
-    e.stopPropagation()
-    clearNetworkMapSelection()
-    handlers.onMenuTab('network')
-  })
-  panel.querySelectorAll('[data-branch]').forEach((btn) => {
-    btn.addEventListener('click', (e) => {
-      e.stopPropagation()
-      handlers.onOpenBranch((btn as HTMLElement).dataset.branch as BranchId)
-    })
-  })
+  wireNetworkMapDetailSlot(
+    panel.querySelector('[data-map-detail-slot]') as HTMLElement || panel,
+    root,
+    state,
+    handlers,
+  )
 }
 
 function formatCooldownLeft(readyAt: number, now: number): string {

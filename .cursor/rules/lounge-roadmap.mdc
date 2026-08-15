@@ -1,0 +1,51 @@
+---
+description: Product backlog — next systems and long-term expansion for Дымная Империя
+alwaysApply: true
+---
+
+# Roadmap (Никита / design backlog)
+
+Do not implement these unless the user asks. Keep them in mind when balancing or proposing features.
+
+## Near / mid
+
+### IA: Магазин vs Табак — shipping
+
+- «Инструменты» → **«Магазин»** (story subnav; also in ownOnly).
+- Магазин: **Инструменты для работы** (смена) + **Табачный магазин** (свой зал / dual lounge).
+- На чужой смене (`employed` / dual job) — только инструменты.
+- Вкладка **«Табак»** = склад + полка (без каталога закупки).
+- Кальяны в магазин — later, not now.
+
+### Кальяны (аппараты) — proposed
+
+- Buy hookah **devices** separately from tobacco shelf (tobacco = flavors; hookahs = hardware).
+- Link to seating: e.g. 2 hookahs for ~5 tables/seats → shortage → guest dissatisfaction (walkaway / income·service penalty).
+- **0 hookahs → no guests / no pay** (same hard gate as empty shelf today via `shelfHasService`).
+- Starter: give **1 free hookah** on lounge open (or first buy forced) so open isn’t soft-lock.
+- Buy in **Магазин**; status / shortage feedback can sit near shelf or own-lounge HUD.
+- Fits next to `appeal.ts` / `service.ts`.
+
+### Легенда района (мягкий престиж)
+
+- After full network (5 branches / `full_network`): optional **reborn/rebrand**, not a separate Endless mode.
+- Soft rollback (variant A): keep flagship reduced; reopen branches cheaper; small permanent `legendMult` (+3–5%/cycle, capped).
+- New goal layer + Огонёк copy («ребрендинг», not «prestige»).
+
+### Недельные события
+
+- Light timed modifiers (weather, festival, inspection) — juice + rhythm, minimal UI.
+
+## Later / long-term
+
+### Второй город
+
+- New map / district after legend loop on the current city feels done.
+- Not a full reboot from zero as v1 prestige — prefer **new chapter on a second topo map** (art + traffic + branch chain).
+- Scope ≈ “game 1.5”; do **after** legend/events, not before hookahs/legend.
+
+### Out of scope for now
+
+- Packing minigames (optional juice later)
+- PvP (needs backend)
+- Crypto / tokens (conflicts with TG checklist)

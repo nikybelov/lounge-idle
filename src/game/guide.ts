@@ -384,7 +384,7 @@ function idleTabNudge(
       icon: '📦',
       kicker: 'Огонёк · куда',
       title: 'Полка пустует',
-      body: 'Гости без вкусов не платят — загляни во вкладку «Табак».',
+      body: 'Гости без вкусов не платят — загляни во вкладку «Табак» или закажи в «Магазине».',
       target: '[data-menu-tab="tobacco"]',
       cta: 'К табаку',
     }
@@ -521,9 +521,9 @@ export function milestoneCoach(
       icon: '📦',
       kicker: 'Огонёк · полка',
       title: 'Полка пуста',
-      body: 'Столы без вкуса не кормят — гости не приходят. Закажи табак на склад и выставь на полку во вкладке «Табак».',
+      body: 'Столы без вкуса не кормят — гости не приходят. Закажи табак в «Магазине» (Сюжет), потом выставь на полку во вкладке «Табак».',
       target: '[data-menu-tab="tobacco"]',
-      cta: 'К табаку',
+      cta: 'К полке',
     })
   }
 
@@ -831,15 +831,15 @@ const TAB_HINTS: Record<
   { icon: string; title: string; body: string; cta: string }
 > = {
   shop: {
-    icon: '🧰',
-    title: 'Инструменты смены',
-    body: 'Покупай и улучшай — до 4 уровней, задачи быстрее и платят больше. Шуруповёрт для мойки необязателен: 35 моек без него — трофей «Голыми руками» в «Трофеях». Тариф лаунжа с шуруповёртом в комплекте закрывает это.',
+    icon: '🛒',
+    title: 'Магазин',
+    body: 'Инструменты ускоряют задачи смены (до 4 уровней). В своём зале здесь же — табачный магазин: купи вкус на склад, потом выставь на полку во вкладке «Табак». Шуруповёрт необязателен: 35 моек без него — трофей «Голыми руками».',
     cta: 'Понятно',
   },
   tobacco: {
     icon: '📦',
     title: 'Табачная полка',
-    body: 'Купи вкус на склад → выставь на полку. Без вкуса на полке гости не приходят и пассив = 0. Богатый выбор = больше чаевых.',
+    body: 'Здесь склад и полка. Закупка — в «Магазине» (Сюжет). Без вкуса на полке гости не приходят и пассив = 0.',
     cta: 'Ясно',
   },
   staff: {
@@ -953,14 +953,16 @@ export function tabHintMessage(
   return null
 }
 
-/** Подсказка при первом заходе в «Инструменты» на смене */
+/** Подсказка при первом заходе в «Магазин» */
 export function storySubHintMessage(
   state: GameState,
   sub: 'tasks' | 'shop',
 ): TabHintDef | null {
   if (sub !== 'shop' || state.flags.tabHints.shop) return null
-  if (state.phase !== 'employed' && state.phase !== 'dual') return null
-  return { id: 'shop', ...TAB_HINTS.shop }
+  if (state.phase === 'employed' || state.phase === 'dual' || state.phase === 'ownOnly') {
+    return { id: 'shop', ...TAB_HINTS.shop }
+  }
+  return null
 }
 
 export function markTabHintSeen(state: GameState, id: TabHintId): void {

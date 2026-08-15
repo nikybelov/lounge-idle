@@ -571,7 +571,7 @@ export function flushAchievementQueue(
   tryPresentAchievements(root, state, menuTab)
 }
 
-/** Кнопка «Принять заказ» — только вкладка «Сюжет», свой зал, не «Инструменты» */
+/** Кнопка «Принять заказ» — только вкладка «Сюжет», свой зал, не «Магазин» */
 function showLoungeOrderCta(
   state: GameState,
   menuTab: MenuTab,
@@ -579,7 +579,7 @@ function showLoungeOrderCta(
 ): boolean {
   if (state.scene !== 'lounge') return false
   if (menuTab !== 'story') return false
-  if (storySubTab === 'shop' && canAccessShiftShop(state)) return false
+  if (storySubTab === 'shop' && canAccessShopPanel(state)) return false
   return true
 }
 
@@ -588,16 +588,28 @@ function syncOrderCta(root: HTMLElement, state: GameState): void {
   if (pay) pay.textContent = `+${formatMoney(loungeClickPower(state))}`
 }
 
-/** Подраздел смены: задачи и инструменты */
+/** Подраздел сюжета: задачи/обзор и магазин */
 function showJobSubnav(state: GameState, menuTab: MenuTab): boolean {
   if (menuTab !== 'story') return false
   if (state.phase === 'dual') return true
   if (state.phase === 'employed') return state.scene === 'job'
+  if (state.phase === 'ownOnly') return true
   return false
 }
 
 function canAccessShiftShop(state: GameState): boolean {
   return state.phase === 'dual' || (state.phase === 'employed' && state.scene === 'job')
+}
+
+/** Панель «Магазин»: инструменты на смене и/или табачный каталог в своём зале */
+function canAccessShopPanel(state: GameState): boolean {
+  return canAccessShiftShop(state) || state.phase === 'ownOnly'
+}
+
+function showTobaccoCatalogInShop(state: GameState): boolean {
+  if (state.phase === 'ownOnly') return true
+  if (state.phase === 'dual' && state.scene === 'lounge') return true
+  return false
 }
 
 export type CareerSubTab = 'track' | 'trophies'
@@ -1308,7 +1320,7 @@ export function renderShell(
     menuSecondary.innerHTML = [
       menuTabButton('tobacco', 'Табак', menuTab === 'tobacco', {
         chip: true,
-        title: 'Табачная полка — вкусы, склад и бонусы гостям',
+        title: 'Полка и склад — выставь купленный табак на работу',
       }),
       menuTabButton('staff', 'Команда', menuTab === 'staff', {
         chip: true,
@@ -1369,10 +1381,15 @@ export function renderShell(
       `)
     }
     if (showJobSubnav(state, menuTab)) {
+      const overviewLabel =
+        state.phase === 'ownOnly' || (state.phase === 'dual' && state.scene === 'lounge')
+      const shopTitle = showTobaccoCatalogInShop(state)
+        ? 'Магазин — инструменты смены и заказ табака'
+        : 'Магазин — инструменты ускоряют задачи смены'
       subRows.push(`
         <div class="subnav-row">
-          <button type="button" class="nav-btn ${storySubTab === 'tasks' ? 'active' : ''}" data-story-sub="tasks" title="${state.phase === 'dual' && state.scene === 'lounge' ? 'Обзор лаунжа и подработка' : 'Задачи смены и карьера'}">${state.phase === 'dual' && state.scene === 'lounge' ? 'Обзор' : 'Задачи'}</button>
-          <button type="button" class="nav-btn ${storySubTab === 'shop' ? 'active' : ''}" data-story-sub="shop" title="Инструменты — ускоряют задачи и повышают оплату">Инструменты</button>
+          <button type="button" class="nav-btn ${storySubTab === 'tasks' ? 'active' : ''}" data-story-sub="tasks" title="${overviewLabel ? 'Обзор лаунжа' : 'Задачи смены и карьера'}">${overviewLabel ? 'Обзор' : 'Задачи'}</button>
+          <button type="button" class="nav-btn ${storySubTab === 'shop' ? 'active' : ''}" data-story-sub="shop" title="${shopTitle}">Магазин</button>
         </div>
       `)
     }
@@ -1449,7 +1466,7 @@ export function renderShell(
     return
   }
 
-  if (storySubTab === 'shop' && canAccessShiftShop(state)) {
+  if (storySubTab === 'shop' && canAccessShopPanel(state)) {
     panel.innerHTML = renderShopPanel(state)
     wireShopPanel(panel, handlers)
   } else if (state.scene === 'job') {
@@ -1920,7 +1937,7 @@ function renderAmbassadorBlock(state: GameState): string {
           ${icon('lock', 'row-icon--muted')}
           <span class="row-main">
             <span class="row-title">${t.brand}</span>
-            <span class="row-sub">Закажи «${t.name}» — вкладка «Табак»</span>
+            <span class="row-sub">Закажи «${t.name}» — Магазин во вкладке «Сюжет»</span>
           </span>
           <span class="row-meta">—</span>
         </div>
@@ -1974,6 +1991,30 @@ function renderAmbassadorBlock(state: GameState): string {
   `
 }
 
+function renderTobaccoCatalogRows(state: GameState): string {
+  const catalog = TOBACCOS.filter((t) => !state.ownedTobacco[t.id])
+  if (!catalog.length) {
+    return '<p class="empty-note">Весь каталог уже заказан.</p>'
+  }
+  return catalog
+    .map((t) => {
+      const can = state.cash >= t.cost
+      return `
+      <button type="button" class="row-btn shop ${can ? 'afford' : ''}" data-order-tobacco="${t.id}" ${can ? '' : 'disabled'}>
+        ${tobaccoIcon(t.id)}
+        <span class="row-main">
+          <span class="row-title">${t.name}</span>
+          <span class="row-sub">${
+            quietUiCopy() ? tobaccoBonusLabel(t) : `${t.blurb} · ${tobaccoBonusLabel(t)}`
+          }</span>
+        </span>
+        <span class="row-meta">${formatMoney(t.cost)}</span>
+      </button>
+    `
+    })
+    .join('')
+}
+
 function renderTobaccoPanel(state: GameState): string {
   const cap = shelfCapacity(state)
   const active = shelfActiveCount(state)
@@ -2014,23 +2055,12 @@ function renderTobaccoPanel(state: GameState): string {
     )
     .join('')
 
-  const catalog = TOBACCOS.filter((t) => !state.ownedTobacco[t.id])
-    .map((t) => {
-      const can = state.cash >= t.cost
-      return `
-      <button type="button" class="row-btn shop ${can ? 'afford' : ''}" data-order-tobacco="${t.id}" ${can ? '' : 'disabled'}>
-        ${tobaccoIcon(t.id)}
-        <span class="row-main">
-          <span class="row-title">${t.name}</span>
-          <span class="row-sub">${
-            quietUiCopy() ? tobaccoBonusLabel(t) : `${t.blurb} · ${tobaccoBonusLabel(t)}`
-          }</span>
-        </span>
-        <span class="row-meta">${formatMoney(t.cost)}</span>
-      </button>
-    `
-    })
-    .join('')
+  const emptyShelf =
+    !onShelf && !inStockOffShelf
+      ? '<p class="empty-note">Пусто — закажи вкусы в «Магазине» (Сюжет), потом выставь сюда на полку.</p>'
+      : !onShelf
+        ? '<p class="empty-note">На полке пусто — выставь вкус со склада ниже.</p>'
+        : ''
 
   return `
     <div class="list">
@@ -2048,22 +2078,22 @@ function renderTobaccoPanel(state: GameState): string {
         <div class="bar"><i style="width:${cap ? (active / cap) * 100 : 0}%"></i></div>
       </div>
 
+      ${sectionPurpose(
+        isAmbassadorSectionUnlocked(state)
+          ? 'Склад и полка · закупка — в «Магазине» · амбассадор усиливает свой вкус'
+          : 'Склад и полка · закупка вкусов — «Сюжет» → «Магазин» · пустая полка режет поток',
+      )}
+
       <p class="section-label">На полке сейчас</p>
-      ${onShelf || '<p class="empty-note">Пусто — закажи табак и выставь на полку.</p>'}
+      ${onShelf || emptyShelf}
 
       ${
         inStockOffShelf
           ? `<p class="section-label">На складе — можно выставить</p>${inStockOffShelf}`
-          : ''
+          : stock === 0
+            ? `<p class="section-label">Склад</p><p class="empty-note">Пока пусто. Открой «Сюжет» → «Магазин» → табачный магазин.</p>`
+            : ''
       }
-
-      <p class="section-label">Заказ табака</p>
-      ${sectionPurpose(
-        isAmbassadorSectionUnlocked(state)
-          ? 'На полке — гости и чаевые · амбассадор усиливает свой вкус'
-          : 'На полке — больше гостей и чаевых · пустая полка режет поток',
-      )}
-      ${catalog || '<p class="empty-note">Весь каталог уже заказан.</p>'}
     </div>
   `
 }
@@ -2916,6 +2946,14 @@ function renderShopPanel(state: GameState): string {
     JOB_TASKS.map((t) => [t.id, t.cooldownMs]),
   )
 
+  const tobaccoBlock = showTobaccoCatalogInShop(state)
+    ? `
+      <p class="section-label">Табачный магазин</p>
+      ${sectionPurpose('Заказ на склад · выставить на полку — вкладка «Табак»')}
+      ${renderTobaccoCatalogRows(state)}
+    `
+    : ''
+
   if (state.phase === 'ownOnly') {
     const owned = SHOP_ITEMS.filter((i) => shopLevel(state.shopOwned, i.id) > 0)
       .map((item) => {
@@ -2935,11 +2973,18 @@ function renderShopPanel(state: GameState): string {
       })
       .join('')
 
+    const toolsBlock = owned
+      ? `
+        <p class="section-label">Инструменты для работы</p>
+        <p class="shop-note">Смена закрыта — прокачка недоступна, осталось только то, что было.</p>
+        ${owned}
+      `
+      : ''
+
     return `
       <div class="list">
-        <p class="section-label">Инструменты смены</p>
-        <p class="shop-note">Смена закрыта — прокачка недоступна, осталось только то, что было.</p>
-        ${owned || '<p class="empty-note">Инструментов не было.</p>'}
+        ${tobaccoBlock}
+        ${toolsBlock}
       </div>
     `
   }
@@ -3018,13 +3063,20 @@ function renderShopPanel(state: GameState): string {
   const shopPurpose =
     state.phase === 'dual'
       ? sectionPurpose('Ускоряют задачи подработки · каждый инструмент до 4 грейдов')
-      : ''
-  return `
-    <div class="list">
-      <p class="section-label">Инструменты смены · ${maxed}/${SHOP_ITEMS.length} макс.</p>
+      : sectionPurpose('Ускоряют задачи смены · каждый инструмент до 4 грейдов')
+
+  const toolsFirst = state.phase === 'employed' || state.scene === 'job'
+
+  const toolsBlock = `
+      <p class="section-label">Инструменты для работы · ${maxed}/${SHOP_ITEMS.length} макс.</p>
       ${shopPurpose}
       ${bareHandsShopNote}
       ${shop}
+  `
+
+  return `
+    <div class="list">
+      ${toolsFirst ? `${toolsBlock}${tobaccoBlock}` : `${tobaccoBlock}${toolsBlock}`}
     </div>
   `
 }
@@ -3033,6 +3085,11 @@ function wireShopPanel(panel: HTMLElement, handlers: ShellHandlers): void {
   panel.querySelectorAll('[data-shop]').forEach((btn) => {
     btn.addEventListener('click', () => {
       handlers.onBuyShop((btn as HTMLElement).dataset.shop as ShopItemId)
+    })
+  })
+  panel.querySelectorAll('[data-order-tobacco]').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      handlers.onBuyTobacco((btn as HTMLElement).dataset.orderTobacco as TobaccoId)
     })
   })
 }

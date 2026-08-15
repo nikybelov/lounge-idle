@@ -111,9 +111,13 @@ function labLoungeReady(state: GameState): boolean {
 export function ensureLabLounge(state: GameState): boolean {
   if (!isLayoutLabHost()) return false
   try {
+    // После бута на смене (Неон / Подвал / Река) — не уводим в свой зал
+    if (state.phase === 'employed' && state.onboarded && state.venueId) {
+      return false
+    }
     if (labLoungeReady(state)) {
       quietLabCoach(state)
-      state.scene = 'lounge'
+      // Не трогаем scene: на dual игрок может быть на «Смене»
       return false
     }
     seedLabLounge(state)
@@ -139,10 +143,16 @@ export function showLabLounge(state: GameState): void {
 }
 
 let labApplied: (() => void) | null = null
+/** Клик по «Тяга / Пар / Мир» в лаб-баре — открыть свой зал */
+let labLoungePicked: (() => void) | null = null
 let storyDockOpen = false
 
 export function onLayoutLabApplied(fn: () => void): void {
   labApplied = fn
+}
+
+export function onLabLoungePicked(fn: () => void): void {
+  labLoungePicked = fn
 }
 
 export function setLabStoryDockOpen(open: boolean): void {
@@ -210,7 +220,7 @@ export function setLabLounge(id: LabLoungeId): void {
   else url.searchParams.set('lounge', id)
   history.replaceState(null, '', `${url.pathname}${url.search}${url.hash}`)
   syncLoungeButtons(id)
-  labApplied?.()
+  labLoungePicked?.()
 }
 
 export function getLayoutLab(): LayoutLabId {
@@ -491,5 +501,5 @@ export function mountLayoutLabSwitcher(root: HTMLElement): void {
   })
   bindPhoneResize()
   applyLayoutLab(root)
-  labApplied?.()
+  // Не зовём labApplied/forceLounge на маунте — иначе смену (Неон и др.) сразу сносит
 }

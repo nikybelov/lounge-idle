@@ -99,7 +99,7 @@ export function signAmbassador(state: GameState, id: TobaccoId): ActionResult {
     }
   }
   if (!state.ownedTobacco[id]) {
-    return { ok: false, message: 'Сначала закажи этот вкус — вкладка «Табак»' }
+    return { ok: false, message: 'Сначала закажи этот вкус — «Сюжет» → «Магазин»' }
   }
   const def = getTobacco(id)
   if (!def) return { ok: false, message: 'Неизвестный вкус' }

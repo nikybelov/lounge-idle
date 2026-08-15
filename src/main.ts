@@ -113,6 +113,7 @@ import {
   ensureLabLounge,
   isLayoutLabHost,
   onLayoutLabApplied,
+  onLabLoungePicked,
   forceLabLounge,
   setLabStoryDockOpen,
   syncLabStoryMenu,
@@ -639,8 +640,8 @@ function afterAction(): void {
       state.flags.loungeOfferUnlocked &&
       state.phase === 'employed'
     ) {
-      menuTab = 'own'
-      showToast(root, 'Хватает на лаунж — выбери тариф во вкладке «Свой лаунж»')
+      // Не уводим со смены — игрок сам откроет «Свой лаунж»
+      showToast(root, 'Хватает на лаунж — вкладка «Свой лаунж» открыта')
       scheduleSave.flush(state)
     }
     if (
@@ -877,14 +878,21 @@ function frame(ts: number): void {
 function beginGame(): void {
   dismissGuideCoach(root)
   gameStarted = true
-  if (ensureLabLounge(state)) {
+  // Лаб localhost only — в production / Telegram ensureLabLounge сразу no-op
+  if (isLayoutLabHost() && ensureLabLounge(state)) {
     saveState(state, { bumpSync: false })
   }
   touchOgonokInteraction()
   state.jobRank = clampJobRankToProgress(state.jobRank, state.taskDone)
   syncAchievementFanfareSeen(state)
   mountShell(root, handlers)
+  // Смена макета A–D — только UI, без forceLounge
   onLayoutLabApplied(() => {
+    dismissGuideCoach(root)
+    paint()
+  })
+  // Явный клик «Тяга / Пар / Мир» в лаб-баре — открыть свой зал
+  onLabLoungePicked(() => {
     forceLabLounge(state)
     dismissGuideCoach(root)
     menuTab = 'story'

@@ -13,6 +13,7 @@ import {
   canBrowseLoungeOffer,
   canDoJobTasks,
   doJobTask,
+  jobTaskPayMult,
   loungeOrder,
   maybeBrokeHint,
   maybeShelfFeedback,
@@ -53,10 +54,9 @@ import { evaluateAchievements } from './data/achievements'
 import { showMascotConfirm, showMascotNotice } from './ui/mascot'
 import { loadLifetimeTrophies, persistLifetimeTrophies } from './save/trophies'
 import { syncProgressFlags } from './game/progressFlags'
-import { clampJobRankToProgress, rankDef } from './data/ranks'
+import { clampJobRankToProgress } from './data/ranks'
 import { JOB_TASKS } from './data/tasks'
 import { taskPay } from './data/shop'
-import { getVenue } from './data/venues'
 import {
   markTabHintSeen,
   syncGuideProgress,
@@ -211,8 +211,7 @@ const handlers = {
   onJobTask(id: Parameters<typeof doJobTask>[1]) {
     primeAudio()
     const task = JOB_TASKS.find((t) => t.id === id)
-    const mult =
-      rankDef(state.jobRank).payMult * getVenue(state.venueId).payMult
+    const mult = jobTaskPayMult(state)
     const payPreview = task
       ? taskPay(task.pay, id, state.shopOwned, mult)
       : 0

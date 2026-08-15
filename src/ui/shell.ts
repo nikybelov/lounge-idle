@@ -3,6 +3,8 @@ import {
   canDoJobTasks,
   canQuitJob,
   jobReputationPerSec,
+  jobTaskCooldownMult,
+  jobTaskPayMult,
   minOpenLoungeCost,
   quitIncomeThreshold,
   shopItemCost,
@@ -1034,14 +1036,13 @@ export function updateJobCooldowns(
     const ready = now >= state.taskReadyAt[t.id]
     const left = Math.max(0, state.taskReadyAt[t.id] - now)
     const cd = Math.round(
-      taskCooldownMs(t.cooldownMs, t.id, state.shopOwned) *
-        getVenue(state.venueId).cooldownMult,
+      taskCooldownMs(t.cooldownMs, t.id, state.shopOwned) * jobTaskCooldownMult(state),
     )
     const pay = taskPay(
       t.pay,
       t.id,
       state.shopOwned,
-      rankDef(state.jobRank).payMult * getVenue(state.venueId).payMult,
+      jobTaskPayMult(state),
     )
     const speedNote = cd < t.cooldownMs ? ` · ${(cd / 1000).toFixed(1)}с` : ''
     btn.disabled = !ready
@@ -1384,7 +1385,7 @@ export function renderShell(
       const overviewLabel =
         state.phase === 'ownOnly' || (state.phase === 'dual' && state.scene === 'lounge')
       const shopTitle = showTobaccoCatalogInShop(state)
-        ? 'Магазин — инструменты смены и заказ табака'
+        ? 'Магазин — инструменты и заказ табака'
         : 'Магазин — инструменты ускоряют задачи смены'
       subRows.push(`
         <div class="subnav-row">
@@ -1482,8 +1483,8 @@ export function renderShell(
 }
 
 function renderJobTasksBlock(state: GameState, now: number): string {
-  const venue = getVenue(state.venueId)
-  const payMult = rankDef(state.jobRank).payMult * venue.payMult
+  const payMult = jobTaskPayMult(state)
+  const venueCd = jobTaskCooldownMult(state)
   return JOB_TASKS.map((t) => {
     const unlocked = isTaskUnlocked(t, state.taskDone)
     if (!unlocked) {
@@ -1499,7 +1500,7 @@ function renderJobTasksBlock(state: GameState, now: number): string {
     `
     }
     const cd = Math.round(
-      taskCooldownMs(t.cooldownMs, t.id, state.shopOwned) * venue.cooldownMult,
+      taskCooldownMs(t.cooldownMs, t.id, state.shopOwned) * venueCd,
     )
     const pay = taskPay(t.pay, t.id, state.shopOwned, payMult)
     const ready = now >= state.taskReadyAt[t.id]
@@ -2954,41 +2955,6 @@ function renderShopPanel(state: GameState): string {
     `
     : ''
 
-  if (state.phase === 'ownOnly') {
-    const owned = SHOP_ITEMS.filter((i) => shopLevel(state.shopOwned, i.id) > 0)
-      .map((item) => {
-        const level = shopLevel(state.shopOwned, item.id)
-        const grade = getShopGrade(item, level)
-        const ui = renderShopGradeRow(item, level, grade?.title, grade ? shopEffectLabel(grade, taskBaseCd[item.task] ?? 1500) : item.blurb)
-        return `
-      <div class="row-btn shop owned">
-        ${shopIcon(item.id)}
-        <span class="row-main">
-          <span class="row-title">${ui.title}</span>
-          <span class="row-sub row-sub--grade">${ui.dots}<span>${ui.sub}</span></span>
-        </span>
-        <span class="row-meta row-meta--status">${ui.meta || `грейд ${level}`}</span>
-      </div>
-    `
-      })
-      .join('')
-
-    const toolsBlock = owned
-      ? `
-        <p class="section-label">Инструменты для работы</p>
-        <p class="shop-note">Смена закрыта — прокачка недоступна, осталось только то, что было.</p>
-        ${owned}
-      `
-      : ''
-
-    return `
-      <div class="list">
-        ${tobaccoBlock}
-        ${toolsBlock}
-      </div>
-    `
-  }
-
   const maxed = SHOP_ITEMS.filter((i) => shopLevel(state.shopOwned, i.id) >= shopMaxLevel(i)).length
   const shop = SHOP_ITEMS.map((item) => {
     const level = shopLevel(state.shopOwned, item.id)
@@ -3061,9 +3027,11 @@ function renderShopPanel(state: GameState): string {
     ? `<p class="shop-note shop-note--tip">Шуруповёрт необязателен: ${BARE_HANDS_WASH_NEED} моек «Помой кальян» без него — трофей «Голыми руками». Щипцы и кроссовки — по желанию.</p>`
     : ''
   const shopPurpose =
-    state.phase === 'dual'
-      ? sectionPurpose('Ускоряют задачи подработки · каждый инструмент до 4 грейдов')
-      : sectionPurpose('Ускоряют задачи смены · каждый инструмент до 4 грейдов')
+    state.phase === 'ownOnly'
+      ? sectionPurpose('Ускоряют «Сам на смене» в зале · каждый инструмент до 4 грейдов')
+      : state.phase === 'dual'
+        ? sectionPurpose('Ускоряют задачи подработки · каждый инструмент до 4 грейдов')
+        : sectionPurpose('Ускоряют задачи смены · каждый инструмент до 4 грейдов')
 
   const toolsFirst = state.phase === 'employed' || state.scene === 'job'
 
@@ -3180,9 +3148,16 @@ function renderLoungePanel(state: GameState, now: number): string {
   const mood = shelfMood(state)
 
   const sideJob =
-    state.phase === 'dual'
+    state.phase === 'dual' || state.phase === 'ownOnly'
       ? `
-      <p class="section-label">Подработка</p>
+      <p class="section-label">${
+        state.phase === 'ownOnly' ? 'Сам на смене' : 'Подработка'
+      }</p>
+      ${
+        state.phase === 'ownOnly'
+          ? `<p class="shop-note">Вышел поработать руками — мойка, угли, заказ. Инструменты в «Магазине» снова качаются.</p>`
+          : ''
+      }
       <div class="job-tasks" data-job-tasks>${renderJobTasksBlock(state, now)}</div>
     `
       : ''

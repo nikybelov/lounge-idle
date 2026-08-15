@@ -223,7 +223,10 @@ export function quitJob(state: GameState): ActionResult {
   state.phase = 'ownOnly'
   state.scene = 'lounge'
   syncEmpireUnlock(state)
-  return { ok: true, message: 'Смена закрыта. Дальше — только свой лаунж.' }
+  return {
+    ok: true,
+    message: 'Чужая смена закрыта. В своём зале можно выйти поработать руками.',
+  }
 }
 
 export function setScene(state: GameState, scene: Scene): ActionResult {
@@ -275,19 +278,30 @@ export function tryPromote(state: GameState): string | null {
 }
 
 export function canDoJobTasks(state: GameState): boolean {
-  if (state.phase === 'ownOnly') return false
   if (state.phase === 'employed') return state.scene === 'job'
   if (state.phase === 'dual') {
     return state.scene === 'job' || state.scene === 'lounge'
   }
+  // После увольнения — сам в своём зале (мойка, угли, заказ)
+  if (state.phase === 'ownOnly') return state.scene === 'lounge'
   return false
+}
+
+/** Оплата задач руками: на чужой смене — множитель заведения; у себя — только ранг */
+export function jobTaskPayMult(state: GameState): number {
+  const venueMult = state.phase === 'ownOnly' ? 1 : getVenue(state.venueId).payMult
+  return rankDef(state.jobRank).payMult * venueMult
+}
+
+export function jobTaskCooldownMult(state: GameState): number {
+  return state.phase === 'ownOnly' ? 1 : getVenue(state.venueId).cooldownMult
 }
 
 export function doJobTask(state: GameState, taskId: TaskId, now: number): ActionResult {
   if (!canDoJobTasks(state)) {
     return {
       ok: false,
-      message: state.phase === 'ownOnly' ? 'Смена уже закрыта' : 'Сейчас не смена',
+      message: 'Сейчас не смена',
     }
   }
   const task = JOB_TASKS.find((t) => t.id === taskId)
@@ -299,14 +313,14 @@ export function doJobTask(state: GameState, taskId: TaskId, now: number): Action
     return { ok: false, message: 'Ещё занят' }
   }
   const before = { ...state.taskDone }
-  const mult = rankDef(state.jobRank).payMult * getVenue(state.venueId).payMult
+  const mult = jobTaskPayMult(state)
   state.cash += taskPay(task.pay, taskId, state.shopOwned, mult)
   state.taskDone[taskId] += 1
   state.taskReadyAt[taskId] =
     now +
     Math.round(
       taskCooldownMs(task.cooldownMs, taskId, state.shopOwned) *
-        getVenue(state.venueId).cooldownMult,
+        jobTaskCooldownMult(state),
     )
 
   syncProgressFlags(state)
@@ -326,9 +340,6 @@ export function doJobTask(state: GameState, taskId: TaskId, now: number): Action
 }
 
 export function buyShopItem(state: GameState, id: ShopItemId): ActionResult {
-  if (state.phase === 'ownOnly') {
-    return { ok: false, message: 'Смена уже закрыта' }
-  }
   const item = SHOP_ITEMS.find((i) => i.id === id)
   if (!item) return { ok: false, message: 'Нет такого' }
   const level = shopLevel(state.shopOwned, id)

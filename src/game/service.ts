@@ -5,6 +5,11 @@ import { getStaffGradeDef } from '../data/staff'
 import type { UpgradeId } from '../data/upgrades'
 import type { GameState } from './state'
 import { hiredStaffCount, staffMembers } from './staff'
+import {
+  loungeShopServicePenaltySoft,
+  loungeShopServicePower,
+  loungeShopWalkawayCut,
+} from './loungeShop'
 
 /**
  * Веса ролей подогнаны так, что полная команда (все роли ×4, грейд 4 + управляющий)
@@ -66,7 +71,7 @@ export function staffServiceCapacity(state: GameState): number {
       power += weight * gradeFactor(grade)
     }
   }
-  return Math.max(OWNER_SERVICE_BASE, power)
+  return Math.max(OWNER_SERVICE_BASE, power + loungeShopServicePower(state))
 }
 
 /** Сколько мест даёт уровень мебели посадки */
@@ -148,6 +153,15 @@ export function serviceStatus(
     label = 'Хаос в зале'
     hint = 'Срочно усили команду — иначе чек тает'
   }
+
+  const soft = loungeShopServicePenaltySoft(state)
+  if (soft > 0 && incomeMult < 1) {
+    incomeMult = 1 - (1 - incomeMult) * (1 - soft)
+  }
+  if (soft > 0 && clickMult < 1) {
+    clickMult = 1 - (1 - clickMult) * (1 - soft)
+  }
+  walkaway = Math.max(0, walkaway - loungeShopWalkawayCut(state))
 
   return {
     load: Math.round(load * 100) / 100,

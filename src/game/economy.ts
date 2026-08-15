@@ -15,6 +15,7 @@ import {
 } from './appeal'
 import { empireClickMult, empireIncomeMult } from './empire'
 import { staffBonuses, staffBasePayrollPerSec, hiredStaffCount, managerPayrollDiscount, maxTeamHeadcount } from './staff'
+import { loungeShopFotRelief, loungeShopTipBonus } from './loungeShop'
 import type { GameState } from './state'
 
 /** ФОТ: базовые ставки или доля от валовой выручки — что больше (при росте зала команда «съедает» прибыль) */
@@ -25,7 +26,7 @@ export function staffPayrollPerSec(state: GameState): number {
 
   const gross = loungeGrossIncomePerSec(state)
   const teamFill = headcount / maxTeamHeadcount()
-  const targetShare = 0.12 + teamFill * 0.24
+  const targetShare = Math.max(0.08, 0.12 + teamFill * 0.24 - loungeShopFotRelief(state))
   let payroll = Math.max(base, gross * targetShare)
 
   const discount = managerPayrollDiscount(state)
@@ -81,7 +82,7 @@ export function loungeClickPower(state: GameState): number {
     click += def.clickPerLevel * state.owned[def.id]
   }
   click += staffBonuses(state).click
-  const tip = 1 + shelfBonuses(state).tip
+  const tip = 1 + shelfBonuses(state).tip + loungeShopTipBonus(state)
   return (
     click *
     (state.loungeClickMult || 1) *

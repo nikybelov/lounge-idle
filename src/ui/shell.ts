@@ -70,6 +70,15 @@ import {
   type ShopItemId,
 } from '../data/shop'
 import {
+  LOUNGE_SHOP_LINES,
+  getLoungeShopGrade,
+  loungeShopLevel,
+  loungeShopMaxLevel,
+  nextLoungeShopGrade,
+  type LoungeShopId,
+} from '../data/loungeShop'
+import { loungeShopTaskCdMult } from '../game/loungeShop'
+import {
   nextRank,
   promoteProgress,
   promoteProgressRatio,
@@ -637,6 +646,7 @@ export interface ShellHandlers {
   onLoungeOrder: () => void
   onBuy: (id: UpgradeId) => void
   onBuyShop: (id: ShopItemId) => void
+  onBuyLoungeShop: (id: LoungeShopId) => void
   onBuyTobacco: (id: TobaccoId) => void
   onPutOnShelf: (id: TobaccoId) => void
   onRemoveFromShelf: (id: TobaccoId) => void
@@ -1036,7 +1046,9 @@ export function updateJobCooldowns(
     const ready = now >= state.taskReadyAt[t.id]
     const left = Math.max(0, state.taskReadyAt[t.id] - now)
     const cd = Math.round(
-      taskCooldownMs(t.cooldownMs, t.id, state.shopOwned) * jobTaskCooldownMult(state),
+      taskCooldownMs(t.cooldownMs, t.id, state.shopOwned) *
+        jobTaskCooldownMult(state) *
+        loungeShopTaskCdMult(state, t.id),
     )
     const pay = taskPay(
       t.pay,
@@ -1500,7 +1512,9 @@ function renderJobTasksBlock(state: GameState, now: number): string {
     `
     }
     const cd = Math.round(
-      taskCooldownMs(t.cooldownMs, t.id, state.shopOwned) * venueCd,
+      taskCooldownMs(t.cooldownMs, t.id, state.shopOwned) *
+        venueCd *
+        loungeShopTaskCdMult(state, t.id),
     )
     const pay = taskPay(t.pay, t.id, state.shopOwned, payMult)
     const ready = now >= state.taskReadyAt[t.id]
@@ -3034,6 +3048,9 @@ function renderShopPanel(state: GameState): string {
         : sectionPurpose('Ускоряют задачи смены · каждый инструмент до 4 грейдов')
 
   const toolsFirst = state.phase === 'employed' || state.scene === 'job'
+  const loungeGearBlock = showTobaccoCatalogInShop(state)
+    ? renderLoungeShopBlock(state)
+    : ''
 
   const toolsBlock = `
       <p class="section-label">Инструменты для работы · ${maxed}/${SHOP_ITEMS.length} макс.</p>
@@ -3044,8 +3061,64 @@ function renderShopPanel(state: GameState): string {
 
   return `
     <div class="list">
-      ${toolsFirst ? `${toolsBlock}${tobaccoBlock}` : `${tobaccoBlock}${toolsBlock}`}
+      ${toolsFirst ? `${toolsBlock}${tobaccoBlock}${loungeGearBlock}` : `${tobaccoBlock}${loungeGearBlock}${toolsBlock}`}
     </div>
+  `
+}
+
+function loungeShopIcon(id: LoungeShopId): string {
+  if (id === 'heat') return taskIcon('coals')
+  if (id === 'wash_bay') return taskIcon('wash')
+  if (id === 'master_desk') return taskIcon('order')
+  return staffIcon('waiter')
+}
+
+function renderLoungeShopBlock(state: GameState): string {
+  const rows = LOUNGE_SHOP_LINES.map((line) => {
+    const level = loungeShopLevel(state.loungeShop, line.id)
+    const current = getLoungeShopGrade(line, level)
+    const next = nextLoungeShopGrade(line, level)
+    const max = loungeShopMaxLevel(line)
+    const dots = gradeDotsHtml(level, max)
+
+    if (!next) {
+      return `
+      <div class="row-btn shop owned">
+        ${loungeShopIcon(line.id)}
+        <span class="row-main">
+          <span class="row-title">${line.name} · ${current?.title ?? 'макс.'}</span>
+          <span class="row-sub row-sub--grade">${dots}<span>${current?.why ?? line.blurb}</span></span>
+        </span>
+        <span class="row-meta row-meta--status">★ макс.</span>
+      </div>
+    `
+    }
+
+    const price = shopItemCost(state, next.cost)
+    const afford = state.cash >= price
+    const action = level === 0 ? 'Купить' : 'Улучшить'
+    const masterNote =
+      next.needMaster && !(state.staffMembers.master?.length)
+        ? ' · сервис от стойки — после найма кальянщика'
+        : ''
+    return `
+      <button type="button" class="row-btn shop ${afford ? 'afford' : ''}" data-lounge-shop="${line.id}" ${afford ? '' : 'disabled'}>
+        ${loungeShopIcon(line.id)}
+        <span class="row-main">
+          <span class="row-title">${action}: ${next.title}</span>
+          <span class="row-sub row-sub--grade">${level ? dots : ''}<span>${next.why}${masterNote}</span></span>
+        </span>
+        <span class="row-meta">${formatMoney(price)}</span>
+      </button>
+    `
+  }).join('')
+
+  return `
+      <p class="section-label">Для зала · смена и команда</p>
+      ${sectionPurpose(
+        'Жар, мойка, форма, стойка мастера — удобство смены и мягче штрафы, не второй VIP',
+      )}
+      ${rows}
   `
 }
 
@@ -3053,6 +3126,11 @@ function wireShopPanel(panel: HTMLElement, handlers: ShellHandlers): void {
   panel.querySelectorAll('[data-shop]').forEach((btn) => {
     btn.addEventListener('click', () => {
       handlers.onBuyShop((btn as HTMLElement).dataset.shop as ShopItemId)
+    })
+  })
+  panel.querySelectorAll('[data-lounge-shop]').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      handlers.onBuyLoungeShop((btn as HTMLElement).dataset.loungeShop as LoungeShopId)
     })
   })
   panel.querySelectorAll('[data-order-tobacco]').forEach((btn) => {

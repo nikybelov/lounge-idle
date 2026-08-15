@@ -5,6 +5,7 @@ import type { AchievementId } from '../data/achievements'
 import type { LoungeTierId } from '../data/loungeTiers'
 import type { JobRank } from '../data/ranks'
 import type { ShopItemId } from '../data/shop'
+import type { LoungeShopId } from '../data/loungeShop'
 import type { TaskId } from '../data/tasks'
 import type { TobaccoId } from '../data/tobacco'
 import type { UpgradeId } from '../data/upgrades'
@@ -106,6 +107,8 @@ export interface GameState {
   loungeName: string
   owned: Record<UpgradeId, number>
   shopOwned: Partial<Record<ShopItemId, number>>
+  /** Прокачка магазина своего зала (жар / мойка / форма / стойка) */
+  loungeShop: Partial<Record<LoungeShopId, number>>
   ownedTobacco: Partial<Record<TobaccoId, boolean>>
   /** Вкусы, выставленные на табачную полку */
   shelfActive: TobaccoId[]
@@ -225,6 +228,8 @@ export function createInitialState(now = Date.now()): GameState {
       vip: 0,
     },
     shopOwned: {},
+    /** Магазин своего зала: жар, мойка, форма, стойка мастера */
+    loungeShop: {},
     ownedTobacco: {},
     shelfActive: [],
     expansions: {},

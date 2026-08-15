@@ -13,6 +13,14 @@ import {
   taskPay,
   type ShopItemId,
 } from '../data/shop'
+import {
+  getLoungeShopLine,
+  loungeShopLevel,
+  loungeShopMaxLevel,
+  nextLoungeShopGrade,
+  type LoungeShopId,
+} from '../data/loungeShop'
+import { loungeShopTaskCdMult } from './loungeShop'
 import { canPromote, nextRank, rankDef } from '../data/ranks'
 import { getVenue } from '../data/venues'
 import {
@@ -164,6 +172,7 @@ export function openLounge(state: GameState, tierId: LoungeTierId): ActionResult
   }
   // Инструменты с прошлой смены не переносятся — только комплект тарифа
   state.shopOwned = {}
+  state.loungeShop = {}
   for (const shopId of tier.startShop) {
     state.shopOwned[shopId] = 1
   }
@@ -320,7 +329,8 @@ export function doJobTask(state: GameState, taskId: TaskId, now: number): Action
     now +
     Math.round(
       taskCooldownMs(task.cooldownMs, taskId, state.shopOwned) *
-        jobTaskCooldownMult(state),
+        jobTaskCooldownMult(state) *
+        loungeShopTaskCdMult(state, taskId),
     )
 
   syncProgressFlags(state)
@@ -358,6 +368,28 @@ export function buyShopItem(state: GameState, id: ShopItemId): ActionResult {
   state.shopOwned[id] = next.level
   const verb = level === 0 ? 'Куплено' : 'Улучшено'
   return { ok: true, message: `${verb}: ${item.name} · ур.${next.level}` }
+}
+
+export function buyLoungeShopItem(state: GameState, id: LoungeShopId): ActionResult {
+  if (state.phase === 'employed') {
+    return { ok: false, message: 'Сначала свой лаунж' }
+  }
+  const line = getLoungeShopLine(id)
+  if (!line) return { ok: false, message: 'Нет такого' }
+  const level = loungeShopLevel(state.loungeShop, id)
+  if (level >= loungeShopMaxLevel(line)) {
+    return { ok: false, message: 'Максимальный уровень' }
+  }
+  const next = nextLoungeShopGrade(line, level)
+  if (!next) return { ok: false, message: 'Максимальный уровень' }
+  const cost = shopItemCost(state, next.cost)
+  if (state.cash < cost) {
+    return { ok: false, message: 'Не хватает' }
+  }
+  state.cash -= cost
+  state.loungeShop[id] = next.level
+  const verb = level === 0 ? 'Куплено' : 'Улучшено'
+  return { ok: true, message: `${verb}: ${next.title}` }
 }
 
 export function loungeOrder(state: GameState): ActionResult {

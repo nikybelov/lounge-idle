@@ -17,6 +17,17 @@ Do not implement these unless the user asks. Keep them in mind when balancing or
 - Вкладка **«Табак»** = склад + полка (без каталога закупки).
 - Кальяны в магазин — later, not now.
 
+### Магазин своего зала — shipping
+
+Четыре ветки в «Сюжет → Магазин → Для зала» (не на чужой смене):
+
+1. **Жар** Злата → Дали → Улькан → муфельная печка — CD углей, tip, walkaway, soften сервиса
+2. **Мойка** раковина → профмойка — CD мойки, +service power
+3. **Форма** — guest от команды, ФОТ − до 1.5 п.п.
+4. **Стойка мастера** — сервис только с кальянщиком, CD заказа, tip
+
+Без голого +₽/с. Данные: `src/data/loungeShop.ts`, эффекты: `src/game/loungeShop.ts`.
+
 ### Кальяны (аппараты) — proposed
 
 - Buy hookah **devices** separately from tobacco shelf (tobacco = flavors; hookahs = hardware).

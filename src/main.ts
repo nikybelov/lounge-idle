@@ -7,6 +7,7 @@ import {
   beginLoungePick,
   buyUpgrade,
   buyShopItem,
+  buyLoungeShopItem,
   buyTobacco,
   buyExpansion,
   cancelLoungePick,
@@ -253,7 +254,14 @@ const handlers = {
     if (res.message) showToast(root, res.message)
     juicePurchase(root)
     afterAction()
-    // afterAction уже пишет каналы; доп. flush не нужен
+  },
+  onBuyLoungeShop(id: Parameters<typeof buyLoungeShopItem>[1]) {
+    const res = buyLoungeShopItem(state, id)
+    if (!res.ok && res.message) showToast(root, res.message)
+    if (!res.ok) return
+    if (res.message) showToast(root, res.message)
+    juicePurchase(root)
+    afterAction()
   },
   onBuyTobacco(id: TobaccoId) {
     const res = buyTobacco(state, id)

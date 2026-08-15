@@ -14,6 +14,11 @@ import {
 } from '../data/personal'
 import { PROMOTIONS } from '../data/promotions'
 import { SHOP_ITEMS, shopMaxLevel, type ShopItemId } from '../data/shop'
+import {
+  LOUNGE_SHOP_LINES,
+  loungeShopMaxLevel,
+  type LoungeShopId,
+} from '../data/loungeShop'
 import { STAFF_ROLES, maxStaffForRole, type StaffId } from '../data/staff'
 import { UPGRADES, type UpgradeId } from '../data/upgrades'
 import {
@@ -103,6 +108,20 @@ function migrateAchievements(
     if (!id) continue
     const v = raw[key]
     if (v === true || (typeof v === 'number' && v > 0)) out[id] = true
+  }
+  return out
+}
+
+function migrateLoungeShop(
+  raw: Partial<Record<string, number>> | undefined,
+  base: GameState['loungeShop'],
+): GameState['loungeShop'] {
+  const out: GameState['loungeShop'] = { ...base }
+  if (!raw || typeof raw !== 'object') return out
+  for (const line of LOUNGE_SHOP_LINES) {
+    const id = line.id as LoungeShopId
+    const max = loungeShopMaxLevel(line)
+    out[id] = clampInt(raw[id] ?? 0, 0, max, 0)
   }
   return out
 }
@@ -292,6 +311,7 @@ export function loadState(): GameState {
       syncRev: clampInt(parsed.syncRev ?? 0, 0, Number.MAX_SAFE_INTEGER, 0),
       owned: clampOwnedUpgrades({ ...base.owned, ...parsed.owned }),
       shopOwned: migrateShopOwned(parsed.shopOwned, base.shopOwned),
+      loungeShop: migrateLoungeShop(parsed.loungeShop, base.loungeShop),
       taskReadyAt: { ...base.taskReadyAt, ...parsed.taskReadyAt },
       taskDone: { ...base.taskDone, ...parsed.taskDone },
       achievements: migrateAchievements(parsed.achievements),

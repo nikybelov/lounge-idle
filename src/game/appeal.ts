@@ -5,6 +5,7 @@ import { isAmbassador } from './ambassador'
 import { staffGuestBonus } from './staff'
 import { personalTrafficBonus } from './personal'
 import { promotionTrafficBonus } from './promotions'
+import { loungeShopStaffGuestMult } from './loungeShop'
 import { serviceStatus, type ServiceStatus } from './service'
 import { weekdayOf, weekdayTrafficMult } from './workDays'
 import type { GameState } from './state'
@@ -154,7 +155,7 @@ export function guestTraffic(state: GameState, now = Date.now()): number {
   const mult =
     (0.38 +
       seated * 0.1 +
-      staffGuestBonus(state) +
+      staffGuestBonus(state) * loungeShopStaffGuestMult(state) +
       personalTrafficBonus(state, now) +
       promotionTrafficBonus(state, now)) *
     weekdayTrafficMult(state)

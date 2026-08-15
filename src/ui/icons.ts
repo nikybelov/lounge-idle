@@ -5,6 +5,9 @@ import type { UpgradeId } from '../data/upgrades'
 import type { LoungeTierId } from '../data/loungeTiers'
 import type { StaffId } from '../data/staff'
 import type { PromotionId } from '../data/promotions'
+import type { ChannelGearId } from '../data/personal'
+import type { ExpansionId } from '../data/expansions'
+import type { LoungeShopId } from '../data/loungeShop'
 import { allLoungeTierStageSvgs, venueJobStageSvg } from './venueStageArt'
 import type { VenueId } from '../data/venues'
 
@@ -33,7 +36,7 @@ const ICONS = {
     '<path d="M4 12h16v5H4z"/><path d="M6 12V9a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v3"/><path d="M4 17v2"/><path d="M20 17v2"/>',
   ),
   menu: svg(
-    '<path d="M6 5h12"/><path d="M6 10h12"/><path d="M6 15h8"/><circle cx="18" cy="15" r="2"/>',
+    '<path d="M4 7h16"/><path d="M4 13h16"/><path d="M4 19h16"/><path d="M7 7v12"/><path d="M17 7v12"/>',
   ),
   hood: svg(
     '<path d="M4 8h16l-2 10H6L4 8z"/><path d="M8 8V5h8v3"/><path d="M10 14h4"/>',
@@ -43,6 +46,42 @@ const ICONS = {
   ),
   lounge: svg(
     '<path d="M4 18h16"/><path d="M8 18V10h3v8"/><path d="M13 18V8h3v10"/><path d="M11 6c0-1 1-2 2-2"/><path d="M16 4c1 0 2 1 2 2"/>',
+  ),
+  camera: svg(
+    '<rect x="3" y="8" width="13" height="10" rx="1.5"/><circle cx="9.5" cy="13" r="2.5"/><path d="M16 11l5-2.5v9L16 15z"/><path d="M6 6h5l1 2"/>',
+  ),
+  montage: svg(
+    '<path d="M4 7h16"/><path d="M4 12h11"/><path d="M4 17h14"/><path d="M16 10l4 2-4 2z"/>',
+  ),
+  branding: svg(
+    '<rect x="5" y="3" width="14" height="18" rx="1.5"/><path d="M8 7h8"/><path d="M8 11h6"/><circle cx="15" cy="16" r="2"/>',
+  ),
+  video: svg(
+    '<rect x="3" y="6" width="13" height="12" rx="1.5"/><path d="M16 10l5-2.5v9L16 14z"/><path d="M7 10h3"/><path d="M7 14h5"/>',
+  ),
+  uniform: svg(
+    '<path d="M12 3l4 2v3l3 1.5V12h-3v8H8v-8H5V9.5L8 8V5l4-2z"/><path d="M10 14h4"/>',
+  ),
+  master_desk: svg(
+    '<path d="M3 14h18v5H3z"/><path d="M5 14V9h7v5"/><path d="M14 11h5v3"/><path d="M16 9v2"/>',
+  ),
+  share: svg(
+    '<rect x="9" y="9" width="11" height="11" rx="1.5"/><path d="M6 15V5.5A1.5 1.5 0 0 1 7.5 4H17"/>',
+  ),
+  exp_floor: svg(
+    '<path d="M4 20h16V12H4z"/><path d="M4 12h16V5H4z"/><path d="M12 5v15"/>',
+  ),
+  exp_terrace: svg(
+    '<path d="M4 19h16"/><path d="M6 19v-4h12v4"/><circle cx="12" cy="8" r="3"/><path d="M12 3v1"/><path d="M8.5 5.5l-.8-.8"/><path d="M15.5 5.5l.8-.8"/>',
+  ),
+  exp_vip: svg(
+    '<rect x="6" y="4" width="12" height="16" rx="1.5"/><circle cx="12" cy="10" r="2"/><path d="M12 14v2"/><path d="M10 8.5l2-1.5 2 1.5"/>',
+  ),
+  exp_bar: svg(
+    '<path d="M8 4h8l-1.5 9H9.5L8 4z"/><path d="M12 13v5"/><path d="M9 20h6"/><path d="M5 9h3"/><path d="M16 9h3"/>',
+  ),
+  exp_lab: svg(
+    '<path d="M9 3h6"/><path d="M10 3v5L6 16a3.5 3.5 0 0 0 3.2 5h5.6A3.5 3.5 0 0 0 18 16l-4-8V3"/><path d="M9 15h6"/>',
   ),
   tier_nook: svg('<rect x="6" y="10" width="12" height="8" rx="1"/><path d="M9 10V7h6v3"/>'),
   tier_hall: svg(
@@ -240,6 +279,36 @@ export function promotionIcon(id: PromotionId): string {
     happy_hour: 'promo_happy',
     second_hookah: 'promo_combo',
     tasting: 'promo_tasting',
+  }
+  return icon(map[id])
+}
+
+export function channelGearIcon(id: ChannelGearId): string {
+  const map: Record<ChannelGearId, IconName> = {
+    camera: 'camera',
+    montage: 'montage',
+    branding: 'branding',
+  }
+  return icon(map[id])
+}
+
+export function expansionIcon(id: ExpansionId): string {
+  const map: Record<ExpansionId, IconName> = {
+    second_hall: 'exp_floor',
+    terrace: 'exp_terrace',
+    vip_suite: 'exp_vip',
+    bar_wing: 'exp_bar',
+    hookah_lab: 'exp_lab',
+  }
+  return icon(map[id])
+}
+
+export function loungeShopIcon(id: LoungeShopId): string {
+  const map: Record<LoungeShopId, IconName> = {
+    heat: 'coals',
+    wash_bay: 'wash',
+    uniforms: 'uniform',
+    master_desk: 'master_desk',
   }
   return icon(map[id])
 }

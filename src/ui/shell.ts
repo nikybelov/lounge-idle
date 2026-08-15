@@ -255,6 +255,9 @@ import {
   tierIcon,
   promotionIcon,
   upgradeIcon,
+  channelGearIcon,
+  expansionIcon,
+  loungeShopIcon,
 } from './icons'
 import {
   PROMOTIONS,
@@ -1841,7 +1844,7 @@ function renderCareerTrackPanel(state: GameState): string {
       <p class="section-label">Соревнование</p>
       <div class="career-actions">
         <button type="button" class="row-btn shop afford" data-career-share>
-          ${icon('hood')}
+          ${icon('share')}
           <span class="row-main">
             <span class="row-title">Скопировать код карьеры</span>
             <span class="row-sub">Отправь другу — он вставит код в «Карьера»</span>
@@ -2704,7 +2707,7 @@ function renderPersonalPanel(state: GameState, now: number): string {
     if (maxed) {
       return `
         <div class="row-btn shop owned">
-          ${icon('hood')}
+          ${channelGearIcon(def.id)}
           <span class="row-main">
             <span class="row-title">${ui.title}</span>
             <span class="row-sub row-sub--grade">${ui.dots}<span>${ui.sub}</span></span>
@@ -2727,7 +2730,7 @@ function renderPersonalPanel(state: GameState, now: number): string {
     }
     return `
       <button type="button" class="row-btn shop ${can ? 'afford' : ''}" data-personal-gear="${def.id}" ${can ? '' : 'disabled'}>
-        ${icon('hood')}
+        ${channelGearIcon(def.id)}
         <span class="row-main">
           <span class="row-title">${ui.title}</span>
           <span class="row-sub row-sub--grade">${ui.dots}<span>${ui.sub}</span></span>
@@ -2741,7 +2744,7 @@ function renderPersonalPanel(state: GameState, now: number): string {
     blogger
       ? `
       <button type="button" class="row-btn shop ${canShoot ? 'afford' : ''}" data-personal-video ${canShoot ? '' : 'disabled'}>
-        ${icon('hood')}
+        ${icon('video')}
         <span class="row-main">
           <span class="row-title">${shootReady ? `Снять ролик · грейд ${videoLevel}` : 'Снять ролик'}</span>
           <span class="row-sub">${
@@ -3135,13 +3138,6 @@ function renderShopPanel(state: GameState): string {
   `
 }
 
-function loungeShopIcon(id: LoungeShopId): string {
-  if (id === 'heat') return taskIcon('coals')
-  if (id === 'wash_bay') return taskIcon('wash')
-  if (id === 'master_desk') return taskIcon('order')
-  return staffIcon('waiter')
-}
-
 function renderLoungeShopBlock(state: GameState): string {
   const rows = LOUNGE_SHOP_LINES.map((line) => {
     const level = loungeShopLevel(state.loungeShop, line.id)
@@ -3356,7 +3352,7 @@ function renderLoungePanel(state: GameState, now: number): string {
     if (owned) {
       return `
         <div class="row-btn shop owned">
-          ${icon('tier_hall')}
+          ${expansionIcon(def.id)}
           <span class="row-main">
             <span class="row-title">${def.name}</span>
             <span class="row-sub">+${def.seats} мест · +${formatMoney(def.incomeBonus)}/с</span>
@@ -3380,7 +3376,7 @@ function renderLoungePanel(state: GameState, now: number): string {
           : `${def.blurb} · +${def.seats} мест`
     return `
       <button type="button" class="row-btn shop ${can ? 'afford' : ''} ${unlocked ? '' : 'locked'}${warn ? ' upgrade-risk' : ''}" data-expansion="${def.id}" ${can ? '' : 'disabled'}>
-        ${icon('tier_hall')}
+        ${expansionIcon(def.id)}
         <span class="row-main">
           <span class="row-title">${def.name}</span>
           <span class="row-sub">${sub}</span>

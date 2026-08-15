@@ -65,7 +65,7 @@ export const UPGRADES: UpgradeDef[] = [
     name: 'VIP-зона',
     blurb: 'Тише, дороже, свой свет',
     baseCost: 12000,
-    incomePerLevel: 28,
+    incomePerLevel: 20,
     clickPerLevel: 10,
     maxLevel: 8,
     unlockAtOwned: { hood: 1 },

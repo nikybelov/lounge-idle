@@ -11,6 +11,7 @@ let h = 0
 let ctx: CanvasRenderingContext2D | null = null
 let resizeObserver: ResizeObserver | null = null
 let intersectionObserver: IntersectionObserver | null = null
+let winResizeHandler: (() => void) | null = null
 let lastSceneKey = ''
 
 import { prefersReducedMotion } from '../save/settings'
@@ -50,14 +51,18 @@ function atmosphereHost(stage: HTMLElement): HTMLElement {
 
 function resizeCanvas(stage: HTMLElement): void {
   if (!stageCanvas || !ctx) return
-  const rect = atmosphereHost(stage).getBoundingClientRect()
-  w = Math.max(1, Math.floor(rect.width))
-  h = Math.max(1, Math.floor(rect.height))
+  const host = atmosphereHost(stage)
+  /* clientWidth — без субпикселей; не пишем style.width в px — иначе при смене
+     рамки лаба canvas остаётся шире shell и раздувает scrollWidth. */
+  w = Math.max(1, host.clientWidth || Math.floor(host.getBoundingClientRect().width))
+  h = Math.max(1, host.clientHeight || Math.floor(host.getBoundingClientRect().height))
   const dpr = Math.min(2, window.devicePixelRatio || 1)
   stageCanvas.width = w * dpr
   stageCanvas.height = h * dpr
-  stageCanvas.style.width = `${w}px`
-  stageCanvas.style.height = `${h}px`
+  stageCanvas.style.width = '100%'
+  stageCanvas.style.height = '100%'
+  stageCanvas.style.maxWidth = '100%'
+  stageCanvas.style.maxHeight = '100%'
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0)
 }
 
@@ -182,6 +187,10 @@ export function initStageAtmosphere(stage: HTMLElement): void {
   stopLoop()
   resizeObserver?.disconnect()
   intersectionObserver?.disconnect()
+  if (winResizeHandler) {
+    window.removeEventListener('resize', winResizeHandler)
+    winResizeHandler = null
+  }
 
   stageHost = stage
   stageCanvas = ensureCanvas(stage)
@@ -195,6 +204,11 @@ export function initStageAtmosphere(stage: HTMLElement): void {
     seedParticles(stage)
   })
   resizeObserver.observe(host)
+
+  winResizeHandler = () => {
+    resizeCanvas(stage)
+  }
+  window.addEventListener('resize', winResizeHandler)
 
   intersectionObserver = new IntersectionObserver(
     (entries) => {

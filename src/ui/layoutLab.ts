@@ -26,7 +26,19 @@ const LOUNGE_SHORT: Record<LabLoungeId, string> = {
   signature: 'Мир',
 }
 
-export type LabPhoneId = 'fill' | '15pm' | '15' | '16pm' | 'se' | 'tg'
+export type LabPhoneId =
+  | 'fill'
+  | 's320'
+  | 'a360'
+  | 'a384'
+  | 'se'
+  | 'i390'
+  | '15'
+  | 'a412'
+  | 'i414'
+  | '15pm'
+  | '16pm'
+  | 'tg'
 
 interface LabPhone {
   id: LabPhoneId
@@ -39,12 +51,19 @@ interface LabPhone {
   island: boolean
 }
 
+/** Реальные CSS-viewport’ы (DeviceAtlas / screensize.io 2025–26), не только Apple. */
 const PHONES: LabPhone[] = [
   { id: 'fill', label: 'Окно', title: 'Без рамки — как сейчас в браузере', w: 0, h: 0, safeT: 0, safeB: 0, island: false },
-  { id: '15pm', label: '15 PM', title: 'iPhone 15 Pro Max · 430×932', w: 430, h: 932, safeT: 59, safeB: 34, island: true },
-  { id: '15', label: '15', title: 'iPhone 15 / 15 Pro · 393×852', w: 393, h: 852, safeT: 59, safeB: 34, island: true },
-  { id: '16pm', label: '16 PM', title: 'iPhone 16 Pro Max · 440×956', w: 440, h: 956, safeT: 62, safeB: 34, island: true },
-  { id: 'se', label: 'SE', title: 'iPhone SE · 375×667', w: 375, h: 667, safeT: 20, safeB: 20, island: false },
+  { id: 's320', label: '320', title: 'Zoom / старые Android · 320×694', w: 320, h: 694, safeT: 24, safeB: 20, island: false },
+  { id: 'a360', label: '360', title: 'Android base · 360×800 (самый частый)', w: 360, h: 800, safeT: 28, safeB: 20, island: false },
+  { id: 'a384', label: '384', title: 'Samsung FHD+ · 384×832 (DeviceAtlas ~17%)', w: 384, h: 832, safeT: 28, safeB: 24, island: false },
+  { id: 'se', label: '375', title: 'iPhone SE · 375×667', w: 375, h: 667, safeT: 20, safeB: 20, island: false },
+  { id: 'i390', label: '390', title: 'iPhone 12–14 / 16e · 390×844', w: 390, h: 844, safeT: 47, safeB: 34, island: true },
+  { id: '15', label: '393', title: 'iPhone 15 / 15 Pro · 393×852', w: 393, h: 852, safeT: 59, safeB: 34, island: true },
+  { id: 'a412', label: '412', title: 'Pixel / крупный Android · 412×915', w: 412, h: 915, safeT: 28, safeB: 24, island: false },
+  { id: 'i414', label: '414', title: 'iPhone XR / 11 · 414×896', w: 414, h: 896, safeT: 44, safeB: 34, island: true },
+  { id: '15pm', label: '430', title: 'iPhone 15 Pro Max · 430×932', w: 430, h: 932, safeT: 59, safeB: 34, island: true },
+  { id: '16pm', label: '440', title: 'iPhone 16/17 Pro Max · 440×956', w: 440, h: 956, safeT: 62, safeB: 34, island: true },
   { id: 'tg', label: 'TG', title: 'Mini App на 15 Pro Max · 430×780', w: 430, h: 780, safeT: 16, safeB: 34, island: false },
 ]
 
@@ -219,7 +238,7 @@ function readPhoneQuery(): LabPhoneId | null {
 }
 
 export function getLabPhone(): LabPhone {
-  const fallback = PHONES[1]!
+  const fallback = PHONES.find((p) => p.id === '15pm') ?? PHONES[1]!
   if (!isLayoutLabHost()) return PHONES[0]!
   const fromQuery = readPhoneQuery()
   const fromQueryPhone = PHONES.find((p) => p.id === fromQuery)
@@ -315,6 +334,7 @@ function applyDeviceFrame(): void {
     html.style.removeProperty('--safe-b')
     html.style.removeProperty('--lab-safe-t')
     html.style.removeProperty('--lab-safe-b')
+    html.style.removeProperty('--pad-x')
   } else {
     html.classList.add('layout-lab-device')
     html.style.setProperty('--lab-device-scale', String(phoneScale(phone)))
@@ -322,9 +342,17 @@ function applyDeviceFrame(): void {
     html.style.setProperty('--safe-b', `${phone.safeB}px`)
     html.style.setProperty('--lab-safe-t', `${phone.safeT}px`)
     html.style.setProperty('--lab-safe-b', `${phone.safeB}px`)
+    /* pad как на реальном viewport этой ширины (media в лабе не видит рамку) */
+    if (phone.w > 0 && phone.w <= 320) html.style.setProperty('--pad-x', '8px')
+    else if (phone.w > 0 && phone.w <= 360) html.style.setProperty('--pad-x', '10px')
+    else html.style.removeProperty('--pad-x')
     wrapPhone(app, phone)
   }
   syncPhoneButtons(phone.id)
+  /* ResizeObserver + atmosphere canvas под новую рамку */
+  requestAnimationFrame(() => {
+    window.dispatchEvent(new Event('resize'))
+  })
 }
 
 export function setLabPhone(id: LabPhoneId): void {

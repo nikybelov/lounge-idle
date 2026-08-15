@@ -24,7 +24,7 @@ export const UPGRADES: UpgradeDef[] = [
   {
     id: 'table',
     name: 'Стол у входа',
-    blurb: 'Больше посадочных — выше поток гостей',
+    blurb: 'Больше посадочных мест — выше поток гостей',
     baseCost: 15,
     incomePerLevel: 0.5,
     clickPerLevel: 0.5,

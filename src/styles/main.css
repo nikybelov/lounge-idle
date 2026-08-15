@@ -305,11 +305,148 @@ body {
   max-width: 480px;
   margin: 0 auto;
   overflow: hidden;
+  container-type: size;
+  container-name: shell;
   background: var(--bg0);
   box-shadow:
     0 0 0 1px rgba(246, 239, 230, 0.06),
     0 0 80px rgba(0, 0, 0, 0.55),
     var(--shadow-glow);
+}
+
+/* Узкие Android / zoom — pad и чипы.
+   @container shell: в лабе рамка ≠ viewport окна, media(max-width) там не срабатывает. */
+@container shell (max-width: 360px) {
+  .rate-block {
+    padding: 4px 7px;
+  }
+
+  .menu-btn--chip {
+    min-height: 34px;
+    padding: 3px 4px;
+  }
+
+  .menu-btn-chip-label {
+    font-size: 0.52rem;
+  }
+
+  .city-map__detail {
+    left: 8px;
+    right: 8px;
+    padding: 9px 32px 9px 10px;
+  }
+
+  .city-map__detail-title {
+    font-size: 0.9rem;
+  }
+
+  .city-map__detail-bar {
+    flex-wrap: wrap;
+    gap: 6px;
+  }
+
+  .city-map__buy {
+    margin-left: 0;
+  }
+}
+
+@container shell (max-width: 320px) {
+  .topbar {
+    gap: 6px;
+  }
+
+  .network-map-panel__meta {
+    padding: 8px 10px 6px;
+    font-size: 11px;
+  }
+
+  .scene-nav .nav-btn,
+  .subnav .nav-btn {
+    min-height: 28px;
+    padding: 3px 4px;
+    font-size: 0.62rem;
+  }
+
+  .menu-btn {
+    min-width: 0;
+    font-size: 0.62rem;
+    padding: 4px 3px;
+  }
+
+  .menu-btn--chip {
+    min-height: 32px;
+  }
+}
+
+/* Короткие экраны (SE, TG chrome) — и media, и container */
+@media (max-height: 720px) {
+  .network-map-panel,
+  [data-ui='d'] .network-map-panel {
+    min-height: min(30dvh, 240px);
+  }
+
+  .city-map,
+  .city-map__svg,
+  [data-ui='d'] .city-map {
+    min-height: min(28dvh, 220px);
+  }
+
+  .panel {
+    padding-top: 6px;
+  }
+
+  .order-cta {
+    min-height: 48px;
+    padding: 8px 12px;
+  }
+
+  .order-cta__pay {
+    padding: 6px 10px;
+    font-size: 0.85rem;
+  }
+
+  .stage[data-has-cta='1'] .stage-copy {
+    padding-bottom: 8px;
+  }
+}
+
+@container shell (max-height: 720px) {
+  .network-map-panel,
+  .city-map,
+  .city-map__svg {
+    min-height: min(30dvh, 240px);
+  }
+
+  .order-cta {
+    min-height: 48px;
+    padding: 8px 12px;
+  }
+
+  .order-cta__pay {
+    padding: 6px 10px;
+    font-size: 0.85rem;
+  }
+
+  .stage[data-has-cta='1'] .stage-copy {
+    padding-bottom: 8px;
+  }
+
+  .panel {
+    padding-top: 6px;
+  }
+}
+
+/* Реальный viewport (TG / телефон без рамки лаба) */
+@media (max-width: 360px) {
+  :root {
+    --pad-x: 10px;
+  }
+}
+
+@media (max-width: 320px) {
+  :root {
+    --pad-x: 8px;
+  }
 }
 
 .app-shell::before {
@@ -357,6 +494,11 @@ body {
 }
 
 .rate-block {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: flex-end;
+  gap: 0;
   text-align: right;
   padding: 6px 10px;
   border-radius: var(--radius-sm);
@@ -364,6 +506,10 @@ body {
   background:
     linear-gradient(rgba(224, 122, 58, 0.08), rgba(224, 122, 58, 0.08)) padding-box,
     linear-gradient(135deg, rgba(255, 255, 255, 0.1), rgba(224, 122, 58, 0.28), rgba(255, 255, 255, 0.04)) border-box;
+}
+
+.rate-block[hidden] {
+  display: none;
 }
 
 .cash-label,
@@ -379,7 +525,7 @@ body {
   display: block;
   overflow: hidden;
   font-family: var(--font-display);
-  font-size: 1.65rem;
+  font-size: var(--cash-fs, 1.65rem);
   font-weight: 700;
   line-height: 1.05;
   letter-spacing: -0.02em;
@@ -390,8 +536,51 @@ body {
   text-shadow: 0 2px 16px rgba(224, 122, 58, 0.2);
 }
 
-.app-shell--lounge .cash-value {
-  font-size: 1.72rem;
+.app-shell--lounge {
+  --cash-fs: 1.72rem;
+}
+
+/* Container: работает и в рамке лаба, и на реальном телефоне */
+@container shell (max-width: 360px) {
+  .cash-value {
+    font-size: clamp(1.15rem, 5.2cqw, 1.4rem);
+  }
+
+  .rate-label,
+  .cash-label {
+    font-size: 0.6rem;
+  }
+}
+
+@container shell (max-width: 320px) {
+  .cash-value {
+    font-size: clamp(1.05rem, 5cqw, 1.22rem);
+  }
+
+  .rate-label,
+  .cash-label {
+    font-size: 0.58rem;
+    letter-spacing: 0.06em;
+  }
+
+  .rate-value {
+    font-size: 0.82rem;
+  }
+}
+
+/* Viewport fallback без container (старые WebView) */
+@media (max-width: 360px) {
+  .cash-value,
+  .app-shell--lounge .cash-value {
+    font-size: clamp(1.15rem, 5.2vw, 1.4rem);
+  }
+}
+
+@media (max-width: 320px) {
+  .cash-value,
+  .app-shell--lounge .cash-value {
+    font-size: clamp(1.05rem, 5vw, 1.22rem);
+  }
 }
 
 .app-shell--lounge .topbar {
@@ -402,6 +591,7 @@ body {
 .rate-label {
   display: block;
   font-size: 0.65rem;
+  line-height: 1.25;
   letter-spacing: 0.08em;
   text-transform: uppercase;
   color: var(--muted);
@@ -418,10 +608,17 @@ body {
   max-width: 11.5rem;
 }
 
+.rate-sub[hidden] {
+  display: none;
+  margin: 0;
+}
+
 .rate-value {
+  display: block;
   color: var(--ember-bright);
   font-weight: 700;
   font-size: 0.95rem;
+  line-height: 1.25;
   text-align: right;
   font-variant-numeric: tabular-nums;
   font-feature-settings: 'tnum' 1;
@@ -1807,109 +2004,6 @@ body {
 .toast.show {
   opacity: 1;
   transform: translateY(0);
-}
-
-.day-turn[hidden] {
-  display: none !important;
-}
-
-.day-turn {
-  position: absolute;
-  top: 14px;
-  left: 50%;
-  z-index: 7;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 3px;
-  min-width: 9rem;
-  margin: 0;
-  padding: 11px 18px 12px;
-  border-radius: 14px;
-  border: 1px solid rgb(255 255 255 / 10%);
-  background: rgb(12 9 7 / 78%);
-  backdrop-filter: blur(var(--ui-blur));
-  box-shadow:
-    0 12px 32px rgb(0 0 0 / 38%),
-    inset 0 1px 0 rgb(255 255 255 / 6%);
-  pointer-events: none;
-  opacity: 0;
-  transform: translate(-50%, -12px) scale(0.94);
-}
-
-.day-turn.is-in {
-  animation: day-turn-in 0.52s cubic-bezier(0.22, 1, 0.36, 1) forwards;
-}
-
-.day-turn.is-out {
-  animation: day-turn-out 0.3s ease forwards;
-}
-
-.day-turn-title {
-  font-family: var(--font-display);
-  font-size: 1.08rem;
-  font-weight: 700;
-  line-height: 1.1;
-  letter-spacing: -0.02em;
-  color: var(--text);
-}
-
-.day-turn-sub {
-  font-size: 0.66rem;
-  font-weight: 600;
-  letter-spacing: 0.1em;
-  text-transform: uppercase;
-  color: var(--muted);
-}
-
-.day-turn.is-weekend {
-  border-color: rgb(224 180 100 / 32%);
-  box-shadow:
-    0 12px 32px rgb(0 0 0 / 38%),
-    0 0 20px rgb(224 180 100 / 12%),
-    inset 0 1px 0 rgb(255 220 160 / 8%);
-}
-
-.day-turn.is-weekend .day-turn-title {
-  color: var(--gold);
-}
-
-.day-turn.is-weekend .day-turn-sub {
-  color: rgb(224 180 100 / 72%);
-}
-
-@keyframes day-turn-in {
-  0% {
-    opacity: 0;
-    transform: translate(-50%, -12px) scale(0.94);
-  }
-  100% {
-    opacity: 1;
-    transform: translate(-50%, 0) scale(1);
-  }
-}
-
-@keyframes day-turn-out {
-  0% {
-    opacity: 1;
-    transform: translate(-50%, 0) scale(1);
-  }
-  100% {
-    opacity: 0;
-    transform: translate(-50%, -6px) scale(0.98);
-  }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .day-turn.is-in,
-  .day-turn.is-out {
-    animation: none;
-  }
-
-  .day-turn.is-in {
-    opacity: 1;
-    transform: translate(-50%, 0) scale(1);
-  }
 }
 
 .panel {
@@ -3511,6 +3605,26 @@ body.achieve-locked {
   box-shadow: var(--shadow-sm), inset 0 1px 0 rgba(255, 255, 255, 0.05);
 }
 
+/* Длинный статус рядом с заголовком — иначе title сжимается и наезжает */
+.milestone.shelf-status .milestone-head {
+  flex-direction: column;
+  align-items: stretch;
+  gap: 3px;
+}
+
+.milestone.shelf-status .milestone-head span:first-child {
+  flex: none;
+  min-width: 0;
+  color: var(--text);
+  font-weight: 650;
+}
+
+.milestone.shelf-status .milestone-head span:last-child {
+  flex: none;
+  max-width: none;
+  text-align: left;
+}
+
 .shop-note,
 .empty-note {
   color: var(--muted);
@@ -3572,13 +3686,13 @@ body.achieve-locked {
 }
 
 .milestone-head span:first-child {
-  flex: 1;
+  flex: 1 1 auto;
   min-width: 0;
 }
 
 .milestone-head span:last-child {
-  flex-shrink: 0;
-  max-width: none;
+  flex: 0 1 auto;
+  max-width: min(100%, 14rem);
   text-align: right;
   font-variant-numeric: tabular-nums;
   overflow-wrap: anywhere;
@@ -5539,105 +5653,128 @@ body.achieve-locked {
   margin: 0;
   display: flex;
   flex-direction: column;
-  min-height: min(62vh, 520px);
+  flex: 1;
+  min-height: min(36dvh, 320px);
   background: transparent;
+  position: relative;
 }
 
 .network-map-panel__meta {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 4;
   display: flex;
   justify-content: space-between;
   align-items: baseline;
-  gap: 8px;
-  padding: 8px 12px 6px;
+  gap: 10px;
+  width: 100%;
+  box-sizing: border-box;
+  padding: 10px 14px 8px;
+  margin: 0;
   font-size: 12px;
-  color: rgba(232, 200, 160, 0.72);
-  background: linear-gradient(180deg, rgba(14, 11, 8, 0.88), rgba(14, 11, 8, 0));
-  position: relative;
-  z-index: 2;
+  color: rgba(248, 242, 234, 0.88);
+  text-shadow: 0 1px 8px rgba(14, 11, 8, 0.85);
+  background: none;
+  pointer-events: none;
 }
 
 .city-map {
   position: relative;
   flex: 1;
-  min-height: 280px;
+  min-height: min(34dvh, 280px);
   margin: 0;
   border: none;
+  outline: none;
   border-radius: 0;
-  overflow: visible;
+  overflow: hidden;
   background: transparent;
   box-shadow: none;
   transform: none;
   isolation: isolate;
+  /* Очень тонкое растворение края — карта почти на весь экран */
+  -webkit-mask-image:
+    linear-gradient(to right, transparent 0%, #000 4%, #000 96%, transparent 100%),
+    linear-gradient(to bottom, transparent 0%, #000 3%, #000 95%, transparent 100%);
+  -webkit-mask-composite: source-in;
+  mask-image:
+    linear-gradient(to right, transparent 0%, #000 4%, #000 96%, transparent 100%),
+    linear-gradient(to bottom, transparent 0%, #000 3%, #000 95%, transparent 100%);
+  mask-composite: intersect;
+}
+
+.city-map__world {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  transform: scale(1.28);
+  transform-origin: 50% 44%;
+  pointer-events: none;
+}
+
+.city-map__world .city-map__svg {
+  pointer-events: auto;
 }
 
 .city-map__bloom,
 .city-map__focus {
   position: absolute;
-  inset: -14%;
+  inset: 0;
   pointer-events: none;
   background-image: var(--city-map-art);
   background-size: cover;
-  background-position: 50% 42%;
+  background-position: 50% 44%;
   background-repeat: no-repeat;
 }
 
-/* Размытый ореол по краям */
+/* Дальний мягкий bloom — подложка на весь кадр */
+.city-map::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  background-image: var(--city-map-art);
+  background-size: cover;
+  background-position: 50% 44%;
+  background-repeat: no-repeat;
+  transform: scale(1.28);
+  transform-origin: 50% 44%;
+  filter:
+    sepia(1)
+    saturate(1.4)
+    hue-rotate(-18deg)
+    brightness(0.72)
+    contrast(1.05)
+    blur(40px);
+  opacity: 0.95;
+}
+
+/* Ближний размытый ореол — тоже почти на весь кадр */
 .city-map__bloom {
   z-index: 0;
-  inset: -28%;
   filter:
     sepia(1)
     saturate(1.5)
     hue-rotate(-18deg)
     brightness(0.8)
     contrast(1.1)
-    blur(42px);
+    blur(22px);
   opacity: 1;
-  -webkit-mask-image: radial-gradient(
-    ellipse 92% 88% at 50% 46%,
-    transparent 0%,
-    transparent 8%,
-    rgba(0, 0, 0, 0.55) 28%,
-    #000 48%,
-    #000 72%,
-    rgba(0, 0, 0, 0.4) 88%,
-    transparent 100%
-  );
-  mask-image: radial-gradient(
-    ellipse 92% 88% at 50% 46%,
-    transparent 0%,
-    transparent 8%,
-    rgba(0, 0, 0, 0.55) 28%,
-    #000 48%,
-    #000 72%,
-    rgba(0, 0, 0, 0.4) 88%,
-    transparent 100%
-  );
 }
 
-/* Чёткая середина карты */
+/* Чёткая карта на весь экран */
 .city-map__focus {
   z-index: 1;
   filter:
     sepia(1)
     saturate(1.55)
     hue-rotate(-18deg)
-    brightness(0.84)
-    contrast(1.18);
-  -webkit-mask-image: radial-gradient(
-    ellipse 48% 44% at 50% 46%,
-    #000 0%,
-    #000 42%,
-    rgba(0, 0, 0, 0.45) 68%,
-    transparent 92%
-  );
-  mask-image: radial-gradient(
-    ellipse 48% 44% at 50% 46%,
-    #000 0%,
-    #000 42%,
-    rgba(0, 0, 0, 0.45) 68%,
-    transparent 92%
-  );
+    brightness(0.86)
+    contrast(1.2);
+  -webkit-mask-image: none;
+  mask-image: none;
 }
 
 /* лёгкий ember в центре */
@@ -5648,10 +5785,23 @@ body.achieve-locked {
   z-index: 1;
   pointer-events: none;
   background: radial-gradient(
-    ellipse 52% 46% at 50% 46%,
-    rgba(224, 122, 58, 0.14) 0%,
-    transparent 72%
+    ellipse 70% 60% at 50% 46%,
+    rgba(224, 122, 58, 0.12) 0%,
+    transparent 78%
   );
+}
+
+/* Тонкое растворение — мягкий край без большого чёрного поля */
+.city-map__dissolve {
+  position: absolute;
+  inset: 0;
+  z-index: 3;
+  pointer-events: none;
+  background:
+    linear-gradient(to bottom, #0c0a08 0%, transparent 8%),
+    linear-gradient(to top, #0c0a08 0%, transparent 10%),
+    linear-gradient(to right, #0c0a08 0%, transparent 6%),
+    linear-gradient(to left, #0c0a08 0%, transparent 6%);
 }
 
 .city-map__svg {
@@ -5660,7 +5810,7 @@ body.achieve-locked {
   display: block;
   width: 100%;
   height: 100%;
-  min-height: 320px;
+  min-height: min(34dvh, 280px);
   max-height: none;
   background: transparent;
 }
@@ -5691,20 +5841,20 @@ body.achieve-locked {
 .city-map__pin-dot {
   fill: #2a2018;
   stroke: rgba(232, 196, 154, 0.55);
-  stroke-width: 1.6;
+  stroke-width: 1.4;
   transition: fill 0.2s ease, stroke 0.2s ease, filter 0.2s ease;
 }
 
 .city-map__pin--hq .city-map__pin-dot {
   fill: #f0c87a;
   stroke: #fff3c8;
-  filter: drop-shadow(0 0 6px rgba(224, 122, 58, 0.75));
+  filter: drop-shadow(0 0 5px rgba(224, 122, 58, 0.7));
 }
 
 .city-map__pin--owned .city-map__pin-dot {
   fill: var(--ember);
   stroke: #ffd7a8;
-  filter: drop-shadow(0 0 5px rgba(224, 122, 58, 0.55));
+  filter: drop-shadow(0 0 4px rgba(224, 122, 58, 0.5));
 }
 
 .city-map__pin--afford .city-map__pin-dot {
@@ -5725,24 +5875,50 @@ body.achieve-locked {
 }
 
 .city-map__pin.is-selected .city-map__pin-dot {
-  stroke-width: 2.4;
+  stroke-width: 2;
   stroke: #fff0c0;
 }
 
+.city-map__pin-caption {
+  pointer-events: none;
+}
+
+.city-map__pin-chip {
+  fill: rgba(10, 8, 6, 0.22);
+  stroke: none;
+}
+
+.city-map__pin.is-selected .city-map__pin-chip {
+  fill: rgba(36, 24, 14, 0.42);
+  stroke: none;
+}
+
+.city-map__pin--locked .city-map__pin-chip {
+  fill: rgba(10, 8, 6, 0.14);
+  stroke: none;
+}
+
 .city-map__pin-label {
-  fill: rgba(248, 242, 234, 0.94);
-  font-size: 9px;
-  font-weight: 600;
+  fill: #f8f2ea;
+  font-family: var(--font-body, system-ui, sans-serif);
+  font-size: 7.5px;
+  font-weight: 650;
   letter-spacing: 0.02em;
   pointer-events: none;
   user-select: none;
   paint-order: stroke fill;
-  stroke: rgba(14, 11, 8, 0.78);
-  stroke-width: 2.5px;
+  stroke: rgba(8, 6, 4, 0.45);
+  stroke-width: 1px;
+  stroke-linejoin: round;
+}
+
+.city-map__pin.is-selected .city-map__pin-label {
+  fill: #fff8ec;
+  stroke: rgba(12, 8, 4, 0.5);
 }
 
 .city-map__pin--locked .city-map__pin-label {
-  fill: rgba(154, 136, 120, 0.5);
+  fill: rgba(220, 208, 192, 0.72);
 }
 
 @keyframes city-pin-pulse {
@@ -5773,88 +5949,272 @@ body.achieve-locked {
 
 .city-map__detail {
   position: absolute;
-  left: 10px;
-  right: 10px;
+  left: 12px;
+  right: 12px;
   bottom: 10px;
-  z-index: 3;
+  z-index: 5;
   display: grid;
-  gap: 4px;
-  padding: 12px 14px;
+  gap: 5px;
+  padding: 10px 36px 10px 12px;
   border-radius: 14px;
-  border: 1px solid rgba(224, 122, 58, 0.22);
-  background: rgba(18, 14, 11, 0.88);
-  backdrop-filter: blur(10px);
-  box-shadow: 0 10px 28px rgba(0, 0, 0, 0.4);
+  border: 1px solid rgba(224, 122, 58, 0.26);
+  background:
+    linear-gradient(165deg, rgba(255, 220, 170, 0.07), transparent 40%),
+    linear-gradient(180deg, rgba(28, 20, 14, 0.94), rgba(12, 9, 7, 0.96));
+  backdrop-filter: blur(12px) saturate(140%);
+  -webkit-backdrop-filter: blur(12px) saturate(140%);
+  box-shadow:
+    0 10px 28px rgba(0, 0, 0, 0.42),
+    inset 0 1px 0 rgba(255, 236, 210, 0.1);
+  animation: city-map-detail-in 0.22s ease-out;
 }
 
-.city-map__detail-kicker {
-  margin: 0;
-  font-size: 11px;
-  letter-spacing: 0.06em;
+@keyframes city-map-detail-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.network-map-panel.has-detail .city-map {
+  /* место под компактную карточку, подписи Берега не прячутся */
+  padding-bottom: 0;
+}
+
+.city-map__detail-close {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  width: 28px;
+  height: 28px;
+  border: none;
+  border-radius: 8px;
+  background: rgba(255, 236, 210, 0.06);
+  color: rgba(232, 214, 190, 0.7);
+  font: inherit;
+  font-size: 18px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.city-map__detail-close:hover {
+  color: #fff4e4;
+  background: rgba(255, 236, 210, 0.12);
+}
+
+.city-map__detail--afford {
+  border-color: rgba(240, 200, 120, 0.5);
+  box-shadow:
+    0 10px 28px rgba(0, 0, 0, 0.42),
+    0 0 20px rgba(224, 122, 58, 0.18),
+    inset 0 1px 0 rgba(255, 236, 210, 0.12);
+}
+
+.city-map__detail--owned {
+  border-color: rgba(224, 184, 122, 0.3);
+}
+
+.city-map__detail--locked,
+.city-map__detail--short {
+  border-color: rgba(154, 136, 120, 0.26);
+}
+
+.city-map__detail-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  padding-right: 4px;
+}
+
+.city-map__detail-badge {
+  display: inline-flex;
+  align-items: center;
+  flex-shrink: 0;
+  padding: 2px 7px;
+  border-radius: 999px;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  color: #fff0d4;
+  background: rgba(224, 122, 58, 0.26);
+  border: 1px solid rgba(240, 200, 120, 0.24);
+}
+
+.city-map__detail--owned .city-map__detail-badge {
+  background: rgba(120, 160, 100, 0.2);
+  border-color: rgba(160, 200, 130, 0.28);
+  color: #d8efc4;
+}
+
+.city-map__detail--locked .city-map__detail-badge,
+.city-map__detail--short .city-map__detail-badge {
+  background: rgba(70, 58, 48, 0.65);
+  border-color: rgba(154, 136, 120, 0.26);
+  color: rgba(232, 214, 190, 0.72);
+}
+
+.city-map__detail--afford .city-map__detail-badge {
+  background: linear-gradient(180deg, rgba(224, 122, 58, 0.42), rgba(160, 80, 36, 0.38));
+  border-color: rgba(255, 210, 140, 0.4);
+  color: #fff6e0;
+}
+
+.city-map__detail-meta {
+  font-size: 10px;
+  letter-spacing: 0.04em;
   text-transform: uppercase;
-  color: rgba(232, 196, 154, 0.6);
+  color: rgba(232, 196, 154, 0.5);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 0;
 }
 
 .city-map__detail-title {
   margin: 0;
   font-family: var(--font-display, Georgia, serif);
-  font-size: 1.1rem;
+  font-size: 0.98rem;
   font-weight: 600;
+  line-height: 1.2;
   color: var(--text);
+  padding-right: 8px;
 }
 
-.city-map__detail-sub {
-  margin: 0;
-  font-size: 12px;
-  line-height: 1.4;
-  color: var(--muted);
-}
-
-.city-map__detail-status {
+.city-map__detail-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
   margin-top: 2px;
-  font-size: 12px;
-  color: rgba(224, 184, 122, 0.85);
+  padding-top: 8px;
+  border-top: 1px solid rgba(246, 239, 230, 0.08);
+  min-width: 0;
 }
 
-.city-map__detail-status.is-locked {
-  color: rgba(154, 136, 120, 0.75);
+.city-map__detail-info {
+  flex: 1;
+  min-width: 0;
+  font-size: 11px;
+  line-height: 1.3;
+  color: rgba(210, 190, 168, 0.78);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
+.city-map__detail-info.is-locked {
+  color: rgba(154, 136, 120, 0.85);
+  white-space: normal;
+}
+
+.city-map__detail-price {
+  flex-shrink: 0;
+  font-size: 11px;
+  font-weight: 600;
+  color: rgba(240, 200, 120, 0.85);
+  font-variant-numeric: tabular-nums;
+}
+
+/* CTA справа в нижней полосе — не спорит с заголовком */
 .city-map__buy {
-  margin-top: 4px;
-  justify-self: start;
-  border: 1px solid rgba(224, 122, 58, 0.4);
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: baseline;
+  gap: 6px;
+  margin: 0;
+  border: 1px solid rgba(224, 122, 58, 0.32);
   border-radius: 999px;
-  background: rgba(42, 32, 24, 0.95);
-  color: var(--text);
+  background: transparent;
+  color: rgba(248, 242, 234, 0.9);
   font: inherit;
-  font-size: 13px;
-  padding: 8px 14px;
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 1;
+  padding: 6px 11px;
+  white-space: nowrap;
   cursor: pointer;
+  transition:
+    transform 0.15s ease,
+    border-color 0.15s ease,
+    background 0.15s ease,
+    color 0.15s ease;
+}
+
+.city-map__buy em {
+  font-style: normal;
+  font-variant-numeric: tabular-nums;
+  color: #f0c878;
 }
 
 .city-map__buy:disabled {
-  opacity: 0.45;
+  opacity: 0.7;
   cursor: not-allowed;
+  border-color: rgba(154, 136, 120, 0.22);
+  color: rgba(210, 190, 168, 0.65);
+}
+
+.city-map__buy:disabled em {
+  color: rgba(210, 190, 168, 0.7);
 }
 
 .city-map__buy.is-afford {
-  border-color: rgba(240, 200, 120, 0.7);
-  background: linear-gradient(180deg, rgba(90, 55, 28, 0.95), rgba(48, 32, 18, 0.95));
-  color: #fff3c8;
+  border-color: rgba(255, 210, 140, 0.45);
+  background: rgba(224, 122, 58, 0.16);
+  color: #fff6e4;
+}
+
+.city-map__buy.is-afford em {
+  color: #ffe2a8;
+}
+
+.city-map__buy.is-afford:hover {
+  background: rgba(224, 122, 58, 0.28);
+  border-color: rgba(255, 210, 140, 0.6);
+}
+
+.city-map__buy.is-afford:active {
+  transform: scale(0.97);
 }
 
 [data-ui='d'] .network-map-panel {
-  margin: 0 -2px;
-  overflow: visible;
+  margin: 0 calc(0px - var(--pad-x, 14px));
+  width: calc(100% + 2 * var(--pad-x, 14px));
+  max-width: none;
+  overflow: hidden;
+  background: transparent;
+  border: none;
+  box-shadow: none;
+  min-height: min(38dvh, 340px);
+  flex: 1;
 }
 
 [data-ui='d'] .city-map {
   border-radius: 0;
+  min-height: min(34dvh, 300px);
 }
 
+/* Не режем карту жёстким прямоугольником панели */
 .app-shell[data-ui='d'] .panel-scroll:has(.network-map-panel) {
-  overflow-x: hidden;
+  overflow: hidden;
+  flex: 1;
+  min-height: 0;
+}
+
+.app-shell[data-ui='d'] .panel-scroll:has(.network-map-panel) .panel-scroll-fade {
+  display: none !important;
+}
+
+#app .app-shell[data-ui='d'] .list.network-map-panel {
+  background: transparent;
+  border: none;
+  box-shadow: none;
+  gap: 0;
+  height: 100%;
 }
 
 /* —— Personal —— */
@@ -6022,7 +6382,11 @@ body.achieve-locked {
 }
 
 button.rate-block--day {
+  appearance: none;
+  -webkit-appearance: none;
+  margin: 0;
   font: inherit;
+  line-height: normal;
   cursor: pointer;
   -webkit-tap-highlight-color: transparent;
 }
@@ -6054,6 +6418,7 @@ button.rate-block--day:active {
 .workday-clock-digital {
   display: block;
   font-size: 0.95rem;
+  line-height: 1.25;
   letter-spacing: 0.06em;
   font-variant-numeric: tabular-nums;
   text-align: right;
@@ -7530,6 +7895,8 @@ body.celebrate-locked {
   flex-wrap: wrap;
   gap: 4px;
   max-width: min(calc(100vw - 24px), 420px);
+  max-height: calc(100dvh - 24px);
+  overflow: auto;
   padding: 4px 6px 4px 8px;
   border-radius: 999px;
   border: 1px solid rgba(224, 180, 100, 0.28);
@@ -7569,17 +7936,20 @@ body.celebrate-locked {
 
 .layout-lab__btn {
   appearance: none;
-  min-width: 2.1rem;
+  min-width: 2rem;
   height: 24px;
-  padding: 0 7px;
+  padding: 0 6px;
   border: 1px solid transparent;
   border-radius: 999px;
   background: transparent;
   color: var(--muted);
   font: inherit;
-  font-size: 0.68rem;
+  font-size: 0.62rem;
   font-weight: 700;
+  letter-spacing: 0.01em;
+  line-height: 1;
   cursor: pointer;
+  white-space: nowrap;
 }
 
 .layout-lab__btn[aria-pressed='true'] {
@@ -7961,8 +8331,7 @@ html.layout-lab-device .boot {
 }
 
 .app-shell[data-ui='b'] .stage .order-cta,
-.app-shell[data-ui='b'] .stage [data-toast],
-.app-shell[data-ui='b'] .stage [data-day-turn] {
+.app-shell[data-ui='b'] .stage [data-toast] {
   pointer-events: auto;
 }
 
@@ -8058,7 +8427,7 @@ html.layout-lab-device .boot {
 .app-shell[data-ui='d'] .hero-band > .topbar {
   grid-area: 1 / 1;
   position: relative;
-  z-index: 3;
+  z-index: 4;
   background: transparent;
   border-bottom: none;
   backdrop-filter: none;
@@ -8069,6 +8438,12 @@ html.layout-lab-device .boot {
   grid-area: 2 / 1;
   position: relative;
   z-index: 3;
+}
+
+/* Попап недели поверх цели (иначе цель с тем же stacking рисуется сверху) */
+.topbar:has([data-weekday-pop]:not([hidden])),
+.app-shell[data-ui='d'] .hero-band > .topbar:has([data-weekday-pop]:not([hidden])) {
+  z-index: 8;
 }
 
 .app-shell[data-ui='d'] .hero-band > .stage {
@@ -8095,7 +8470,7 @@ html.layout-lab-device .boot {
   box-shadow: none;
 }
 
-.app-shell[data-ui='d'] .stage:not([data-has-cta='1']) .stage-copy {
+.app-shell[data-ui='d'] .stage:not([data-has-cta='1']):not([data-scene='job']) .stage-copy {
   display: none;
 }
 
@@ -8117,6 +8492,8 @@ html.layout-lab-device .boot {
 .app-shell[data-ui='d'] .stage::after {
   position: absolute;
   inset: 0;
+  max-width: 100%;
+  overflow: hidden;
   pointer-events: none;
 }
 
@@ -8203,9 +8580,7 @@ html.layout-lab-device .boot {
   box-shadow: inset -1px 0 0 rgba(224, 122, 58, 0.1);
 }
 
-.app-shell[data-ui='d'] .stage-copy,
 .app-shell[data-ui='d'] .stage[data-scene='job'] .stage-copy,
-.app-shell[data-ui='d'] .stage[data-scene='lounge'] .stage-copy,
 .app-shell[data-ui='d'] .stage[data-has-cta='1'] .stage-copy,
 .app-shell[data-ui='d'] .stage[data-scene='lounge'][data-has-cta='1'] .stage-copy {
   position: relative;

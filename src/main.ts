@@ -46,6 +46,7 @@ import {
   postTelegram,
 } from './game/personal'
 import { canBrowseEmpire, syncEmpireUnlock } from './game/empire'
+import { clearNetworkMapSelection } from './ui/networkMap'
 import { breakAmbassadorContract, signAmbassador } from './game/ambassador'
 import { difficultyFromVenue } from './data/difficulty'
 import { evaluateAchievements } from './data/achievements'
@@ -70,7 +71,7 @@ import {
   isShiftIdleDue,
   touchOgonokInteraction,
 } from './game/guide'
-import { displayWorkDay, tickWorkDays, weekdayOf } from './game/workDays'
+import { tickWorkDays } from './game/workDays'
 import { archiveCareerRun, encodeCareerShare, decodeCareerShare } from './save/leaderboard'
 import { createInitialState, type GameState } from './game/state'
 import {
@@ -133,7 +134,6 @@ import {
   mountShell,
   renderShell,
   showToast,
-  showDayTurn,
   announceAchievements,
   updateHud,
   updateJobCooldowns,
@@ -487,9 +487,11 @@ const handlers = {
         )
         return
       }
+      if (menuTab !== 'network') clearNetworkMapSelection()
     }
     menuTab = tab
     if (usesLayoutD()) {
+      /* Сюжет = открыть док (Табак / Команда / …). Карьера — закрытый док. */
       if (tab === 'story') setLabStoryDockOpen(true)
       else if (tab === 'career' || tab === 'own') setLabStoryDockOpen(false)
     }
@@ -817,18 +819,7 @@ function frame(ts: number): void {
     lastTs = ts
     if (passiveAccruesNow()) {
       tickIncome(state, dt)
-      if (tickWorkDays(state, dt)) {
-        const day = weekdayOf(state)
-        const title = day.name[0]!.toUpperCase() + day.name.slice(1)
-        const n = displayWorkDay(state.career.workDays)
-        if (day.id === 'fri') {
-          showDayTurn(root, { title, sub: 'сегодня людно', weekend: true })
-        } else if (day.id === 'sat') {
-          showDayTurn(root, { title, sub: 'зал гуще обычного', weekend: true })
-        } else {
-          showDayTurn(root, { title, sub: `день ${n}` })
-        }
-      }
+      tickWorkDays(state, dt)
     }
     if (gameStarted && !document.hidden && !shiftIdleOpen && isShiftIdleDue()) {
       showShiftIdleNotice()

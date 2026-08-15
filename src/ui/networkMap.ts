@@ -14,21 +14,27 @@ import type { GameState } from '../game/state'
 
 export type { CityMapPinId }
 
-let selectedPin: CityMapPinId = 'hq'
+/** null = карта без карточки (стартовый вид) */
+let selectedPin: CityMapPinId | null = null
 
-export function getNetworkMapSelection(): CityMapPinId {
+export function getNetworkMapSelection(): CityMapPinId | null {
   return selectedPin
 }
 
-export function setNetworkMapSelection(id: CityMapPinId): void {
+export function setNetworkMapSelection(id: CityMapPinId | null): void {
   selectedPin = id
 }
 
-export function normalizeNetworkMapSelection(): CityMapPinId {
+export function clearNetworkMapSelection(): void {
+  selectedPin = null
+}
+
+export function normalizeNetworkMapSelection(): CityMapPinId | null {
+  if (selectedPin == null) return null
   if (selectedPin === 'hq') return 'hq'
   if (BRANCHES.some((b) => b.id === selectedPin)) return selectedPin
-  selectedPin = 'hq'
-  return 'hq'
+  selectedPin = null
+  return null
 }
 
 function escapeHtml(s: string): string {
@@ -58,21 +64,28 @@ export function cityMapArtUrl(): string {
 
 /**
  * Референсная топография на весь блок + точки сети.
- * Линий между точками нет — только пины и карточка состояния.
+ * Карточка точки — только после выбора пина.
  */
-export function renderCityMapSvg(state: GameState, selected: CityMapPinId): string {
+export function renderCityMapSvg(state: GameState, selected: CityMapPinId | null): string {
   const { w, h } = CITY_MAP_VIEW
 
   const pins = CITY_MAP_PINS.map((pin) => {
     const p = projectCity(pin.x, pin.y)
     const st = pinState(state, pin.id)
     const active = selected === pin.id ? 'is-selected' : ''
+    /* стартовый размер — точный подгон в fitCityMapPinChips() */
+    const chipW = Math.max(32, Math.round(pin.label.length * 5.4 + 12))
+    const chipH = 14
+    const chipX = (-chipW / 2).toFixed(1)
     return `
       <g class="city-map__pin city-map__pin--${st} ${active}" data-map-pin="${pin.id}" transform="translate(${p.x.toFixed(1)} ${p.y.toFixed(1)})">
-        <circle class="city-map__pin-hit" cx="0" cy="0" r="24" />
-        <circle class="city-map__pin-ring" cx="0" cy="0" r="12" />
-        <circle class="city-map__pin-dot" cx="0" cy="0" r="6" />
-        <text class="city-map__pin-label" x="0" y="22" text-anchor="middle">${pin.label}</text>
+        <circle class="city-map__pin-hit" cx="0" cy="0" r="20" />
+        <circle class="city-map__pin-ring" cx="0" cy="0" r="10" />
+        <circle class="city-map__pin-dot" cx="0" cy="0" r="5" />
+        <g class="city-map__pin-caption" transform="translate(0 15)">
+          <rect class="city-map__pin-chip" x="${chipX}" y="${(-chipH / 2).toFixed(1)}" width="${chipW}" height="${chipH}" rx="${(chipH / 2).toFixed(2)}" />
+          <text class="city-map__pin-label" x="0" y="0" text-anchor="middle" dominant-baseline="central">${escapeHtml(pin.label)}</text>
+        </g>
       </g>
     `
   }).join('')
@@ -84,15 +97,62 @@ export function renderCityMapSvg(state: GameState, selected: CityMapPinId): stri
   `
 }
 
-export function renderNetworkMapDetail(state: GameState, selected: CityMapPinId): string {
+/** Подогнать чипы подписей под реальный bbox текста (одинаковая высота). */
+export function fitCityMapPinChips(root: ParentNode): void {
+  const padX = 4
+  const padY = 2
+  type Row = { chip: SVGRectElement; w: number; h: number }
+  const rows: Row[] = []
+  let maxH = 0
+
+  root.querySelectorAll('.city-map__pin').forEach((pin) => {
+    const chip = pin.querySelector('.city-map__pin-chip') as SVGRectElement | null
+    const label = pin.querySelector('.city-map__pin-label') as SVGTextElement | null
+    if (!chip || !label) return
+    let bbox: DOMRect
+    try {
+      bbox = label.getBBox()
+    } catch {
+      return
+    }
+    if (!(bbox.width > 0) || !(bbox.height > 0)) return
+    const w = Math.max(24, bbox.width + padX * 2)
+    const h = Math.max(10, bbox.height + padY * 2)
+    maxH = Math.max(maxH, h)
+    rows.push({ chip, w, h })
+  })
+
+  for (const row of rows) {
+    const h = maxH || row.h
+    row.chip.setAttribute('width', row.w.toFixed(1))
+    row.chip.setAttribute('height', h.toFixed(1))
+    row.chip.setAttribute('x', (-row.w / 2).toFixed(1))
+    row.chip.setAttribute('y', (-h / 2).toFixed(1))
+    row.chip.setAttribute('rx', (h / 2).toFixed(2))
+  }
+}
+
+export function renderNetworkMapDetail(
+  state: GameState,
+  selected: CityMapPinId | null,
+): string {
+  if (selected == null) return ''
+
+  const closeBtn = `<button type="button" class="city-map__detail-close" data-map-clear aria-label="Закрыть">×</button>`
+
   if (selected === 'hq') {
     const name = state.loungeName || getLoungeTier(state.loungeTier).name
+    const ownedCount = BRANCHES.filter((b) => isBranchOwned(state, b.id)).length
     return `
-      <div class="city-map__detail" data-map-detail="hq">
-        <p class="city-map__detail-kicker">Главный лаунж · Центр</p>
-        <p class="city-map__detail-title">${escapeHtml(name)}</p>
-        <p class="city-map__detail-sub">Штаб сети — отсюда растут филиалы по городу</p>
-      </div>
+      <article class="city-map__detail city-map__detail--hq" data-map-detail="hq">
+        ${closeBtn}
+        <div class="city-map__detail-row">
+          <span class="city-map__detail-badge">Штаб</span>
+          <span class="city-map__detail-meta">${ownedCount}/5 · центр</span>
+        </div>
+        <h3 class="city-map__detail-title">${escapeHtml(name)}</h3>
+        <p class="city-map__detail-sub">Якорь сети — тапни точку, чтобы открыть филиал</p>
+      </article>
     `
   }
 
@@ -104,35 +164,76 @@ export function renderNetworkMapDetail(state: GameState, selected: CityMapPinId)
   const unlocked = isBranchUnlocked(state, def)
   const cost = scaledBranchCost(state, def.cost)
   const can = unlocked && !owned && state.cash >= cost
+  const short = Math.max(0, Math.ceil(cost - state.cash))
   const prev = def.needBranch
     ? BRANCHES.find((b) => b.id === def.needBranch)?.name
     : null
+  const incomePct = Math.round(def.incomeMult * 100)
+  const tipPct = Math.round(def.clickMult * 100)
 
-  let action = ''
+  let badge = 'Точка'
+  let tone = 'open'
   if (owned) {
-    action = `<span class="city-map__detail-status">в сети</span>`
+    badge = 'В сети'
+    tone = 'owned'
   } else if (!unlocked) {
-    action = `<span class="city-map__detail-status is-locked">${
-      prev ? `Сначала «${escapeHtml(prev)}»` : 'Закрыто'
-    }</span>`
+    badge = 'Закрыто'
+    tone = 'locked'
+  } else if (can) {
+    badge = 'Доступно'
+    tone = 'afford'
   } else {
-    action = `
-      <button type="button" class="city-map__buy ${can ? 'is-afford' : ''}" data-branch="${def.id}" ${
-        can ? '' : 'disabled'
-      }>
-        ${can ? 'Открыть' : 'Не хватает'} · ${formatMoney(cost)}
-      </button>
+    badge = 'Накопить'
+    tone = 'short'
+  }
+
+  const bonuses = `+${incomePct}% доход · +${tipPct}% чаевые`
+
+  let bar = ''
+  if (owned) {
+    bar = `
+      <div class="city-map__detail-bar">
+        <span class="city-map__detail-info">${bonuses}</span>
+      </div>
+    `
+  } else if (!unlocked) {
+    bar = `
+      <div class="city-map__detail-bar">
+        <span class="city-map__detail-info is-locked">${
+          prev ? `Нужен «${escapeHtml(prev)}»` : 'Пока закрыто'
+        }</span>
+        <span class="city-map__detail-price">${formatMoney(cost)}</span>
+      </div>
+    `
+  } else if (can) {
+    bar = `
+      <div class="city-map__detail-bar">
+        <span class="city-map__detail-info">${bonuses}</span>
+        <button type="button" class="city-map__buy is-afford" data-branch="${def.id}">
+          Открыть <em>${formatMoney(cost)}</em>
+        </button>
+      </div>
+    `
+  } else {
+    bar = `
+      <div class="city-map__detail-bar">
+        <span class="city-map__detail-info">${bonuses}</span>
+        <button type="button" class="city-map__buy" data-branch="${def.id}" disabled>
+          ещё <em>${formatMoney(short)}</em>
+        </button>
+      </div>
     `
   }
 
   return `
-    <div class="city-map__detail" data-map-detail="${def.id}">
-      <p class="city-map__detail-kicker">${escapeHtml(pin.district)} · филиал</p>
-      <p class="city-map__detail-title">${escapeHtml(def.name)}</p>
-      <p class="city-map__detail-sub">${escapeHtml(def.blurb)} · +${Math.round(
-        def.incomeMult * 100,
-      )}% доход · +${Math.round(def.clickMult * 100)}% чаевые</p>
-      ${action}
-    </div>
+    <article class="city-map__detail city-map__detail--${tone}" data-map-detail="${def.id}">
+      ${closeBtn}
+      <div class="city-map__detail-row">
+        <span class="city-map__detail-badge">${badge}</span>
+        <span class="city-map__detail-meta">${escapeHtml(pin.district)}</span>
+      </div>
+      <h3 class="city-map__detail-title">${escapeHtml(def.name)}</h3>
+      ${bar}
+    </article>
   `
 }

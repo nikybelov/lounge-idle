@@ -10,7 +10,6 @@ import {
 } from '../game/career'
 import {
   loungeTierCost,
-  scaledBranchCost,
   scaledExpansionCost,
   scaledStaffHireCost,
   scaledUpgradeCost,
@@ -20,13 +19,9 @@ import {
 import {
   branchCount,
   canBrowseEmpire,
-  empireClickMult,
   empireIncomeMult,
   empireTeaser,
-  isBranchOwned,
-  isBranchUnlocked,
   networkLabel,
-  networkSynergyBonus,
 } from '../game/empire'
 import {
   formatMoney,
@@ -80,12 +75,15 @@ import {
 } from '../data/ranks'
 import { getVenue } from '../data/venues'
 import { LOUNGE_TIERS, tierShopBonusLabel, type LoungeTierId } from '../data/loungeTiers'
-import { BRANCHES, type BranchId } from '../data/branches'
+import { type BranchId } from '../data/branches'
 import type { CityMapPinId } from '../data/cityMap'
 import {
   cityMapArtUrl,
+  clearNetworkMapSelection,
+  getNetworkMapSelection,
   normalizeNetworkMapSelection,
   renderCityMapSvg,
+  fitCityMapPinChips,
   renderNetworkMapDetail,
   setNetworkMapSelection,
 } from './networkMap'
@@ -193,7 +191,7 @@ import {
   workDayGameClock,
 } from '../game/workDays'
 import { loadHallOfFame, type CareerShareCard } from '../save/leaderboard'
-import { applyLayoutLab, isLayoutLabHost, usesLayoutD } from './layoutLab'
+import { applyLayoutLab, usesLayoutD } from './layoutLab'
 import { isGoalStripExpanded, patchSettings } from '../save/settings'
 import { UPGRADES } from '../data/upgrades'
 import type { TaskId } from '../data/tasks'
@@ -670,8 +668,6 @@ export function setCareerCompareCard(card: CareerShareCard | null): void {
 }
 
 let toastTimer: ReturnType<typeof setTimeout> | null = null
-let dayTurnTimer: ReturnType<typeof setTimeout> | null = null
-let dayTurnHideTimer: ReturnType<typeof setTimeout> | null = null
 let achieveQueue: AchievementDef[] = []
 const achieveFanfareSeen = new Set<string>()
 let achieveShowing = false
@@ -749,7 +745,7 @@ export function mountShell(root: HTMLElement, handlers: ShellHandlers): void {
               return `<span class="weekday-pill${peak}" data-wd="${d.id}">${d.short}</span>`
             }).join('')}
           </div>
-          <p class="weekday-pop-hint">Пт и сб гостей больше. Акции в эти дни жирнее.</p>
+          <p class="weekday-pop-hint">Пт и Сб гостей больше. Акции в эти дни жирнее.</p>
         </div>
       </header>
       <div class="goal-strip-row">
@@ -778,10 +774,6 @@ export function mountShell(root: HTMLElement, handlers: ShellHandlers): void {
           </button>
         </div>
         <p class="toast" data-toast hidden></p>
-        <div class="day-turn" data-day-turn hidden>
-          <span class="day-turn-title" data-day-turn-title></span>
-          <span class="day-turn-sub" data-day-turn-sub></span>
-        </div>
       </main>
       </div>
 
@@ -1049,32 +1041,6 @@ export function updateJobCooldowns(
   }
 }
 
-export function showDayTurn(
-  root: HTMLElement,
-  opts: { title: string; sub: string; weekend?: boolean },
-): void {
-  const el = root.querySelector('[data-day-turn]') as HTMLElement | null
-  const titleEl = root.querySelector('[data-day-turn-title]') as HTMLElement | null
-  const subEl = root.querySelector('[data-day-turn-sub]') as HTMLElement | null
-  if (!el || !titleEl || !subEl) return
-  if (dayTurnTimer) clearTimeout(dayTurnTimer)
-  if (dayTurnHideTimer) clearTimeout(dayTurnHideTimer)
-  titleEl.textContent = opts.title
-  subEl.textContent = opts.sub
-  el.hidden = false
-  el.classList.toggle('is-weekend', Boolean(opts.weekend))
-  el.classList.remove('is-in', 'is-out')
-  void el.offsetWidth
-  el.classList.add('is-in')
-  dayTurnTimer = setTimeout(() => {
-    el.classList.add('is-out')
-    dayTurnHideTimer = setTimeout(() => {
-      el.hidden = true
-      el.classList.remove('is-in', 'is-out')
-    }, 320)
-  }, 2400)
-}
-
 export function showToast(root: HTMLElement, message: string): void {
   let el = root.querySelector('[data-toast]') as HTMLElement | null
   if (!el) {
@@ -1300,10 +1266,7 @@ export function renderShell(
     loungeNameEl.textContent = ''
   }
 
-  const labD = shell?.dataset.ui === 'd'
-  const showOrder = labD
-    ? state.scene === 'lounge' && Boolean(state.loungeTier)
-    : showLoungeOrderCta(state, menuTab, storySubTab)
+  const showOrder = showLoungeOrderCta(state, menuTab, storySubTab)
   cta.hidden = !showOrder
   if (showOrder) {
     stage.dataset.hasCta = '1'
@@ -1648,7 +1611,7 @@ function renderOwnLoungePanel(state: GameState): string {
           ${
             affordable.length
               ? ` Доступно: ${affordable.map((t) => t.name).join(', ')}.`
-              : ' Пока ничего не хватает.'
+              : ' Пока ни на один тариф не хватает.'
           }
           ${
             nextUp
@@ -2271,7 +2234,6 @@ function renderNetworkPanel(state: GameState): string {
   const ready = canBrowseEmpire(state)
   const count = branchCount(state)
   const incMult = empireIncomeMult(state)
-  const clkMult = empireClickMult(state)
   const teaser = empireTeaser(state)
 
   if (!ready) {
@@ -2297,96 +2259,54 @@ function renderNetworkPanel(state: GameState): string {
     `
   }
 
-  /* Карта города — только локальный лаб; в Telegram пока список */
-  if (isLayoutLabHost()) {
-    const selected = normalizeNetworkMapSelection()
-    return `
-      <div class="list network-map-panel">
-        <div class="network-map-panel__meta">
-          <span>${networkLabel(state)}</span>
-          <span>${count}/5 · ×${incMult.toFixed(2)}</span>
-        </div>
-        <div class="city-map" data-city-map style="--city-map-art: url('${cityMapArtUrl()}')">
+  const selected = normalizeNetworkMapSelection()
+  return `
+    <div class="list network-map-panel${selected ? ' has-detail' : ''}">
+      <div class="network-map-panel__meta">
+        <span>${networkLabel(state)}</span>
+        <span>${count}/5 · ×${incMult.toFixed(2)}</span>
+      </div>
+      <div class="city-map" data-city-map style="--city-map-art: url('${cityMapArtUrl()}')">
+        <div class="city-map__world">
           <div class="city-map__bloom" aria-hidden="true"></div>
           <div class="city-map__focus" aria-hidden="true"></div>
           ${renderCityMapSvg(state, selected)}
-          ${renderNetworkMapDetail(state, selected)}
         </div>
+        <div class="city-map__dissolve" aria-hidden="true"></div>
       </div>
-    `
-  }
-
-  const rows = BRANCHES.map((def) => {
-    const owned = isBranchOwned(state, def.id)
-    if (owned) {
-      return `
-        <div class="row-btn shop owned">
-          ${icon('lounge')}
-          <span class="row-main">
-            <span class="row-title">${def.name}</span>
-            <span class="row-sub">${def.blurb} · +${Math.round(def.incomeMult * 100)}% доход</span>
-          </span>
-          <span class="row-meta row-meta--status">в сети</span>
-        </div>
-      `
-    }
-    const unlocked = isBranchUnlocked(state, def)
-    const branchCost = scaledBranchCost(state, def.cost)
-    const can = unlocked && state.cash >= branchCost
-    const prev = def.needBranch
-      ? BRANCHES.find((b) => b.id === def.needBranch)?.name
-      : null
-    return `
-      <button type="button" class="row-btn shop ${can ? 'afford' : ''} ${unlocked ? '' : 'locked'}" data-branch="${def.id}" ${can ? '' : 'disabled'}>
-        ${icon('lounge')}
-        <span class="row-main">
-          <span class="row-title">${def.name}</span>
-          <span class="row-sub">${
-            unlocked
-              ? `${def.blurb} · +${Math.round(def.incomeMult * 100)}% доход · +${Math.round(def.clickMult * 100)}% чаевые`
-              : prev
-                ? `Сначала «${prev}»`
-                : 'Закрыто'
-          }</span>
-        </span>
-        <span class="row-meta">${unlocked ? formatMoney(branchCost) : '—'}</span>
-      </button>
-    `
-  }).join('')
-
-  const synergyNote =
-    count >= 5
-      ? 'Полная сеть — бонус империи +10%'
-      : count >= 2
-        ? `Синергия сети: +${Math.round(networkSynergyBonus(state) * 100)}% ко всему доходу`
-        : 'Открой вторую точку — бонус синергии ко всем лаунжам'
-
-  return `
-    <div class="list">
-      <div class="milestone career shelf-status">
-        <div class="milestone-head">
-          <span>${networkLabel(state)}</span>
-          <span>${count}/5 · доход ×${incMult.toFixed(2)} · чаевые ×${clkMult.toFixed(2)}</span>
-        </div>
-        <div class="bar"><i style="width:${(count / 5) * 100}%"></i></div>
-        <p class="row-sub shop-note">${synergyNote}</p>
-      </div>
-      <p class="section-label">Открыть точку</p>
-      ${rows}
+      ${renderNetworkMapDetail(state, selected)}
     </div>
   `
 }
 
 function wireNetworkPanel(panel: HTMLElement, handlers: ShellHandlers): void {
+  fitCityMapPinChips(panel)
+  requestAnimationFrame(() => fitCityMapPinChips(panel))
+
   panel.querySelector('[data-city-map]')?.addEventListener('click', (e) => {
     const pin = (e.target as Element).closest('[data-map-pin]')
     const id = pin?.getAttribute('data-map-pin') as CityMapPinId | null
-    if (!id) return
-    setNetworkMapSelection(id)
+    if (!id) {
+      clearNetworkMapSelection()
+      handlers.onMenuTab('network')
+      return
+    }
+    /* повторный тап по той же точке — закрыть карточку */
+    if (getNetworkMapSelection() === id) {
+      clearNetworkMapSelection()
+    } else {
+      setNetworkMapSelection(id)
+    }
+    handlers.onMenuTab('network')
+  })
+  panel.querySelector('[data-map-clear]')?.addEventListener('click', (e) => {
+    e.stopPropagation()
+    clearNetworkMapSelection()
     handlers.onMenuTab('network')
   })
   panel.querySelectorAll('[data-branch]').forEach((btn) => {
-    btn.addEventListener('click', () => {
+    btn.addEventListener('click', (e) => {
+      e.stopPropagation()
       handlers.onOpenBranch((btn as HTMLElement).dataset.branch as BranchId)
     })
   })

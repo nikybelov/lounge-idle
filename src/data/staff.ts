@@ -59,7 +59,7 @@ export const STAFF_ROLES: StaffRoleDef[] = [
       { grade: 1, title: 'Стажёр', hireCost: 1100, salaryPerSec: 0.48, guestBonus: 0.03, incomeBonus: 0.25, clickBonus: 1.2 },
       { grade: 2, title: 'Мастер', hireCost: 4800, salaryPerSec: 1.45, guestBonus: 0.06, incomeBonus: 0.6, clickBonus: 3.5 },
       { grade: 3, title: 'Старший', hireCost: 16_000, salaryPerSec: 3.5, guestBonus: 0.1, incomeBonus: 1.3, clickBonus: 9 },
-      { grade: 4, title: 'Шеф-кальянный', hireCost: 52_000, salaryPerSec: 7.8, guestBonus: 0.14, incomeBonus: 2.8, clickBonus: 20 },
+      { grade: 4, title: 'Шеф-кальянщик', hireCost: 52_000, salaryPerSec: 7.8, guestBonus: 0.14, incomeBonus: 2.8, clickBonus: 20 },
     ],
   },
   {

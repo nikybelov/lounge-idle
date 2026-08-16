@@ -144,13 +144,39 @@ body.flavor-telegram {
   /* Высота видимой области Mini App (стабильная) */
   min-height: var(--tg-viewport-stable-height, 100dvh);
   background-color: #0e0b08;
-  --ui-blur: 4px;
-  --ui-blur-soft: 3px;
+  /* Blur в iOS/Android WebView — главный GPU-жор Mini App */
+  --ui-blur: 0px;
+  --ui-blur-soft: 0px;
 }
 
 html[data-flavor='telegram'],
 html[data-flavor='telegram'] body {
   background-color: #0e0b08;
+}
+
+/* Telegram: без backdrop-filter / тяжёлых stage-анимаций — геймплей тот же */
+body.flavor-telegram .haze,
+body.flavor-telegram .embers,
+body.flavor-telegram .stage-fx,
+body.flavor-telegram .stage-neon,
+body.flavor-telegram .stage-ripple {
+  animation: none !important;
+}
+
+body.flavor-telegram .panel-scroll-fade,
+body.flavor-telegram .topbar,
+body.flavor-telegram .menu-shell,
+body.flavor-telegram .menu-nav,
+body.flavor-telegram .panel,
+body.flavor-telegram .stage-hud,
+body.flavor-telegram .goal-strip,
+body.flavor-telegram .toast,
+body.flavor-telegram .guide-coach-card,
+body.flavor-telegram .order-cta,
+body.flavor-telegram .rate-block,
+body.flavor-telegram .workday-clock {
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
 }
 
 /* Баннер синка телефон↔Mac — поверх всего Mini App */

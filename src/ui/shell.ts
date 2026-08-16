@@ -957,7 +957,8 @@ export function updateHud(
   const cashLabel = root.querySelector('[data-cash-label]') as HTMLElement | null
   if (!cashEl || !rateWrap || !rateEl) return
 
-  cashEl.textContent = formatMoney(state.cash)
+  const cashText = formatMoney(state.cash)
+  if (cashEl.textContent !== cashText) cashEl.textContent = cashText
   if (cashLabel) cashLabel.textContent = cashHudLabel(state)
   updateRateHud(rateWrap, rateLabel, rateEl, rateSub, state)
   if (ctx) updateGoalStrip(root, state, ctx)
@@ -984,68 +985,76 @@ export function updateHud(
     networkTab.classList.toggle('ready', ready)
   }
 
-  root.querySelectorAll<HTMLButtonElement>('[data-buy]').forEach((btn) => {
-    const id = btn.dataset.buy as UpgradeId
-    const def = UPGRADES.find((u) => u.id === id)
-    if (!def) return
-    const unlocked = isUpgradeUnlocked(state, def)
-    const level = state.owned[id]
-    const maxed = level >= def.maxLevel
-    const cost = scaledUpgradeCost(state, upgradeCost(def, level))
-    const canBuy = unlocked && !maxed && state.cash >= cost
-    btn.disabled = !canBuy
-    btn.classList.toggle('afford', canBuy)
-    btn.classList.toggle('locked', !unlocked)
-    btn.classList.toggle('owned', maxed)
-  })
+  // Afford-кнопки только если они есть в текущей панели (не гоняем пустые querySelectorAll-пачки)
+  if (root.querySelector('[data-buy]')) {
+    root.querySelectorAll<HTMLButtonElement>('[data-buy]').forEach((btn) => {
+      const id = btn.dataset.buy as UpgradeId
+      const def = UPGRADES.find((u) => u.id === id)
+      if (!def) return
+      const unlocked = isUpgradeUnlocked(state, def)
+      const level = state.owned[id]
+      const maxed = level >= def.maxLevel
+      const cost = scaledUpgradeCost(state, upgradeCost(def, level))
+      const canBuy = unlocked && !maxed && state.cash >= cost
+      btn.disabled = !canBuy
+      btn.classList.toggle('afford', canBuy)
+      btn.classList.toggle('locked', !unlocked)
+      btn.classList.toggle('owned', maxed)
+    })
+  }
 
-  root.querySelectorAll<HTMLButtonElement>('[data-expansion]').forEach((btn) => {
-    const id = btn.dataset.expansion as ExpansionId
-    const def = EXPANSIONS.find((e) => e.id === id)
-    if (!def || state.expansions[id]) return
-    const unlocked = furnitureLevel(state) >= def.needFurniture
-    const cost = scaledExpansionCost(state, def.cost)
-    const canBuy = unlocked && state.cash >= cost
-    btn.disabled = !canBuy
-    btn.classList.toggle('afford', canBuy)
-    btn.classList.toggle('locked', !unlocked)
-  })
+  if (root.querySelector('[data-expansion]')) {
+    root.querySelectorAll<HTMLButtonElement>('[data-expansion]').forEach((btn) => {
+      const id = btn.dataset.expansion as ExpansionId
+      const def = EXPANSIONS.find((e) => e.id === id)
+      if (!def || state.expansions[id]) return
+      const unlocked = furnitureLevel(state) >= def.needFurniture
+      const cost = scaledExpansionCost(state, def.cost)
+      const canBuy = unlocked && state.cash >= cost
+      btn.disabled = !canBuy
+      btn.classList.toggle('afford', canBuy)
+      btn.classList.toggle('locked', !unlocked)
+    })
+  }
 
-  root.querySelectorAll<HTMLButtonElement>('[data-shop]').forEach((btn) => {
-    const id = btn.dataset.shop as ShopItemId
-    const item = SHOP_ITEMS.find((i) => i.id === id)
-    if (!item) return
-    const level = shopLevel(state.shopOwned, id)
-    const next = nextShopGrade(item, level)
-    if (!next) return
-    // ownOnly тоже качает инструменты («Сам на смене») — как в renderShopPanel
-    const available = canUpgradeShopItem(
-      item,
-      level,
-      state.taskDone,
-      state.jobRank,
-    )
-    const cost = shopItemCost(state, next.cost)
-    const canBuy = available && state.cash >= cost
-    btn.disabled = !canBuy
-    btn.classList.toggle('afford', canBuy)
-    btn.classList.toggle('locked', !available)
-    const meta = btn.querySelector('.row-meta')
-    if (meta) meta.textContent = formatMoney(cost)
-  })
+  if (root.querySelector('[data-shop]')) {
+    root.querySelectorAll<HTMLButtonElement>('[data-shop]').forEach((btn) => {
+      const id = btn.dataset.shop as ShopItemId
+      const item = SHOP_ITEMS.find((i) => i.id === id)
+      if (!item) return
+      const level = shopLevel(state.shopOwned, id)
+      const next = nextShopGrade(item, level)
+      if (!next) return
+      const available = canUpgradeShopItem(
+        item,
+        level,
+        state.taskDone,
+        state.jobRank,
+      )
+      const cost = shopItemCost(state, next.cost)
+      const canBuy = available && state.cash >= cost
+      btn.disabled = !canBuy
+      btn.classList.toggle('afford', canBuy)
+      btn.classList.toggle('locked', !available)
+      const meta = btn.querySelector('.row-meta')
+      if (meta) meta.textContent = formatMoney(cost)
+    })
+  }
 
-  root.querySelectorAll<HTMLButtonElement>('[data-lounge-shop]').forEach((btn) => {
-    const id = btn.dataset.loungeShop as LoungeShopId
-    const line = getLoungeShopLine(id)
-    if (!line) return
-    const level = loungeShopLevel(state.loungeShop, id)
-    const next = nextLoungeShopGrade(line, level)
-    if (!next) return
-    const cost = shopItemCost(state, next.cost)
-    const canBuy = state.phase !== 'employed' && state.cash >= cost
-    btn.disabled = !canBuy
-    btn.classList.toggle('afford', canBuy)
-  })
+  if (root.querySelector('[data-lounge-shop]')) {
+    root.querySelectorAll<HTMLButtonElement>('[data-lounge-shop]').forEach((btn) => {
+      const id = btn.dataset.loungeShop as LoungeShopId
+      const line = getLoungeShopLine(id)
+      if (!line) return
+      const level = loungeShopLevel(state.loungeShop, id)
+      const next = nextLoungeShopGrade(line, level)
+      if (!next) return
+      const cost = shopItemCost(state, next.cost)
+      const canBuy = state.phase !== 'employed' && state.cash >= cost
+      btn.disabled = !canBuy
+      btn.classList.toggle('afford', canBuy)
+    })
+  }
 
   const openBtn = root.querySelector<HTMLButtonElement>('[data-open]')
   if (openBtn) openBtn.disabled = !canBrowseLoungeOffer(state)
@@ -1066,30 +1075,21 @@ export function updateHud(
     }
   }
 
-  root.querySelectorAll<HTMLButtonElement>('[data-expansion]').forEach((btn) => {
-    const id = btn.dataset.expansion as ExpansionId
-    const def = EXPANSIONS.find((e) => e.id === id)
-    if (!def || state.expansions[id]) return
-    const unlocked = furnitureLevel(state) >= def.needFurniture
-    const expCost = scaledExpansionCost(state, def.cost)
-    const canBuy = unlocked && state.cash >= expCost
-    btn.disabled = !canBuy
-    btn.classList.toggle('afford', canBuy)
-  })
-
-  root.querySelectorAll<HTMLButtonElement>('[data-tier]').forEach((btn) => {
-    const tier = LOUNGE_TIERS.find((t) => t.id === btn.dataset.tier)
-    if (!tier) return
-    const tierCost = loungeTierCost(state, tier.cost)
-    const can = state.cash >= tierCost
-    btn.disabled = !can
-    btn.classList.toggle('afford', can)
-    const sub = btn.querySelector('.row-sub')
-    if (sub && !can) {
-      const need = Math.ceil(tierCost - state.cash)
-      sub.textContent = `Ещё ${formatMoney(need)} — и можно открыть`
-    }
-  })
+  if (root.querySelector('[data-tier]')) {
+    root.querySelectorAll<HTMLButtonElement>('[data-tier]').forEach((btn) => {
+      const tier = LOUNGE_TIERS.find((t) => t.id === btn.dataset.tier)
+      if (!tier) return
+      const tierCost = loungeTierCost(state, tier.cost)
+      const can = state.cash >= tierCost
+      btn.disabled = !can
+      btn.classList.toggle('afford', can)
+      const sub = btn.querySelector('.row-sub')
+      if (sub && !can) {
+        const need = Math.ceil(tierCost - state.cash)
+        sub.textContent = `Ещё ${formatMoney(need)} — и можно открыть`
+      }
+    })
+  }
 }
 
 export function updateJobCooldowns(

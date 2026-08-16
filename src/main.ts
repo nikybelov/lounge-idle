@@ -816,6 +816,8 @@ function passiveAccruesNow(): boolean {
 
 let lastHudTs = 0
 let lastAchieveTs = 0
+let lastFeedbackTs = 0
+let lastPassiveSaveTs = 0
 
 function frame(ts: number): void {
   try {
@@ -825,14 +827,22 @@ function frame(ts: number): void {
     }
     const dt = Math.min(0.25, (ts - lastTs) / 1000)
     lastTs = ts
+    const tg = isTelegramMiniApp()
     if (passiveAccruesNow()) {
       tickIncome(state, dt)
       tickWorkDays(state, dt)
+      // Не scheduleSave каждый RAF — иначе clearTimeout/setTimeout ~60×/с и WebView тупит
+      const saveEvery = tg ? 8000 : 5000
+      if (ts - lastPassiveSaveTs >= saveEvery) {
+        lastPassiveSaveTs = ts
+        scheduleSave(state)
+      }
     }
     if (gameStarted && !document.hidden && !shiftIdleOpen && isShiftIdleDue()) {
       showShiftIdleNotice()
     }
-    const hudDue = ts - lastHudTs >= 125
+    const hudInterval = tg ? 200 : 125
+    const hudDue = ts - lastHudTs >= hudInterval
     if (hudDue) {
       lastHudTs = ts
       if (isLayoutLabHost() && ensureLabLounge(state)) {
@@ -848,24 +858,28 @@ function frame(ts: number): void {
         updatePersonalCooldowns(root, state, Date.now())
       }
     }
-    if (state.phase !== 'employed' && !isCoachEnabled()) {
-      const shelfHint = maybeShelfFeedback(state)
-      if (shelfHint) showToast(root, shelfHint)
-      const payrollHint = maybePayrollFeedback(state)
-      if (payrollHint) showToast(root, payrollHint)
-    }
-    if (state.phase !== 'employed') {
-      const serviceHint = maybeServiceFeedback(state)
-      if (serviceHint) showToast(root, serviceHint)
-    }
-    if (state.phase !== 'employed' && state.scene === 'lounge') {
-      const complaint = maybeServiceComplaintFloat(state, Date.now())
-      if (complaint) {
-        const from = root.querySelector('[data-cta]') as HTMLElement | null
-        spawnFloatComplaint(root, complaint, from)
+    if (ts - lastFeedbackTs >= 1000) {
+      lastFeedbackTs = ts
+      if (state.phase !== 'employed' && !isCoachEnabled()) {
+        const shelfHint = maybeShelfFeedback(state)
+        if (shelfHint) showToast(root, shelfHint)
+        const payrollHint = maybePayrollFeedback(state)
+        if (payrollHint) showToast(root, payrollHint)
+      }
+      if (state.phase !== 'employed') {
+        const serviceHint = maybeServiceFeedback(state)
+        if (serviceHint) showToast(root, serviceHint)
+      }
+      if (state.phase !== 'employed' && state.scene === 'lounge') {
+        const complaint = maybeServiceComplaintFloat(state, Date.now())
+        if (complaint) {
+          const from = root.querySelector('[data-cta]') as HTMLElement | null
+          spawnFloatComplaint(root, complaint, from)
+        }
       }
     }
-    if (ts - lastAchieveTs >= 400) {
+    const achieveEvery = tg ? 2000 : 800
+    if (ts - lastAchieveTs >= achieveEvery) {
       lastAchieveTs = ts
       const unlocked = evaluateAchievements(state)
       if (unlocked.length) {
@@ -873,7 +887,6 @@ function frame(ts: number): void {
         if (menuTab === 'career') paint()
       }
     }
-    scheduleSave(state)
   } catch (err) {
     console.error(err)
     showFatalError(err, 'игре')

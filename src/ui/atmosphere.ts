@@ -173,8 +173,10 @@ export function syncStageAtmosphere(stage: HTMLElement): void {
 }
 
 export function initStageAtmosphere(stage: HTMLElement): void {
-  if (reducedMotion()) {
+  // Telegram WebView: canvas-дым + dither на каждом кадре сильно жгут GPU
+  if (reducedMotion() || isTelegramMiniApp()) {
     stage.dataset.animationActive = '0'
+    stopLoop()
     return
   }
 

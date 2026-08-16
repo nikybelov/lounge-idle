@@ -165,8 +165,8 @@ export function serviceStatus(
 
   return {
     load: Math.round(load * 100) / 100,
-    capacity: Math.round(capacity * 10) / 10,
-    seatedRaw: Math.round(seatedRaw * 10) / 10,
+    capacity: Math.round(capacity),
+    seatedRaw: Math.round(seatedRaw),
     mood,
     incomeMult,
     clickMult,

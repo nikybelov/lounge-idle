@@ -183,9 +183,9 @@ export function capacityStatus(state: GameState): {
   const seated = Math.min(demand, capacity)
   const service = serviceStatus(state, seated, capacity)
   return {
-    seated: Math.round(seated * 10) / 10,
-    capacity,
-    demand: Math.round(demand * 10) / 10,
+    seated: Math.round(seated),
+    capacity: Math.round(capacity),
+    demand: Math.round(demand),
     full: demand > capacity + 0.05,
     service,
   }

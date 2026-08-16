@@ -459,7 +459,7 @@ function updateGoalStrip(root: HTMLElement, state: GameState, ctx: CoachContext)
       el.title = collapsed ? 'Развернуть цель' : `${text} · свернуть`
       el.setAttribute(
         'aria-label',
-        collapsed ? 'Развернуть цель' : `Цель: ${text}. Свернуть`,
+        collapsed ? 'Развернуть цель' : `${text}. Свернуть`,
       )
       el.setAttribute('aria-expanded', collapsed ? 'false' : 'true')
     }

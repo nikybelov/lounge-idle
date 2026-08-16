@@ -1,5 +1,6 @@
 import { formatMoney } from '../game/economy'
 import { isSoundEnabled, prefersReducedMotion } from '../save/settings'
+import { isTelegramMiniApp } from '../platform/runtime'
 import { syncAmbientMusic } from './ambientMusic'
 import { revealWords } from './textReveal'
 
@@ -326,12 +327,19 @@ function juiceFxLayer(stage: HTMLElement): HTMLElement {
 export function spawnTapSparks(stage: HTMLElement, fromEl?: HTMLElement | null): void {
   if (prefersReducedMotion()) return
   const layer = juiceFxLayer(stage)
+  const existing = layer.querySelectorAll('.tap-spark')
+  // Не копить искры при спам-тапах
+  if (existing.length > 24) {
+    existing.forEach((n, i) => {
+      if (i < existing.length - 12) n.remove()
+    })
+  }
   const anchor = fromEl ?? stage
   const rect = anchor.getBoundingClientRect()
   const layerRect = layer.getBoundingClientRect()
   const cx = rect.left - layerRect.left + rect.width * 0.5
   const cy = rect.top - layerRect.top + rect.height * 0.45
-  const n = 7
+  const n = isTelegramMiniApp() ? 3 : 7
   for (let i = 0; i < n; i++) {
     const el = document.createElement('span')
     el.className = 'tap-spark'
@@ -353,6 +361,11 @@ export function spawnFloatCash(
   const stage = root.querySelector('.stage') as HTMLElement | null
   if (!stage) return
   const layer = juiceFxLayer(stage)
+  const maxFloats = isTelegramMiniApp() ? 4 : 8
+  const floats = layer.querySelectorAll('.float-cash')
+  if (floats.length >= maxFloats) {
+    floats[0]?.remove()
+  }
   const el = document.createElement('span')
   el.className = 'float-cash'
   el.textContent = `+${formatMoney(amount)}`

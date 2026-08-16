@@ -168,7 +168,7 @@ export function trafficLabel(mult: number): string {
   if (mult < 0.85) return 'редко'
   if (mult < 1.15) return 'средне'
   if (mult < 1.6) return 'людно'
-  return 'аншлаг'
+  return 'сильный поток'
 }
 
 export function capacityStatus(state: GameState): {

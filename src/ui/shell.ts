@@ -259,6 +259,7 @@ import {
   expansionIcon,
   loungeShopIcon,
 } from './icons'
+import { isTelegramMiniApp } from '../platform/runtime'
 import {
   PROMOTIONS,
   getPromotionGradeDef,
@@ -3317,7 +3318,7 @@ function renderLoungePanel(state: GameState, now: number): string {
     <div class="milestone career">
       <div class="milestone-head">
         <span>Посадка ${cap.seated}/${cap.capacity}${cap.full ? ' · полный' : ''}</span>
-        <span>${trafficLabel(traffic)} · ×${traffic.toFixed(2)}</span>
+        <span title="Множитель потока к доходу, не заполненность зала">поток ×${traffic.toFixed(2)}</span>
       </div>
       <div class="bar"><i style="width:${Math.min(100, (cap.seated / Math.max(1, cap.capacity)) * 100)}%"></i></div>
       ${
@@ -3551,7 +3552,8 @@ export function juiceLoungeOrder(root: HTMLElement, amount: number): void {
   playCoinSound()
   spawnFloatCash(root, amount, from)
   pulseCashHud(root)
-  if (stage) {
+  if (!stage) return
+  if (!isTelegramMiniApp()) {
     spawnTapSparks(stage, from)
     stage.classList.add('stage-hit')
     window.setTimeout(() => stage.classList.remove('stage-hit'), 220)

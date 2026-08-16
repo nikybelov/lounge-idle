@@ -229,7 +229,8 @@ const handlers = {
       )
     }
     if (res.message) showToast(root, res.message)
-    afterAction()
+    // Unlock/promotion copy → полная перерисовка; обычный тап — лёгкий путь
+    afterAction(res.message ? 'full' : 'tap')
   },
   onLoungeOrder() {
     primeAudio()
@@ -237,7 +238,7 @@ const handlers = {
     const res = loungeOrder(state)
     if (!res.ok) return
     juiceLoungeOrder(root, amount)
-    afterAction()
+    afterAction('tap')
   },
   onBuy(id: Parameters<typeof buyUpgrade>[1]) {
     const res = buyUpgrade(state, id)
@@ -634,7 +635,7 @@ function paint(): void {
   }
 }
 
-function afterAction(): void {
+function afterAction(mode: 'full' | 'tap' = 'full'): void {
   try {
     touchOgonokInteraction()
     syncProgressFlags(state)
@@ -659,24 +660,48 @@ function afterAction(): void {
     ) {
       showToast(root, 'Вкладка «Сеть» открыта — можно открыть второе заведение')
     }
-    const unlocked = evaluateAchievements(state)
-    if (!isCoachEnabled()) {
-      const hint = maybeBrokeHint(state)
-      if (hint) showToast(root, hint)
-      const shelfHint = maybeShelfFeedback(state)
-      if (shelfHint) showToast(root, shelfHint)
-      const payrollHint = maybePayrollFeedback(state)
-      if (payrollHint) showToast(root, payrollHint)
+
+    // На спам-тапах не гоняем ачивки/хинты каждый клик — тик frame уже проверяет
+    const unlocked =
+      mode === 'full' ? evaluateAchievements(state) : ([] as ReturnType<typeof evaluateAchievements>)
+    if (mode === 'full') {
+      if (!isCoachEnabled()) {
+        const hint = maybeBrokeHint(state)
+        if (hint) showToast(root, hint)
+        const shelfHint = maybeShelfFeedback(state)
+        if (shelfHint) showToast(root, shelfHint)
+        const payrollHint = maybePayrollFeedback(state)
+        if (payrollHint) showToast(root, payrollHint)
+      }
+      const serviceHint = maybeServiceFeedback(state)
+      if (serviceHint) showToast(root, serviceHint)
     }
-    const serviceHint = maybeServiceFeedback(state)
-    if (serviceHint) showToast(root, serviceHint)
     syncGuideProgress(state)
     if (state.phase !== 'employed' && menuTab === 'own') menuTab = 'story'
     if (state.phase === 'employed' && menuTab === 'tobacco') menuTab = 'story'
     if (state.phase === 'employed' && menuTab === 'staff') menuTab = 'story'
     if (state.phase === 'employed' && menuTab === 'personal') menuTab = 'story'
     if (!canBrowseEmpire(state) && menuTab === 'network') menuTab = 'story'
-    paint()
+
+    const unlockPaint =
+      unlocked.length > 0 ||
+      (offerWasLocked && state.flags.loungeOfferUnlocked) ||
+      (empireWasLocked && state.flags.empireOfferUnlocked)
+    const needFullPaint = mode === 'full' || unlockPaint || Boolean(state.flags.celebration)
+
+    if (needFullPaint) {
+      paint()
+    } else {
+      // Лёгкий путь: только HUD + кулдауны задач, без пересборки панели
+      updateHud(root, state, hudCoachContext())
+      if (menuTab === 'story' && canDoJobTasks(state)) {
+        updateJobCooldowns(root, state, Date.now())
+      }
+      if (menuTab === 'personal' && state.phase !== 'employed') {
+        updatePersonalCooldowns(root, state, Date.now())
+      }
+    }
+
     const hadCelebration = Boolean(state.flags.celebration)
     maybePresentCelebration(state, () => {
       flushPendingTabIntros()
@@ -689,8 +714,11 @@ function afterAction(): void {
     if (!hadCelebration) flushPendingTabIntros()
     if (unlocked.length) onAchievementsUnlocked(unlocked)
     else flushAchievementQueue(root, state, menuTab)
-    // В Telegram localStorage ненадёжен — сразу пишем server/cloud/device
-    if (isTelegramMiniApp()) {
+
+    // Тап: только debounce-сейв. Flush на каждый клик в TG убивал WebView.
+    if (mode === 'tap') {
+      scheduleSave(state)
+    } else if (isTelegramMiniApp()) {
       scheduleSaveBase.flush(state, { bumpSync: true })
       void persistTelegramChannels(state, { cloud: 'schedule' })
     } else {

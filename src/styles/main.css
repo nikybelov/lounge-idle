@@ -1252,21 +1252,21 @@ body {
 
 .stage[data-scene='lounge'][data-tier='nook'] .stage-bg {
   background:
-    radial-gradient(55% 50% at 58% 38%, rgba(224, 122, 58, 0.38), transparent 62%),
+    radial-gradient(55% 50% at 58% 38%, rgba(224, 122, 58, 0.26), transparent 62%),
     linear-gradient(165deg, #1a120e 0%, #080605 100%);
 }
 
 .stage[data-scene='lounge'][data-tier='hall'] .stage-bg {
   background:
-    radial-gradient(60% 70% at 30% 30%, rgba(255, 180, 150, 0.16), transparent 55%),
-    radial-gradient(55% 60% at 80% 70%, rgba(230, 150, 100, 0.2), transparent 55%),
+    radial-gradient(60% 70% at 30% 30%, rgba(255, 180, 150, 0.11), transparent 55%),
+    radial-gradient(55% 60% at 80% 70%, rgba(230, 150, 100, 0.14), transparent 55%),
     linear-gradient(165deg, #241612 0%, #100c0a 100%);
 }
 
 .stage[data-scene='lounge'][data-tier='signature'] .stage-bg {
   background:
-    radial-gradient(70% 55% at 22% 18%, rgba(170, 200, 230, 0.22), transparent 58%),
-    radial-gradient(50% 45% at 78% 42%, rgba(224, 122, 58, 0.22), transparent 58%),
+    radial-gradient(70% 55% at 22% 18%, rgba(170, 200, 230, 0.14), transparent 58%),
+    radial-gradient(50% 45% at 78% 42%, rgba(224, 122, 58, 0.14), transparent 58%),
     linear-gradient(165deg, #1a2230 0%, #07080c 100%);
 }
 
@@ -8590,13 +8590,13 @@ html.layout-lab-device .boot {
 
 .app-shell[data-ui='d'] .stage-art {
   display: block;
-  opacity: 0.72;
+  opacity: 0.58;
   z-index: 0;
 }
 
 .app-shell[data-ui='d'] .stage[data-tier='nook'] .stage-art,
 .app-shell[data-ui='d'] .stage[data-tier='signature'] .stage-art {
-  opacity: 0.82;
+  opacity: 0.66;
 }
 
 .app-shell[data-ui='d'] .stage-fx {
@@ -8612,14 +8612,15 @@ html.layout-lab-device .boot {
   display: block;
   z-index: 1;
   content: '';
-  /* Лёгкий скрам только у CTA; низ почти открыт — арт виден через список */
+  /* Чуть плотнее скрам — арт не выжигает глаза, низ всё ещё читается */
   background:
-    linear-gradient(180deg, rgba(12, 9, 7, 0.18) 0%, transparent 22%),
+    linear-gradient(180deg, rgba(12, 9, 7, 0.34) 0%, rgba(12, 9, 7, 0.12) 26%, transparent 48%),
     linear-gradient(
       0deg,
-      rgba(12, 9, 7, 0.42) 0%,
-      rgba(12, 9, 7, 0.18) 28%,
-      transparent 55%
+      rgba(12, 9, 7, 0.55) 0%,
+      rgba(12, 9, 7, 0.28) 30%,
+      rgba(12, 9, 7, 0.1) 52%,
+      transparent 68%
     );
 }
 

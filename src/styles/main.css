@@ -2034,19 +2034,20 @@ body {
 }
 
 /*
-  Layout D: stage часто static/короткий → absolute toast уезжает под dock.
-  Фиксируем над нижним меню (Команда / Сюжет / …).
+  Layout D / TG: toast всегда над нижним dock.
+  #app > .toast — после showToast плашка вынесена из .stage.
 */
 .app-shell[data-ui='d'] .toast,
-#app > .toast {
-  position: fixed;
-  left: max(14px, env(safe-area-inset-left, 0px));
-  right: max(14px, env(safe-area-inset-right, 0px));
+#app > .toast,
+#app > .toast.toast--float {
+  position: fixed !important;
+  left: max(14px, env(safe-area-inset-left, 0px)) !important;
+  right: max(14px, env(safe-area-inset-right, 0px)) !important;
   bottom: calc(
-    78px + env(safe-area-inset-bottom, 0px) + var(--tg-content-safe-area-inset-bottom, 0px)
-  );
-  top: auto;
-  z-index: 60;
+    96px + env(safe-area-inset-bottom, 0px) + var(--tg-content-safe-area-inset-bottom, 0px)
+  ) !important;
+  top: auto !important;
+  z-index: 80 !important;
   max-width: 22rem;
   margin-inline: auto;
   width: fit-content;
@@ -2055,14 +2056,14 @@ body {
 }
 
 .app-shell[data-ui='d'] .stage[data-has-cta='1'] .toast {
-  bottom: auto;
-  top: max(
-    10px,
-    calc(88px + var(--tg-content-safe-area-inset-top, 0px) + env(safe-area-inset-top, 0px))
-  );
-  width: auto;
-  max-width: none;
-  min-width: 0;
+  /* CTA-экран: если toast ещё в stage — у верха; после портала на #app остаётся над dock */
+  bottom: calc(
+    96px + env(safe-area-inset-bottom, 0px) + var(--tg-content-safe-area-inset-bottom, 0px)
+  ) !important;
+  top: auto !important;
+  width: fit-content;
+  max-width: 22rem;
+  min-width: min(100%, 16rem);
 }
 
 .panel {

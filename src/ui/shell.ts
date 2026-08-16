@@ -1129,14 +1129,22 @@ export function updateJobCooldowns(
 }
 
 export function showToast(root: HTMLElement, message: string): void {
-  let el = root.querySelector('[data-toast]') as HTMLElement | null
+  // Держим toast на #app (не в .stage): в layout D absolute уезжал под нижнее меню
+  let el = root.querySelector(':scope > [data-toast]') as HTMLElement | null
   if (!el) {
-    el = document.createElement('div')
-    el.className = 'toast show'
-    el.setAttribute('data-toast', '')
-    el.setAttribute('role', 'status')
-    root.appendChild(el)
+    const nested = root.querySelector('[data-toast]') as HTMLElement | null
+    if (nested) {
+      el = nested
+      root.appendChild(el)
+    } else {
+      el = document.createElement('p')
+      el.className = 'toast'
+      el.setAttribute('data-toast', '')
+      el.setAttribute('role', 'status')
+      root.appendChild(el)
+    }
   }
+  el.classList.add('toast--float')
   el.textContent = message
   el.hidden = false
   el.classList.add('show')
